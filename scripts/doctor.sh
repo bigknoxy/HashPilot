@@ -88,7 +88,7 @@ fi
 
 # 7. Config file
 if [[ -f "${HOME}/.config/hashpilot/config.json" ]]; then
-  if jq -e . "${HOME}/.config/hashpilot/config.json" &>/dev/null 2>/dev/null; then
+  if jq -e . "${HOME}/.config/hashpilot/config.json" &>/dev/null 2>/dev/null>/dev/null; then
     pass "config-file" "Found valid config at ${HOME}/.config/hashpilot/config.json"
   else
     fail "config-file" "Config exists but is not valid JSON: ${HOME}/.config/hashpilot/config.json"

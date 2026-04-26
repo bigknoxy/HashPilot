@@ -2,6 +2,7 @@
 set -euo pipefail
 
 HASHPILOT_VERSION="0.1.0"
+# shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'
 GREEN='\033[0;32m'
@@ -70,9 +71,7 @@ fi
 
 # ── Detect existing install ──────────────────────────────────────────────
 MANIFEST="$TARGET_DIR/manifest.json"
-EXISTING=false
 if [[ -f "$MANIFEST" ]]; then
-  EXISTING=true
   if [[ "$FORCE" != "true" ]]; then
     warn "Existing HashPilot installation detected at $TARGET_DIR"
     echo -n "  Overwrite? [y/N] "
