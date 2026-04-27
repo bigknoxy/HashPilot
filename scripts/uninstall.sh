@@ -25,8 +25,10 @@ while [[ $# -gt 0 ]]; do
       echo "HashPilot Uninstaller"
       echo "Usage: $0 [options]"
       echo "  --keep-config   Preserve config and telemetry data"
-      echo "  --force, -f     Skip confirmation prompt"
+      echo "  --force, -f     Skip confirmation prompt (auto-detected when piped)"
       echo "  --help, -h      Show this help"
+      echo ""
+      echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh | sh -s -- -f"
       exit 0
       ;;
     *) err "Unknown option: $1"; exit 1 ;;

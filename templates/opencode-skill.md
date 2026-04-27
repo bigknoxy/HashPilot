@@ -1,6 +1,6 @@
 ---
 name: hashpilot
-description: HashPilot structured editing core for coding agents. Provides hash-anchored editing (replace-hash), syntax-aware AST editing via tree-sitter (TypeScript/TSX), batched read/search, verification bundling, and telemetry. Use when editing files precisely to reduce retries and token waste.
+description: HashPilot structured editing core for coding agents. Provides hash-anchored editing (replace-hash), syntax-aware AST editing via tree-sitter (TypeScript, TSX, JavaScript, Python, Go, Rust), batched read/search, verification bundling, and telemetry. Use when editing files precisely to reduce retries and token waste.
 ---
 
 # HashPilot — Structured Editing for Coding Agents
@@ -9,7 +9,7 @@ HashPilot is a global, tool-agnostic structured editing system that improves cod
 
 ## When to Use This Skill
 
-- **Editing TypeScript/TSX files**: Use AST commands for precise symbol-level edits
+- **Editing supported languages**: Use AST commands for precise symbol-level edits (TypeScript, TSX, JavaScript, Python, Go, Rust)
 - **Editing any file with hash anchoring**: Use `replace-hash` to avoid line-counting errors
 - **Reading multiple files**: Use `read-many` to batch reads with hashes
 - **Searching across codebases**: Use `grep-many` for structured search results
@@ -30,7 +30,7 @@ If not installed, see `~/.agentic-tools/structured-editing/docs/INSTALL.md`.
 
 Always prefer the highest-confidence route:
 
-1. **AST route** — For `.ts`/`.tsx` files with symbol-level operations (rename, replace-body, add/remove import, insert before/after)
+1. **AST route** — For supported languages (TypeScript, TSX, JavaScript, Python, Go, Rust) with symbol-level operations (rename, replace-body, add/remove import, insert before/after)
 2. **Hash route** — For all other edits where you have a content hash
 3. **Diff route** — Fallback for unsupported operations
 
@@ -87,7 +87,7 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 
 **File input**: Use `@filepath` to read new content from a file instead of inline.
 
-## AST Commands (TypeScript/TSX only)
+## AST Commands (TypeScript, TSX, JavaScript, Python, Go, Rust)
 
 ### find-symbols — List all symbols
 

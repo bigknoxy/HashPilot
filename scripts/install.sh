@@ -51,11 +51,15 @@ while [[ $# -gt 0 ]]; do
     --help|-h)
       echo "HashPilot Installer v${HASHPILOT_VERSION}"
       echo "Usage: $0 [options]"
-      echo "  --source <dir>     Source directory (default: repo root)"
+      echo "  --source <dir>     Source directory (default: repo root)."
+      echo "                     If omitted and no local source found,"
+      echo "                     auto-clones from GitHub."
       echo "  --target <dir>     Install target (default: ~/.agentic-tools)"
       echo "  --keep-telemetry   Preserve existing telemetry on reinstall"
       echo "  --force, -f        Overwrite existing install without prompt"
       echo "  --help, -h         Show this help"
+      echo ""
+      echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh"
       exit 0
       ;;
     *) err "Unknown option: $1"; exit 1 ;;

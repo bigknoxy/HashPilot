@@ -28,7 +28,7 @@ The skill and agent are already installed. If you need to set them up manually:
 ```bash
 # Skill
 mkdir -p ~/.config/opencode/skills/hashpilot
-cp ~/.agentic-tools/structured-editing/docs/INTEGRATION-OPENCODE-SKILL.md ~/.config/opencode/skills/hashpilot/SKILL.md
+cp ~/.agentic-tools/structured-editing/templates/opencode-skill.md ~/.config/opencode/skills/hashpilot/SKILL.md
 
 # Agent (already auto-discovered from ~/.config/opencode/agent/)
 # No additional setup needed

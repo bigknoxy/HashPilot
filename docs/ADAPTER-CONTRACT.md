@@ -161,8 +161,6 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 
 **Auto-recovery:** If the file was modified since the hash was computed (stale anchor), the tool auto-recovers by applying the edit to the current file content and returns `retries: 1`. For full-file replaces (no `--range`), this is always safe. For range-based replaces, the edit applies to the current range content.
 
-**Stale anchor with `--no-recovery`:** If `--no-recovery` is passed, stale anchors are returned as errors instead of auto-recovering.
-
 **Output (success):**
 ```json
 {
@@ -192,19 +190,6 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
   "diff": "- 10 | old line\n+ 10 | new line\n  11 | unchanged"
 }
 ```
-
-**Stale anchor with `--no-recovery`:** If `--no-recovery` is passed and the file changed since the hash was computed:
-
-```json
-{
-  "success": false,
-  "stale": true,
-  "retries": 0,
-  "message": "STALE ANCHOR: Content hash mismatch in lines 1-8.\n  Expected hash: abc123def456\n  Actual hash:   xyz789uvw012\n  ..."
-}
-```
-
-**Recovery:** By default, auto-recovery handles stale anchors. If you need manual control, use `--no-recovery` and re-read the file to get the current hash, then retry.
 
 ---
 
@@ -492,8 +477,6 @@ structured-edit telemetry clear
   "success": true,
   "fallback_reason": null,
   "retries": 0,
-  "recovered": false,
-  "failed_in": null,
   "verification_result": "pass",
   "elapsed_ms": 5
 }
@@ -502,8 +485,6 @@ structured-edit telemetry clear
 **Fields added in Phase 7:**
 - `language` — detected language for AST/hash operations (e.g., `"typescript"`, `"python"`, `"go"`)
 - `retries` — number of auto-retries performed (1 if auto-recovered from stale anchor, 0 otherwise)
-- `recovered` — true if the operation succeeded after retry/recovery
-- `failed_in` — for verify-changes, array of check names that failed (e.g., `["formatter"]`, `["linter", "tests"]`)
 
 ### telemetry health
 
@@ -572,8 +553,6 @@ Compare the current window against the previous window of the same length.
 ```
 
 ---
-
-### telemetry show
 
 ## Routing Priority
 

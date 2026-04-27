@@ -27,8 +27,7 @@ The HashPilot Pi extension is installed at `~/.pi/agent/extensions/hashpilot.ts`
 
 `/hp <subcommand>` — Quick access to HashPilot:
 - `/hp route <file> <op>` — Show which edit route would be chosen
-- `/hp status` — Show telemetry summary
-- `/hp symbols <file>` — List symbols in a file
+- `/hp telemetry` — Show telemetry summary
 
 ### Skill
 

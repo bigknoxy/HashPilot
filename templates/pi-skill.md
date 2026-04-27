@@ -11,7 +11,7 @@ You have access to HashPilot structured editing tools that are more reliable and
 
 Always follow this priority when editing files:
 
-1. **AST route** — For `.ts` and `.tsx` files, prefer `hashpilot_ast` for:
+1. **AST route** — For supported languages (TypeScript, TSX, JavaScript, Python, Go, Rust), prefer `hashpilot_ast` for:
    - `find-symbols` — list symbols in a file
    - `rename-symbol` — rename a symbol across all references
    - `replace-body` — replace a function/method body
@@ -27,14 +27,14 @@ Always follow this priority when editing files:
 
 ## Workflow
 
-### Editing a TypeScript file
+### Editing a supported language file (TypeScript, TSX, JavaScript, Python, Go, Rust)
 ```
 1. hashpilot_ast operation="find-symbols" file="src/foo.ts"
 2. hashpilot_ast operation="rename-symbol" file="src/foo.ts" name="oldFunc" newName="newFunc"
 3. hashpilot_verify files=["src/foo.ts"] formatter="prettier" linter="eslint"
 ```
 
-### Editing a non-TypeScript file
+### Editing an unsupported file type
 ```
 1. hashpilot_read files=["config.yaml"]
    → get hash from response

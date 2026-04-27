@@ -199,41 +199,6 @@ structured-edit telemetry health -w 7
 structured-edit telemetry health -w 7 --trend
 ```
 
-## Directory Structure
-
-```
-~/.agentic-tools/
-  structured-editing/
-    package.json           # Dependencies and scripts
-    tsconfig.json          # TypeScript config
-    src/
-      cli.ts               # CLI entry point
-      core/
-        index.ts           # Re-exports
-        read.ts             # read-many, read-hash, hash computation
-        grep.ts             # grep-many, symbol-lookup-many
-        hash-edit.ts        # replace-hash with stale-anchor rejection
-        ast-edit.ts         # tree-sitter AST operations
-        verify.ts           # verify-changes
-        telemetry.ts        # telemetry logging
-        router.ts           # AST → hash → diff routing
-    tests/
-      hash-edit.test.ts
-      ast-edit.test.ts
-      verify.test.ts
-      router.test.ts
-    docs/
-      INSTALL.md           # This file
-      ADAPTER-CONTRACT.md  # Machine-readable adapter contract
-      INTEGRATION-CLAUDE.md
-      INTEGRATION-OPENCODE.md
-      INTEGRATION-PI.md
-  bin/
-    structured-edit         # Symlink to CLI
-  logs/
-    telemetry.jsonl         # Telemetry event log
-```
-
 ## Running Tests
 
 ```bash
