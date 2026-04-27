@@ -38,15 +38,20 @@ echo ""
 
 # ── Confirmation ─────────────────────────────────────────────────────────
 if [[ "$FORCE" != "true" ]]; then
-  echo "This will remove HashPilot and all its components."
-  echo "  Target: $TARGET_DIR"
-  echo "  Keep config: $KEEP_CONFIG"
-  echo ""
-  echo -n "Continue? [y/N] "
-  read -r CONFIRM
-  if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
-    log "Uninstall cancelled."
-    exit 0
+  # When piped (no TTY), skip prompt — auto-force
+  if ! [[ -t 0 ]]; then
+    FORCE=true
+  else
+    echo "This will remove HashPilot and all its components."
+    echo "  Target: $TARGET_DIR"
+    echo "  Keep config: $KEEP_CONFIG"
+    echo ""
+    echo -n "Continue? [y/N] "
+    read -r CONFIRM
+    if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+      log "Uninstall cancelled."
+      exit 0
+    fi
   fi
 fi
 

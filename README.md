@@ -1,52 +1,68 @@
 # HashPilot
 
-Global, tool-agnostic structured editing core for coding agents. HashPilot provides syntax-aware editing via tree-sitter, hash-anchored content replacement, and batched verification — all accessible from any agent platform (Claude Code, OpenCode, Pi).
+Global, tool-agnostic structured editing core for coding agents. Syntax-aware editing via tree-sitter, hash-anchored content replacement, and batched verification — accessible from Claude Code, OpenCode, and Pi.
 
-## Features
-
-- **Hash-anchored editing** — Reliable content replacement using SHA-256 hashes with stale-anchor detection
-- **Syntax-aware editing** — AST-based operations via tree-sitter for TypeScript, TSX, JavaScript, Python, Go, and Rust
-- **Batched operations** — Read, search, and verify multiple files in a single call
-- **Smart routing** — Automatic AST → hash → fallback chain based on file type and operation
-- **Verification** — Run formatter, linter, and tests in one command
-- **Adapter integrations** — Native support for Claude Code, OpenCode, and Pi
-- **Telemetry** — Structured JSONL logging with health reporting and trend analysis
-
-## Quick Install
+## One-Line Install
 
 ```bash
-git clone https://github.com/bigknoxy/HashPilot.git
-cd HashPilot
-bash scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
+```
+
+This clones the repo, installs dependencies, creates the `structured-edit` CLI, adds it to PATH, and installs adapter integrations for Claude Code, OpenCode, and Pi.
+
+## One-Line Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh | sh -s -- -f
+```
+
+## Quick Start
+
+```bash
+# Run the health check
+structured-edit doctor
+
+# Read files with hashes
+structured-edit read-many file.ts
+
+# Search across files
+structured-edit grep-many "pattern" src/
+
+# Syntax-aware rename
+structured-edit ast rename-symbol file.ts oldName newName
 ```
 
 ## Requirements
 
-- **Bun** 1.2+ (runtime)
-- **Node.js** 20+ (alternative runtime)
+- **Bun** 1.2+
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `doctor` | Verify installation health |
+| `config` | Show merged configuration |
+| `read-many` | Read files with SHA-256 hashes |
+| `grep-many` | Search across files |
+| `replace-hash` | Hash-anchored content replacement |
+| `ast` | AST operations (find-symbols, rename-symbol, replace-body, add/remove-import, insert-before/after) |
+| `verify-changes` | Run formatter + linter + tests |
+| `route` | Show routing decision (AST → hash → fallback) |
+| `telemetry` | View health, summary, and events |
 
 ## Documentation
 
-- [Installation Guide](docs/INSTALL.md) — Full install, upgrade, and uninstall instructions
-- [Adapter Contract](docs/ADAPTER-CONTRACT.md) — Machine-readable adapter specification
-- Claude Code: [Integration](docs/INTEGRATION-CLAUDE.md)
-- OpenCode: [Integration](docs/INTEGRATION-OPENCODE.md)
-- Pi Agent: [Integration](docs/INTEGRATION-PI.md)
+- [Installation Guide](docs/INSTALL.md)
+- [Adapter Contract](docs/ADAPTER-CONTRACT.md)
+- [Claude Code Integration](docs/INTEGRATION-CLAUDE.md)
+- [OpenCode Integration](docs/INTEGRATION-OPENCODE.md)
+- [Pi Integration](docs/INTEGRATION-PI.md)
 
 ## Development
 
 ```bash
-# Install dependencies
 bun install
-
-# Run tests
 bun test
-
-# Build
-bun run build
-
-# Run doctor locally
-bun run src/cli.ts doctor
 ```
 
 ## License

@@ -71,11 +71,16 @@ tree-sitter-rust@^0.24.0        # Rust
 ### Quick install (recommended)
 
 ```bash
-# Clone the repository
-git clone <repo-url> ~/hashpilot
-cd ~/hashpilot
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
+```
 
-# Run the installer
+This auto-detects your platform, clones HashPilot from GitHub, installs dependencies, and configures all adapters.
+
+### Clone and install (for development)
+
+```bash
+git clone https://github.com/bigknoxy/HashPilot.git ~/hashpilot
+cd ~/hashpilot
 bash scripts/install.sh
 ```
 
@@ -255,6 +260,12 @@ The installer detects the existing install, upgrades core files, preserves your 
 ## Uninstalling
 
 To completely remove HashPilot:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh | sh -s -- -f
+```
+
+Or from a local clone:
 
 ```bash
 bash scripts/uninstall.sh

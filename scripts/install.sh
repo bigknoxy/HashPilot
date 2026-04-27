@@ -16,11 +16,28 @@ err()  { printf "${RED}[hashpilot]${NC} %s\n" "$1"; }
 detail() { printf "${DIM}  →${NC} %s\n" "$1"; }
 
 # ── Detect source directory ──────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REMOTE_MODE=false
+SOURCE_DIR=""
+
+# Try to resolve from script location (local clone mode)
+if SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"; then
+  REPO_ROOT="$(cd "$SCRIPT_DIR/.." 2>/dev/null && pwd 2>/dev/null || echo "")"
+  if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/package.json" ]; then
+    SOURCE_DIR="$REPO_ROOT"
+  fi
+fi
+
+# No local source — clone from GitHub (curl-pipe / remote mode)
+if [ -z "$SOURCE_DIR" ]; then
+  REMOTE_MODE=true
+  CLONE_DIR=$(mktemp -d)
+  log "Downloading HashPilot from GitHub..."
+  git clone --depth 1 https://github.com/bigknoxy/HashPilot.git "$CLONE_DIR" 2>&1 | while IFS= read -r line; do detail "$line"; done
+  SOURCE_DIR="$CLONE_DIR"
+  detail "Cloned to $CLONE_DIR"
+fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────
-SOURCE_DIR="$REPO_ROOT"
 TARGET_DIR="${HOME}/.agentic-tools"
 KEEP_TELEMETRY=false
 FORCE=false
@@ -59,6 +76,12 @@ detail "bun ${BUN_VER}"
 
 if ! command -v bash &>/dev/null; then
   err "bash is required"
+  exit 1
+fi
+
+if [[ "$REMOTE_MODE" == "true" ]] && ! command -v git &>/dev/null; then
+  err "git is required to download HashPilot"
+  err "Install it or use a local clone: git clone https://github.com/bigknoxy/HashPilot.git"
   exit 1
 fi
 
@@ -278,7 +301,7 @@ cat > "$MANIFEST_FILE" << MANIFEST
   "version": "1",
   "hashpilotVersion": "${HASHPILOT_VERSION}",
   "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "sourceType": "clone",
+  "sourceType": "$([ "$REMOTE_MODE" == "true" ] && echo "remote" || echo "clone")",
   "hashpilotDir": "${TARGET_DIR}",
   "components": {
     "core": {
@@ -311,6 +334,12 @@ cat > "$MANIFEST_FILE" << MANIFEST
 }
 MANIFEST
 detail "Manifest written to $MANIFEST_FILE"
+
+# ── Cleanup ────────────────────────────────────────────────────────────────
+if [[ "$REMOTE_MODE" == "true" && -n "${CLONE_DIR:-}" ]]; then
+  rm -rf "$CLONE_DIR"
+  detail "Cleaned up temporary source"
+fi
 
 # ── Verify ───────────────────────────────────────────────────────────────
 log "Verifying installation..."
