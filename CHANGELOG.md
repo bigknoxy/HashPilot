@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/bigknoxy/HashPilot/compare/v1.0.0...v1.1.0) (2026-04-27)
+
+
+### Features
+
+* one-line install/uninstall and README cleanup ([3311ca8](https://github.com/bigknoxy/HashPilot/commit/3311ca8277e1ee521605c50163ae4fbf21264a80))
+
 # 1.0.0 (2026-04-26)
 
 
