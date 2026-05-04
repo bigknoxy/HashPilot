@@ -305,12 +305,6 @@ export async function verifyChanges(
     (!typecheck || typecheck.passed) &&
     (!tests || tests.passed);
 
-  const anyFail =
-    (!!formatter && !formatter.passed) ||
-    (!!linter && !linter.passed) ||
-    (!!typecheck && !typecheck.passed) ||
-    (!!tests && !tests.passed);
-
   const failedIn: string[] = [];
   if (formatter && !formatter.passed) failedIn.push("formatter");
   if (linter && !linter.passed) failedIn.push("linter");
