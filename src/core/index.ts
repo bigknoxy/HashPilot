@@ -20,8 +20,26 @@ export {
 export type { ASTEditResult, SymbolInfo, LanguageCapability } from "./ast-edit";
 export { verifyChanges } from "./verify";
 export type { VerifyResult, VerifyOptions } from "./verify";
-export { recordEvent, readEvents, clearEvents, summary, health, healthTrend } from "./telemetry";
-export type { TelemetryEvent, HealthReport, HealthTrend } from "./telemetry";
+export {
+  recordEvent,
+  readEvents,
+  clearEvents,
+  summary,
+  health,
+  healthTrend,
+  ErrorCode,
+  listSessions,
+  exportEvents,
+  pruneEvents,
+  configureTelemetry,
+  getSessionId,
+  MAX_FILE_SIZE,
+  MAX_ROTATED_FILES,
+  RETENTION_DAYS,
+} from "./telemetry";
+export type { TelemetryEvent, HealthReport, HealthTrend, SessionSummary } from "./telemetry";
+export { generateUnifiedDiff, parsePatch, applyPatchToSource, applyPatch } from "./diff-engine";
+export type { Hunk, PatchResult } from "./diff-engine";
 export { chooseRoute, routeEdit } from "./router";
 export type { EditRoute, RouterResult, RouteExplanation } from "./router";
 export { loadConfig, policyForce } from "./config";

@@ -1,11 +1,36 @@
-import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync } from "fs";
+import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync } from "fs";
 import { join } from "path";
+import type { TelemetryConfig } from "./config";
 
 const LOG_DIR = join(process.env.HOME || "/root", ".agentic-tools", "logs");
 const LOG_FILE = join(LOG_DIR, "telemetry.jsonl");
+const ROTATED_FILE_RE = /^telemetry-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.jsonl$/;
+
+// Configurable defaults
+export let MAX_FILE_SIZE = 10 * 1024 * 1024;
+export let MAX_ROTATED_FILES = 10;
+export let RETENTION_DAYS = 30;
+
+export function configureTelemetry(cfg: TelemetryConfig): void {
+  if (cfg.maxFileSize !== undefined) MAX_FILE_SIZE = cfg.maxFileSize;
+  if (cfg.maxRotatedFiles !== undefined) MAX_ROTATED_FILES = cfg.maxRotatedFiles;
+  if (cfg.retentionDays !== undefined) RETENTION_DAYS = cfg.retentionDays;
+}
+
+export enum ErrorCode {
+  STALE_ANCHOR = "STALE_ANCHOR",
+  SYMBOL_NOT_FOUND = "SYMBOL_NOT_FOUND",
+  PARSE_ERROR = "PARSE_ERROR",
+  FILE_NOT_FOUND = "FILE_NOT_FOUND",
+  DUPLICATE_MATCH = "DUPLICATE_MATCH",
+  UNSUPPORTED_LANGUAGE = "UNSUPPORTED_LANGUAGE",
+  HASH_MISMATCH = "HASH_MISMATCH",
+  WRITE_FAILED = "WRITE_FAILED",
+}
 
 export interface TelemetryEvent {
   timestamp: string;
+  sessionId: string;
   operation: string;
   route: "ast" | "hash" | "diff" | "read" | "grep" | "verify" | "other";
   file?: string;
@@ -20,7 +45,20 @@ export interface TelemetryEvent {
   failed_in?: string[];
   elapsed_ms: number;
   detail?: string;
+  errorCode?: ErrorCode;
 }
+
+export interface SessionSummary {
+  sessionId: string;
+  eventCount: number;
+  errorRate: number;
+  firstTimestamp: string;
+  lastTimestamp: string;
+  durationMs: number;
+}
+
+// Generated once per CLI invocation at module load
+const sessionId = crypto.randomUUID();
 
 let sessionEnabled = true;
 
@@ -28,13 +66,63 @@ export function enableTelemetry(on: boolean = true): void {
   sessionEnabled = on;
 }
 
-export function recordEvent(event: Omit<TelemetryEvent, "timestamp">): void {
+export function getSessionId(): string {
+  return sessionId;
+}
+
+// --- File helpers ---
+
+function ensureLogDir(): void {
+  if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+}
+
+function rotatedFiles(): string[] {
+  if (!existsSync(LOG_DIR)) return [];
+  return readdirSync(LOG_DIR)
+    .filter((f) => ROTATED_FILE_RE.test(f))
+    .sort()
+    .map((f) => join(LOG_DIR, f));
+}
+
+function parseRotatedDate(filename: string): string | null {
+  const match = filename.match(ROTATED_FILE_RE);
+  return match ? match[1] : null;
+}
+
+function maybeRotate(): void {
+  if (!existsSync(LOG_FILE)) return;
+  const stat = statSync(LOG_FILE);
+  if (stat.size < MAX_FILE_SIZE) return;
+
+  const date = new Date().toISOString().split("T")[0];
+  let rotatedPath = join(LOG_DIR, `telemetry-${date}.jsonl`);
+  let counter = 1;
+  while (existsSync(rotatedPath)) {
+    counter++;
+    rotatedPath = join(LOG_DIR, `telemetry-${date}-${counter}.jsonl`);
+  }
+
+  renameSync(LOG_FILE, rotatedPath);
+
+  // Enforce max rotated files
+  const files = rotatedFiles();
+  while (files.length > MAX_ROTATED_FILES) {
+    const oldest = files.shift()!;
+    try { unlinkSync(oldest); } catch {}
+  }
+}
+
+// --- Core functions ---
+
+export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId">): void {
   if (!sessionEnabled) return;
   try {
-    if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+    ensureLogDir();
+    maybeRotate();
     const entry: TelemetryEvent = {
       ...event,
       timestamp: new Date().toISOString(),
+      sessionId,
     };
     appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n");
   } catch {}
@@ -51,16 +139,110 @@ export function readEvents(limit: number = 100): TelemetryEvent[] {
   }
 }
 
+function readAllEvents(): TelemetryEvent[] {
+  const events: TelemetryEvent[] = [];
+
+  // Read current file first
+  try {
+    if (existsSync(LOG_FILE)) {
+      const content = readFileSync(LOG_FILE, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      for (const l of lines) {
+        try { events.push(JSON.parse(l)); } catch {}
+      }
+    }
+  } catch {}
+
+  // Read all rotated files
+  for (const f of rotatedFiles()) {
+    try {
+      const content = readFileSync(f, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      for (const l of lines) {
+        try { events.push(JSON.parse(l)); } catch {}
+      }
+    } catch {}
+  }
+
+  return events;
+}
+
+export function exportEvents(options?: { from?: Date; to?: Date; sessionId?: string }): TelemetryEvent[] {
+  const all = readAllEvents();
+  return all.filter((e) => {
+    if (options?.from || options?.to) {
+      const ts = new Date(e.timestamp).getTime();
+      if (options.from && ts < options.from.getTime()) return false;
+      if (options.to && ts > options.to.getTime()) return false;
+    }
+    if (options?.sessionId && e.sessionId !== options.sessionId) return false;
+    return true;
+  });
+}
+
+export function listSessions(): SessionSummary[] {
+  const all = readAllEvents();
+  const groups: Record<string, TelemetryEvent[]> = {};
+  for (const e of all) {
+    if (!groups[e.sessionId]) groups[e.sessionId] = [];
+    groups[e.sessionId].push(e);
+  }
+
+  return Object.entries(groups)
+    .map(([sid, evts]) => {
+      const sorted = evts.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      const firstTs = new Date(first.timestamp).getTime();
+      const lastTs = new Date(last.timestamp).getTime();
+      const errors = sorted.filter((e) => !e.success).length;
+      return {
+        sessionId: sid,
+        eventCount: sorted.length,
+        errorRate: Math.round((errors / sorted.length) * 1000) / 10,
+        firstTimestamp: first.timestamp,
+        lastTimestamp: last.timestamp,
+        durationMs: lastTs - firstTs,
+      };
+    })
+    .sort((a, b) => new Date(b.firstTimestamp).getTime() - new Date(a.firstTimestamp).getTime());
+}
+
+export function pruneEvents(olderThanDays: number = RETENTION_DAYS): number {
+  const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
+  let deleted = 0;
+
+  for (const f of rotatedFiles()) {
+    const basename = f.split("/").pop() || "";
+    const dateStr = parseRotatedDate(basename);
+    if (!dateStr) continue;
+
+    const fileDate = new Date(dateStr + "T00:00:00Z").getTime();
+    if (fileDate < cutoff) {
+      try {
+        unlinkSync(f);
+        deleted++;
+      } catch {}
+    }
+  }
+
+  return deleted;
+}
+
 export function clearEvents(): void {
   try {
     if (existsSync(LOG_FILE)) {
       writeFileSync(LOG_FILE, "");
     }
+    // Also clean up rotated files
+    for (const f of rotatedFiles()) {
+      try { unlinkSync(f); } catch {}
+    }
   } catch {}
 }
 
 export function summary(): Record<string, { count: number; success: number; avg_ms: number }> {
-  const events = readEvents(10000);
+  const events = readAllEvents().slice(-10000);
   const buckets: Record<string, { count: number; success: number; total_ms: number }> = {};
   for (const e of events) {
     const key = `${e.route}:${e.operation}`;
@@ -93,9 +275,9 @@ export interface HealthReport {
 }
 
 export function health(windowDays: number = 7): HealthReport {
-  const events = readEvents(10000).filter((e) => {
-    const age = Date.now() - new Date(e.timestamp).getTime();
-    return age < windowDays * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  const events = readAllEvents().filter((e) => {
+    return new Date(e.timestamp).getTime() >= cutoff;
   });
 
   const routeDistribution: Record<string, { count: number; success: number }> = {};
@@ -212,8 +394,7 @@ export interface HealthTrend {
 
 export function healthTrend(windowDays: number = 7): HealthTrend {
   const current = health(windowDays);
-  // Previous window is the same length, ending at the start of the current window
-  const previous = healthFromWindow(windowDays * 2, windowDays * 2 - windowDays);
+  const previous = healthFromWindow(windowDays * 2, windowDays);
   const changes = compareHealth(current, previous);
   return { current, previous, changes };
 }
@@ -223,7 +404,7 @@ function healthFromWindow(pastDays: number, offsetDays: number): HealthReport {
   const windowEnd = now - offsetDays * 24 * 60 * 60 * 1000;
   const windowStart = now - pastDays * 24 * 60 * 60 * 1000;
 
-  const events = readEvents(10000).filter((e) => {
+  const events = readAllEvents().filter((e) => {
     const ts = new Date(e.timestamp).getTime();
     return ts >= windowStart && ts < windowEnd;
   });
@@ -286,7 +467,6 @@ function compareHealth(current: HealthReport, previous: HealthReport): HealthTre
   const newWarnings: string[] = [];
   const resolvedWarnings: string[] = [];
 
-  // Warnings that appeared or disappeared
   const currentWarnSet = new Set(current.warnings);
   const prevWarnSet = new Set(previous.warnings);
   for (const w of current.warnings) {
@@ -296,22 +476,18 @@ function compareHealth(current: HealthReport, previous: HealthReport): HealthTre
     if (!currentWarnSet.has(w)) resolvedWarnings.push(w);
   }
 
-  // Error rate delta
   const curTotal = current.totalEvents || 1;
   const prevTotal = previous.totalEvents || 1;
   const curErrors = current.totalEvents - Object.values(current.routeDistribution).reduce((s, r) => s + r.success, 0);
   const prevErrors = previous.totalEvents - Object.values(previous.routeDistribution).reduce((s, r) => s + r.success, 0);
   const errorRateDelta = ((curErrors / curTotal) - (prevErrors / prevTotal)) * 100;
 
-  // Stale anchor count delta
   const staleAnchorDelta = current.staleAnchors.total - previous.staleAnchors.total;
 
-  // Verify failure rate delta
   const curVerifyRate = current.verifyFailures.total / Math.max(1, Object.values(current.routeDistribution).filter(r => r.count > 0).length);
   const prevVerifyRate = previous.verifyFailures.total / Math.max(1, Object.values(previous.routeDistribution).filter(r => r.count > 0).length);
   const verifyFailureDelta = (curVerifyRate - prevVerifyRate) * 100;
 
-  // Language regressions: languages that gained failures
   const languageRegressions: string[] = [];
   for (const [lang, curStats] of Object.entries(current.perLanguage)) {
     const prevStats = previous.perLanguage[lang];
@@ -334,4 +510,3 @@ function compareHealth(current: HealthReport, previous: HealthReport): HealthTre
     languageRegressions,
   };
 }
-

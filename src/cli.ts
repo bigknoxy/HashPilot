@@ -23,10 +23,16 @@ import {
   health,
   healthTrend,
   chooseRoute,
-  routeEdit,
   astCapabilities,
   loadConfig,
   doctor,
+  routeEdit,
+  generateUnifiedDiff,
+  applyPatch,
+  ErrorCode,
+  listSessions,
+  exportEvents,
+  pruneEvents,
 } from "./core/index";
 
 const program = new Command();
@@ -191,6 +197,7 @@ astCmd
       language: detectLanguage(file) || undefined,
       success: result.success,
       elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR),
     });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -212,7 +219,7 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "replace-body", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start });
+    recordEvent({ operation: "replace-body", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -230,7 +237,7 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "add-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start });
+    recordEvent({ operation: "add-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -248,7 +255,7 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "remove-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start });
+    recordEvent({ operation: "remove-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -269,7 +276,7 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "insert-before", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start });
+    recordEvent({ operation: "insert-before", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -290,7 +297,7 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "insert-after", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start });
+    recordEvent({ operation: "insert-after", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -338,6 +345,77 @@ program
       dryRun: opts.dryRun,
     });
 
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+const diffCmd = program
+  .command("diff")
+  .description("Unified diff generation and patch application");
+
+diffCmd
+  .command("generate")
+  .description("Generate a unified diff between old and new content")
+  .argument("<file>", "File path (for diff header)")
+  .argument("<old-content>", "Old content (or @file)")
+  .argument("<new-content>", "New content (or @file)")
+  .option("-c, --context <n>", "Context lines", "3")
+  .action(async (file: string, oldContent: string, newContent: string, opts) => {
+    const start = Date.now();
+    let oldSrc = oldContent;
+    let newSrc = newContent;
+    if (oldContent.startsWith("@")) oldSrc = await Bun.file(oldContent.slice(1)).text();
+    if (newContent.startsWith("@")) newSrc = await Bun.file(newContent.slice(1)).text();
+    const diff = generateUnifiedDiff(oldSrc, newSrc, file, parseInt(opts.context));
+    recordEvent({
+      operation: "diff-generate",
+      route: "diff",
+      file,
+      success: true,
+      elapsed_ms: Date.now() - start,
+    });
+    if (diff) {
+      console.log(diff);
+    } else {
+      console.log("(no changes)");
+    }
+  });
+
+diffCmd
+  .command("apply")
+  .description("Apply a unified diff patch to a file")
+  .argument("<file>", "File to patch")
+  .option("--patch <file>", "Patch file to apply (or '-' for stdin)")
+  .option("--dry-run", "Preview without writing")
+  .option("-f, --fuzzy <n>", "Fuzzy match tolerance", "3")
+  .option("--json", "Output as JSON", true)
+  .action(async (file: string, opts) => {
+    const start = Date.now();
+    let patchText: string;
+    if (opts.patch === "-") {
+      // Read from stdin
+      const chunks: string[] = [];
+      for await (const chunk of Bun.stdin.stream()) {
+        chunks.push(Buffer.from(chunk).toString());
+      }
+      patchText = chunks.join("");
+    } else if (opts.patch) {
+      patchText = await Bun.file(opts.patch).text();
+    } else {
+      console.log(JSON.stringify({ success: false, message: "--patch is required" }));
+      process.exit(1);
+    }
+    const result = await applyPatch(file, patchText, {
+      dryRun: opts.dryRun,
+      fuzzyMatch: parseInt(opts.fuzzy),
+    });
+    recordEvent({
+      operation: "diff-apply",
+      route: "diff",
+      file,
+      language: detectLanguage(file) || undefined,
+      success: result.success,
+      elapsed_ms: Date.now() - start,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -403,6 +481,40 @@ telCmd
   .action(() => {
     clearEvents();
     console.log("Telemetry cleared.");
+  });
+
+telCmd
+  .command("sessions")
+  .description("List session summaries")
+  .action(() => {
+    const sessions = listSessions();
+    console.log(JSON.stringify(sessions, null, 2));
+  });
+
+telCmd
+  .command("export")
+  .description("Export telemetry events as NDJSON")
+  .option("--from <date>", "Start date (ISO format)")
+  .option("--to <date>", "End date (ISO format)")
+  .option("--session <id>", "Session ID filter")
+  .action((opts) => {
+    const events = exportEvents({
+      from: opts.from ? new Date(opts.from) : undefined,
+      to: opts.to ? new Date(opts.to) : undefined,
+      sessionId: opts.session,
+    });
+    for (const e of events) {
+      console.log(JSON.stringify(e));
+    }
+  });
+
+telCmd
+  .command("prune")
+  .description("Delete old rotated telemetry files")
+  .option("-d, --older-than <days>", "Days threshold", "30")
+  .action((opts) => {
+    const deleted = pruneEvents(parseInt(opts.olderThan));
+    console.log(`Pruned ${deleted} telemetry file(s).`);
   });
 
 program

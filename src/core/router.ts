@@ -11,7 +11,7 @@ import {
 } from "./ast-edit";
 import { replaceHash, ReplaceHashResult } from "./hash-edit";
 import { ReadResult, ReadHashResult, readMany, readHash, computeHash } from "./read";
-import { recordEvent } from "./telemetry";
+import { recordEvent, ErrorCode } from "./telemetry";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 
 export type EditRoute = "ast" | "hash" | "diff";
@@ -224,6 +224,18 @@ export async function routeEdit(params: {
   }
 
   const elapsed = Date.now() - start;
+
+  let errorCode: ErrorCode | undefined;
+  if (!result.success) {
+    if (result.stale) {
+      errorCode = ErrorCode.STALE_ANCHOR;
+    } else if (result.message?.includes("not found") || result.message?.includes("ENOENT")) {
+      errorCode = ErrorCode.FILE_NOT_FOUND;
+    } else if (result.message?.includes("hash")) {
+      errorCode = ErrorCode.HASH_MISMATCH;
+    }
+  }
+
   recordEvent({
     operation,
     route,
@@ -233,6 +245,7 @@ export async function routeEdit(params: {
     fallback_reason: fallback,
     retries: result.retries,
     elapsed_ms: elapsed,
+    errorCode,
   });
 
   return { route, routeReason, fallback, result, elapsed_ms: elapsed, explanation };

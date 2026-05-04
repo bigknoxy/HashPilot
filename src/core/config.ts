@@ -13,6 +13,9 @@ export interface RoutePolicy {
 
 export interface TelemetryConfig {
   enabled?: boolean;
+  maxFileSize?: number;
+  maxRotatedFiles?: number;
+  retentionDays?: number;
 }
 
 export interface HashPilotConfig {
@@ -21,7 +24,7 @@ export interface HashPilotConfig {
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
-  telemetry: { enabled: true },
+  telemetry: { enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30 },
 };
 
 const ROUTE_PRECEDENCE: EditRoute[] = ["diff", "hash", "ast"];
@@ -95,9 +98,12 @@ export function loadConfig(configPath?: string): HashPilotConfig {
 }
 
 function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>): void {
-  if (override.telemetry?.enabled !== undefined) {
+  if (override.telemetry) {
     base.telemetry = base.telemetry || {};
-    base.telemetry.enabled = override.telemetry.enabled;
+    if (override.telemetry.enabled !== undefined) base.telemetry.enabled = override.telemetry.enabled;
+    if (override.telemetry.maxFileSize !== undefined) base.telemetry.maxFileSize = override.telemetry.maxFileSize;
+    if (override.telemetry.maxRotatedFiles !== undefined) base.telemetry.maxRotatedFiles = override.telemetry.maxRotatedFiles;
+    if (override.telemetry.retentionDays !== undefined) base.telemetry.retentionDays = override.telemetry.retentionDays;
   }
   if (override.routePolicy) {
     base.routePolicy = base.routePolicy || {};
