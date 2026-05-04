@@ -1,3 +1,13 @@
+# [1.2.0](https://github.com/bigknoxy/HashPilot/compare/v1.1.0...v1.2.0) (2026-05-04)
+
+
+### Features
+
+* add batch editing for multi-file operations ([7d730a8](https://github.com/bigknoxy/HashPilot/commit/7d730a8b3958aeee44b70147f675005838e8c529))
+* add unified diff engine and production telemetry ([f81f7a1](https://github.com/bigknoxy/HashPilot/commit/f81f7a1a2b1f46bdcf1a666cbfc107895163d23c))
+* implement routeEdit with AST, hash, and diff dispatch ([82946c0](https://github.com/bigknoxy/HashPilot/commit/82946c00b4f485edb81841ff5646e917e5780588))
+* upgrade verification pipeline with typecheck, auto-detect, and revert ([44ccf62](https://github.com/bigknoxy/HashPilot/commit/44ccf62c74cb6d9002243c9c63b4628d73a20050))
+
 # [1.1.0](https://github.com/bigknoxy/HashPilot/compare/v1.0.0...v1.1.0) (2026-04-27)
 
 
