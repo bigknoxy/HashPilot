@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/bigknoxy/HashPilot/compare/v1.2.0...v1.2.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* remove dead anyFail variable in verifyChanges ([1f8704a](https://github.com/bigknoxy/HashPilot/commit/1f8704a9bbaff12136d35e26bed8cd6f6ad19b2f))
+
 # [1.2.0](https://github.com/bigknoxy/HashPilot/compare/v1.1.0...v1.2.0) (2026-05-04)
 
 
