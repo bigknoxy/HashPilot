@@ -1,4 +1,14 @@
-import { isLanguageSupported, detectLanguage } from "./ast-edit";
+import {
+  isLanguageSupported,
+  detectLanguage,
+  renameSymbol,
+  replaceBody,
+  addImport,
+  removeImport,
+  insertBeforeSymbol,
+  insertAfterSymbol,
+  findSymbols,
+} from "./ast-edit";
 import { replaceHash, ReplaceHashResult } from "./hash-edit";
 import { ReadResult, ReadHashResult, readMany, readHash, computeHash } from "./read";
 import { recordEvent } from "./telemetry";
@@ -91,12 +101,23 @@ export async function routeEdit(params: {
   operation: string;
   method?: EditRoute;
   policy?: RoutePolicy;
+  // Hash params
   oldHash?: string;
   newContent?: string;
   range?: { start: number; end: number };
+  // AST params
+  oldName?: string;
+  newName?: string;
+  symbolName?: string;
+  newBody?: string;
+  importSpec?: string;
+  content?: string;
+  // Diff params (search-and-replace fallback)
+  oldContent?: string;
+  dryRun?: boolean;
 }): Promise<RouterResult> {
   const start = Date.now();
-  const { filePath, operation, method, policy, oldHash, newContent, range } = params;
+  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun } = params;
 
   let route: EditRoute;
   let explanation: RouteExplanation;
@@ -118,27 +139,88 @@ export async function routeEdit(params: {
   let fallback: string | undefined;
 
   if (route === "ast" && !isLanguageSupported(filePath)) {
-    routeReason = `AST not supported for ${filePath}, falling back to hash`;
-    fallback = "AST unsupported for this file type";
-    route = "hash";
+    if (method) {
+      result = { success: false, message: `Cannot force AST route: ${filePath} is not a supported language file` };
+    } else {
+      fallback = "AST unsupported for this file type";
+      route = "hash";
+    }
   }
 
   if (route === "hash") {
     if (!oldHash || !newContent) {
       route = "diff";
       fallback = "Hash edit requires oldHash and newContent";
-      routeReason = `Missing hash params, falling back to diff`;
     }
   }
 
   routeReason = `${explanation.reasons.join("; ")}${fallback ? `; ${fallback}` : ""}`;
 
-  switch (route) {
-    case "hash":
-      result = await replaceHash(filePath, oldHash!, newContent!, { range });
+  if (!result) {
+    switch (route) {
+      case "ast": {
+        let source: string;
+        try {
+          source = await Bun.file(filePath).text();
+        } catch (e: any) {
+          result = { success: false, message: `Failed to read file: ${e.message}` };
+          break;
+        }
+        switch (operation) {
+        case "rename-symbol":
+          result = renameSymbol(source, filePath, oldName!, newName!);
+          break;
+        case "replace-body":
+          result = replaceBody(source, filePath, symbolName!, newBody!);
+          break;
+        case "add-import":
+          result = addImport(source, filePath, importSpec!);
+          break;
+        case "remove-import":
+          result = removeImport(source, filePath, importSpec!);
+          break;
+        case "insert-before":
+          result = insertBeforeSymbol(source, filePath, symbolName!, insertContent!);
+          break;
+        case "insert-after":
+          result = insertAfterSymbol(source, filePath, symbolName!, insertContent!);
+          break;
+        case "find-symbols":
+          result = { success: true, symbols: findSymbols(source, filePath), message: "Symbols found" };
+          break;
+        default:
+          result = { success: false, message: `Unknown AST operation: ${operation}` };
+      }
+      // Write result to file if successful
+      if (result.success && (result as any).newSource && !dryRun) {
+        await Bun.write(filePath, (result as any).newSource);
+      }
       break;
+    }
+    case "hash":
+      result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun });
+      break;
+    case "diff": {
+      if (!oldContent || !newContent) {
+        result = { success: false, message: "Diff route requires oldContent and newContent" };
+        break;
+      }
+      let source: string;
+      try {
+        source = await Bun.file(filePath).text();
+      } catch (e: any) {
+        result = { success: false, message: `Failed to read file: ${e.message}` };
+        break;
+      }
+      result = applyTextReplace(source, filePath, oldContent, newContent);
+      if (result.success && (result as any).newSource && !dryRun) {
+        await Bun.write(filePath, (result as any).newSource);
+      }
+      break;
+    }
     default:
-      result = { success: false, message: "Diff route not yet implemented directly through router; use replace-hash with explicit parameters" };
+      result = { success: false, message: `Unknown route: ${route}` };
+    }
   }
 
   const elapsed = Date.now() - start;
@@ -154,4 +236,44 @@ export async function routeEdit(params: {
   });
 
   return { route, routeReason, fallback, result, elapsed_ms: elapsed, explanation };
+}
+
+/**
+ * Search-and-replace fallback for the diff route.
+ * Detects duplicates and reports the count. If oldContent appears more than once,
+ * fails with a message listing occurrences so the caller can disambiguate.
+ */
+function applyTextReplace(
+  source: string,
+  filePath: string,
+  oldContent: string,
+  newContent: string
+): { success: boolean; message: string; newSource?: string } {
+  // Count exact occurrences in the full source
+  const occurrences: number[] = [];
+  let idx = 0;
+  while ((idx = source.indexOf(oldContent, idx)) !== -1) {
+    const lineNum = source.slice(0, idx).split("\n").length;
+    occurrences.push(lineNum);
+    idx += oldContent.length;
+  }
+
+  if (occurrences.length === 0) {
+    return { success: false, message: `Content not found in ${filePath}. File may have changed — re-read and retry.` };
+  }
+
+  if (occurrences.length > 1) {
+    const locs = occurrences.map((l) => `line ${l}`).join(", ");
+    return {
+      success: false,
+      message: `Content appears ${occurrences.length} times (${locs}). Provide more context to disambiguate.`,
+    };
+  }
+
+  const newSource = source.split(oldContent).join(newContent);
+  return {
+    success: true,
+    message: `Replaced content at line ${occurrences[0]}`,
+    newSource,
+  };
 }
