@@ -421,21 +421,33 @@ diffCmd
 
 program
   .command("verify-changes")
-  .description("Run formatter, linter, and tests on changed files")
+  .description("Run formatter, linter, typechecker, and tests on changed files")
   .argument("<files...>", "Files to verify")
   .option("--formatter <cmd>", "Formatter command")
   .option("--linter <cmd>", "Linter command")
+  .option("--typecheck <cmd>", "Type checker command (e.g. 'tsc --noEmit')")
   .option("--test-filter <pattern>", "Test filter pattern")
+  .option("--test-runner <runner>", "Test runner (bun test, vitest, jest, pytest, go test, cargo test)")
   .option("--formatter-args <args...>", "Formatter args")
   .option("--linter-args <args...>", "Linter args")
+  .option("--test-args <args...>", "Test runner args")
+  .option("--auto-detect", "Auto-detect tools from project config files")
+  .option("--revert-on-failure", "Restore original file contents if any check fails")
+  .option("--timeout <ms>", "Per-check timeout in ms (default 30000)", parseInt)
   .option("--json", "Output as JSON", true)
   .action(async (files: string[], opts) => {
     const result = await verifyChanges(files, {
       formatter: opts.formatter,
       linter: opts.linter,
+      typecheck: opts.typecheck,
       testFilter: opts.testFilter,
+      testRunner: opts.testRunner,
       formatterArgs: opts.formatterArgs,
       linterArgs: opts.linterArgs,
+      testArgs: opts.testArgs,
+      autoDetect: opts.autoDetect,
+      revertOnFailure: opts.revertOnFailure,
+      timeout: opts.timeout,
     });
     console.log(JSON.stringify(result, null, 2));
   });
