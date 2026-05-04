@@ -42,6 +42,8 @@ export { generateUnifiedDiff, parsePatch, applyPatchToSource, applyPatch } from 
 export type { Hunk, PatchResult } from "./diff-engine";
 export { chooseRoute, routeEdit } from "./router";
 export type { EditRoute, RouterResult, RouteExplanation } from "./router";
+export { editMany, editManySerial } from "./batch-edit";
+export type { BatchParams, BatchResult, BatchSummary } from "./batch-edit";
 export { loadConfig, policyForce } from "./config";
 export type { HashPilotConfig, RoutePolicy, TelemetryConfig } from "./config";
 export { doctor } from "./doctor";

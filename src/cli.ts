@@ -27,6 +27,8 @@ import {
   loadConfig,
   doctor,
   routeEdit,
+  editMany,
+  editManySerial,
   generateUnifiedDiff,
   applyPatch,
   ErrorCode,
@@ -344,6 +346,58 @@ program
       policy: opts.policy ? JSON.parse(opts.policy) : undefined,
       dryRun: opts.dryRun,
     });
+
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command("batch")
+  .description("Apply the same edit to multiple files in parallel")
+  .argument("<operation>", "Operation (rename-symbol, replace-body, add-import, remove-import, insert-before, insert-after, replace-hash, replace-content)")
+  .argument("<files...>", "Files to edit")
+  .option("--method <route>", "Force a specific route (ast, hash, diff)")
+  .option("--old-hash <hash>", "Hash for hash-route verification")
+  .option("--new-content <text>", "New content (or @file)")
+  .option("--old-content <text>", "Old content for diff-route search-and-replace")
+  .option("--range <start:end>", "Line range for hash route")
+  .option("--old-name <name>", "Old symbol name (rename-symbol)")
+  .option("--new-name <name>", "New symbol name (rename-symbol)")
+  .option("--symbol <name>", "Symbol name (replace-body, insert-before, insert-after)")
+  .option("--new-body <text>", "New body content (replace-body, or @file)")
+  .option("--import-spec <spec>", "Import spec (add-import, remove-import)")
+  .option("--content <text>", "Content (insert-before, insert-after, or @file)")
+  .option("--policy <json>", "Inline RoutePolicy JSON")
+  .option("--serial", "Execute sequentially instead of parallel")
+  .option("--dry-run", "Preview without writing")
+  .option("--json", "Output as JSON", true)
+  .action(async (operation: string, files: string[], opts) => {
+    const resolveContent = async (val?: string): Promise<string | undefined> => {
+      if (!val) return undefined;
+      if (val.startsWith("@")) return await Bun.file(val.slice(1)).text();
+      return val;
+    };
+
+    const batchParams = {
+      files,
+      operation,
+      method: opts.method,
+      oldHash: opts.oldHash,
+      newContent: await resolveContent(opts.newContent),
+      oldContent: opts.oldContent,
+      range: opts.range ? (([s, e]: number[]) => ({ start: s, end: e }))(opts.range.split(":").map(Number)) : undefined,
+      oldName: opts.oldName,
+      newName: opts.newName,
+      symbolName: opts.symbol,
+      newBody: await resolveContent(opts.newBody),
+      importSpec: opts.importSpec,
+      content: await resolveContent(opts.content),
+      policy: opts.policy ? JSON.parse(opts.policy) : undefined,
+      dryRun: opts.dryRun,
+    };
+
+    const result = opts.serial
+      ? await editManySerial(batchParams)
+      : await editMany(batchParams);
 
     console.log(JSON.stringify(result, null, 2));
   });
