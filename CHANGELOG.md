@@ -1,9 +1,19 @@
 # [1.3.0](https://github.com/bigknoxy/HashPilot/compare/v1.2.1...v1.3.0) (2026-05-05)
 
-
 ### Features
 
 * add intelligent editing intent engine (M5) ([2880771](https://github.com/bigknoxy/HashPilot/commit/28807711f3dd2fa814f1d36b1999466e3e2e103a))
+  - Three-layer architecture: Intent Parser → Reference Discovery → Plan Executor
+  - `structured-edit intent '<json>'` — one command for multi-file structured edits
+  - Supports add-parameter, remove-parameter, rename-exported-symbol
+  - Cross-language: TypeScript, JavaScript, Python, Go, Rust
+  - Atomic execution with snapshot-based rollback on failure
+
+### Bug Fixes
+
+* fix single-file grep output format parsing ([2880771](https://github.com/bigknoxy/HashPilot/commit/28807711f3dd2fa814f1d36b1999466e3e2e103a))
+  - ugrep single-file `line:text` format was not parsed, causing zero reference results
+
 
 ## [1.2.1](https://github.com/bigknoxy/HashPilot/compare/v1.2.0...v1.2.1) (2026-05-04)
 
