@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/bigknoxy/HashPilot/compare/v1.2.1...v1.3.0) (2026-05-05)
+
+
+### Features
+
+* add intelligent editing intent engine (M5) ([2880771](https://github.com/bigknoxy/HashPilot/commit/28807711f3dd2fa814f1d36b1999466e3e2e103a))
+
 ## [1.2.1](https://github.com/bigknoxy/HashPilot/compare/v1.2.0...v1.2.1) (2026-05-04)
 
 
