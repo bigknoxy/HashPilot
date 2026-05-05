@@ -12,6 +12,8 @@ export {
   removeImport,
   insertBeforeSymbol,
   insertAfterSymbol,
+  insertParameter,
+  insertCallArg,
   detectLanguage,
   isLanguageSupported,
   supportedLanguages,
@@ -44,6 +46,20 @@ export { chooseRoute, routeEdit } from "./router";
 export type { EditRoute, RouterResult, RouteExplanation } from "./router";
 export { editMany, editManySerial } from "./batch-edit";
 export type { BatchParams, BatchResult, BatchSummary } from "./batch-edit";
+export { parseIntent, findSymbolDefinition, findReferences, generatePlan } from "./intent";
+export type {
+  IntentOperation,
+  StructuredIntent,
+  AddParameterIntent,
+  RemoveParameterIntent,
+  RenameExportedSymbolIntent,
+  ReferenceLocation,
+  SymbolDefinition,
+  EditStep,
+  EditPlan,
+} from "./intent";
+export { executeIntent, executePlan } from "./plan-executor";
+export type { StepResult, PlanResult, IntentResult } from "./plan-executor";
 export { loadConfig, policyForce } from "./config";
 export type { HashPilotConfig, RoutePolicy, TelemetryConfig } from "./config";
 export { doctor } from "./doctor";

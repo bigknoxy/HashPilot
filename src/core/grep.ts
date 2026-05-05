@@ -23,12 +23,14 @@ export async function grepMany(
     ignoreCase?: boolean;
     filePattern?: string;
     maxResults?: number;
+    wordMatch?: boolean;
   } = {}
 ): Promise<GrepManyResult> {
   const start = Date.now();
   try {
-    const args: string[] = ["-rn", "--column"];
+    const args: string[] = ["-rn"];
     if (options.ignoreCase) args.push("-i");
+    if (options.wordMatch) args.push("-w");
     if (options.filePattern) args.push("--include", options.filePattern);
     if (options.maxResults) args.push("-m", String(options.maxResults));
     args.push("-E", pattern, ...paths);
@@ -36,15 +38,40 @@ export async function grepMany(
     const result = await runCommand("grep", args);
     const lines = result.stdout.split("\n").filter(Boolean);
     const results: GrepResult[] = lines.map((line) => {
-      const match = line.match(/^([^:]+):(\d+):(\d+):(.*)$/);
-      if (!match) return null as any;
-      return {
-        path: match[1],
-        line: parseInt(match[2]),
-        column: parseInt(match[3]),
-        content: match[4],
-        match: pattern,
-      };
+      // Handle multiple output formats:
+      // - Multi-file GNU grep:  "file:line:column:text"
+      // - Multi-file ugrep:     "file:line:text"
+      // - Single-file ugrep:    "line:text"
+      // - Single-file GNU grep: "line:column:text"
+
+      // Try file:line:column/text first (multi-file)
+      let m = line.match(/^([^:]+):(\d+):(\d+):(.*)$/);
+      if (m) {
+        return {
+          path: m[1], line: parseInt(m[2]), column: parseInt(m[3]),
+          content: m[4], match: pattern,
+        };
+      }
+
+      // Try line:text (single file, one colon)
+      m = line.match(/^(\d+):(.*)$/);
+      if (m) {
+        return {
+          path: paths[0], line: parseInt(m[1]), column: 1,
+          content: m[2], match: pattern,
+        };
+      }
+
+      // Try file:line:text (multi-file ugrep)
+      m = line.match(/^([^:]+):(\d+):(.*)$/);
+      if (m) {
+        return {
+          path: m[1], line: parseInt(m[2]), column: 1,
+          content: m[3], match: pattern,
+        };
+      }
+
+      return null as any;
     }).filter(Boolean);
 
     return { pattern, results, elapsed_ms: Date.now() - start };

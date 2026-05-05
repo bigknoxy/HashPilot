@@ -1016,4 +1016,149 @@ function parsePythonFromImport(
   return null; // fall through to default add-import logic
 }
 
+// ── Parameter/argument insertion (for M5 intent engine) ───────────────
+
+const PARAM_NODE_TYPES = new Set([
+  "formal_parameters", "parameter_list", "parameters",
+]);
+
+const ARG_NODE_TYPES = new Set([
+  "arguments", "argument_list",
+]);
+
+/**
+ * Insert a parameter into a function/method signature.
+ * Returns the modified source with the new parameter added.
+ */
+export function insertParameter(
+  source: string,
+  filePath: string,
+  symbolName: string,
+  newParam: string,
+  position: "last" | "first" = "last"
+): ASTEditResult {
+  const lang = detectLanguage(filePath);
+  if (!lang) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language" };
+  const cfg = configFor(lang);
+  if (!cfg) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language" };
+  const parser = getParser(lang);
+  if (!parser) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Parser unavailable" };
+
+  const tree = parser.parse(source);
+  let found = false;
+  let insertPos = -1;
+  let insertText = "";
+
+  function find(node: Parser.SyntaxNode, depth: number): boolean {
+    if (depth > 15) return false;
+    if (cfg!.functionTypes.includes(node.type)) {
+      const nameNode = node.childForFieldName("name");
+      if (nameNode && nameNode.text === symbolName) {
+        // Find the parameters node
+        const paramsNode = node.children.find((c) => PARAM_NODE_TYPES.has(c.type));
+        if (paramsNode) {
+          // Get existing parameter text to decide about leading comma
+          const inner = source.slice(paramsNode.startIndex + 1, paramsNode.endIndex - 1).trim();
+
+          if (position === "first") {
+            insertPos = paramsNode.startIndex + 1;
+            insertText = newParam + (inner.length > 0 ? ", " : "");
+          } else {
+            insertPos = paramsNode.endIndex - 1;
+            insertText = (inner.length > 0 ? ", " : "") + newParam;
+          }
+
+          found = true;
+          return true;
+        }
+      }
+    }
+    for (const child of node.children) {
+      if (find(child, depth + 1)) return true;
+    }
+    return false;
+  }
+
+  find(tree.rootNode, 0);
+
+  if (!found) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: `Symbol '${symbolName}' not found or has no parameters` };
+
+  const newSource = source.slice(0, insertPos) + insertText + source.slice(insertPos);
+  return { success: true, path: filePath, operation: "insert-parameter", changes: 1, message: `Inserted parameter '${newParam}' into '${symbolName}'`, newSource };
+}
+
+/**
+ * Insert an argument at all call sites of a named function.
+ * Returns the modified source with arguments added to every call expression
+ * where the function name matches.
+ */
+export function insertCallArg(
+  source: string,
+  filePath: string,
+  functionName: string,
+  argValue: string
+): ASTEditResult {
+  const lang = detectLanguage(filePath);
+  if (!lang) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Unsupported language" };
+  const parser = getParser(lang);
+  if (!parser) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Parser unavailable" };
+
+  const tree = parser.parse(source);
+  const edits: { start: number; end: number; text: string }[] = [];
+
+  // Collect call_expression / call nodes where function name matches
+  function findCalls(node: Parser.SyntaxNode) {
+    // TypeScript/JS/Go/Rust: call_expression; Python: call
+    if (node.type === "call_expression" || node.type === "call") {
+      const fnNode = node.childForFieldName("function");
+      if (fnNode) {
+        const fnName = extractCallableName(fnNode);
+        if (fnName === functionName) {
+          const argsNode = node.children.find((c) => ARG_NODE_TYPES.has(c.type));
+          if (argsNode) {
+            const inner = source.slice(argsNode.startIndex + 1, argsNode.endIndex - 1).trim();
+            const insertText = (inner.length > 0 ? ", " : "") + argValue;
+            edits.push({ start: argsNode.endIndex - 1, end: argsNode.endIndex - 1, text: insertText });
+          }
+        }
+      }
+    }
+    for (const child of node.children) findCalls(child);
+  }
+
+  findCalls(tree.rootNode);
+
+  if (edits.length === 0) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: `No call sites for '${functionName}' found` };
+
+  // Apply edits in reverse order (to preserve indices)
+  edits.sort((a, b) => b.start - a.start);
+  let newSource = source;
+  for (const e of edits) {
+    newSource = newSource.slice(0, e.start) + e.text + newSource.slice(e.end);
+  }
+
+  return { success: true, path: filePath, operation: "insert-call-arg", changes: edits.length, message: `Inserted argument at ${edits.length} call site(s) for '${functionName}'`, newSource };
+}
+
+/**
+ * Extract the callable name from a function expression node.
+ * Handles: simple identifiers, member expressions (obj.method), and scoped identifiers.
+ */
+function extractCallableName(node: Parser.SyntaxNode): string | null {
+  if (node.type === "identifier") return node.text;
+  if (node.type === "property_identifier") return node.text;
+  // For member_expression (obj.method), return the property name
+  if (node.type === "member_expression") {
+    const prop = node.childForFieldName("property");
+    if (prop) return extractCallableName(prop);
+  }
+  // Walk children for scoped identifiers (e.g., Rust's scoped_identifier)
+  for (const child of node.children) {
+    if (child.type === "identifier" || child.type === "property_identifier") {
+      return child.text;
+    }
+  }
+  return null;
+}
+
 export { getParser, SUPPORTED_LANGUAGES };

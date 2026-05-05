@@ -29,6 +29,7 @@ import {
   routeEdit,
   editMany,
   editManySerial,
+  executeIntent,
   generateUnifiedDiff,
   applyPatch,
   ErrorCode,
@@ -400,6 +401,42 @@ program
       : await editMany(batchParams);
 
     console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command("intent")
+  .description("Execute an editing intent — one command, full blast radius")
+  .argument("<intent>", "Intent as JSON: {\"operation\":\"add-parameter\",\"symbol\":\"fn\",\"param\":{\"name\":\"x\"}}")
+  .option("--project-root <dir>", "Project root directory")
+  .option("--dry-run", "Preview plan without modifying files")
+  .option("--no-verify", "Skip verification after execution")
+  .option("--no-revert", "Don't roll back on failure")
+  .option("--timeout <ms>", "Timeout per operation in ms", "30000")
+  .option("--json", "Output as JSON", true)
+  .action(async (intent: string, opts) => {
+    try {
+      const result = await executeIntent(intent, {
+        projectRoot: opts.projectRoot || process.cwd(),
+        dryRun: opts.dryRun,
+        verify: opts.verify,
+        revertOnFailure: opts.revert,
+        timeout: parseInt(opts.timeout),
+      });
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Intent: ${result.plan.intent.operation} on '${result.plan.definition.name}'`);
+        console.log(`Impact: ${result.plan.impactSummary}`);
+        console.log(`Success: ${result.success}`);
+        if (result.execution.verification) {
+          console.log(`Verification: ${result.execution.verification.overall}`);
+        }
+      }
+    } catch (err: any) {
+      console.error(`Intent failed: ${err.message}`);
+      process.exitCode = 1;
+    }
   });
 
 const diffCmd = program
