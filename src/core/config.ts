@@ -18,9 +18,17 @@ export interface TelemetryConfig {
   retentionDays?: number;
 }
 
+export interface ProvenanceConfig {
+  /** Default actor identity when not provided at invocation */
+  defaultActor?: string;
+  /** Max length of stored context field (prevents log bloat), default 500 */
+  maxContextLength?: number;
+}
+
 export interface HashPilotConfig {
   routePolicy?: RoutePolicy;
   telemetry?: TelemetryConfig;
+  provenance?: ProvenanceConfig;
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
@@ -122,5 +130,10 @@ function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>):
     if (override.routePolicy.conflictResolution) {
       base.routePolicy.conflictResolution = override.routePolicy.conflictResolution;
     }
+  }
+  if (override.provenance) {
+    base.provenance = base.provenance || {};
+    if (override.provenance.defaultActor !== undefined) base.provenance.defaultActor = override.provenance.defaultActor;
+    if (override.provenance.maxContextLength !== undefined) base.provenance.maxContextLength = override.provenance.maxContextLength;
   }
 }

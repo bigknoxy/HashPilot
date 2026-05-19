@@ -32,7 +32,7 @@ export interface TelemetryEvent {
   timestamp: string;
   sessionId: string;
   operation: string;
-  route: "ast" | "hash" | "diff" | "read" | "grep" | "verify" | "other";
+  route: "ast" | "hash" | "diff" | "read" | "grep" | "verify" | "intent" | "other";
   file?: string;
   files_count?: number;
   lines_read?: number;
@@ -46,6 +46,28 @@ export interface TelemetryEvent {
   elapsed_ms: number;
   detail?: string;
   errorCode?: ErrorCode;
+
+  // ── M6: Provenance fields (all optional) ──────────────────────────
+  /** Agent identity (e.g. "claude-opus-4.7@anthropic") */
+  actor?: string;
+  /** Task or issue reference (e.g. "ISSUE-142", "GH#123") */
+  taskId?: string;
+  /** UUID linking multi-step edits into one logical change */
+  changeSetId?: string;
+  /** Human-readable reason for the edit */
+  reason?: string;
+  /** SHA-256 hash of file content before edit (12-char truncated) */
+  beforeHash?: string;
+  /** SHA-256 hash of file content after edit (12-char truncated) */
+  afterHash?: string;
+  /** Unified diff of the change */
+  diff?: string;
+  /** 0-indexed position of this step within a changeSet */
+  stepIndex?: number;
+  /** Total number of steps in the changeSet */
+  stepTotal?: number;
+  /** Truncated agent prompt/context that produced this edit */
+  context?: string;
 }
 
 export interface SessionSummary {
@@ -484,8 +506,10 @@ function compareHealth(current: HealthReport, previous: HealthReport): HealthTre
 
   const staleAnchorDelta = current.staleAnchors.total - previous.staleAnchors.total;
 
-  const curVerifyRate = current.verifyFailures.total / Math.max(1, Object.values(current.routeDistribution).filter(r => r.count > 0).length);
-  const prevVerifyRate = previous.verifyFailures.total / Math.max(1, Object.values(previous.routeDistribution).filter(r => r.count > 0).length);
+  const curVerifyOps = current.routeDistribution["verify"]?.count || 1;
+  const curVerifyRate = current.verifyFailures.total / curVerifyOps;
+  const prevVerifyOps = previous.routeDistribution["verify"]?.count || 1;
+  const prevVerifyRate = previous.verifyFailures.total / prevVerifyOps;
   const verifyFailureDelta = (curVerifyRate - prevVerifyRate) * 100;
 
   const languageRegressions: string[] = [];

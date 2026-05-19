@@ -12,6 +12,7 @@ import {
 import { replaceHash, ReplaceHashResult } from "./hash-edit";
 import { ReadResult, ReadHashResult, readMany, readHash, computeHash } from "./read";
 import { recordEvent, ErrorCode } from "./telemetry";
+import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 
 export type EditRoute = "ast" | "hash" | "diff";
@@ -115,9 +116,15 @@ export async function routeEdit(params: {
   // Diff params (search-and-replace fallback)
   oldContent?: string;
   dryRun?: boolean;
+  // Provenance params
+  actor?: string;
+  taskId?: string;
+  reason?: string;
 }): Promise<RouterResult> {
   const start = Date.now();
-  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun } = params;
+  let editSource: string | undefined;
+  let editResult: string | undefined;
+  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, actor, taskId, reason } = params;
 
   let route: EditRoute;
   let explanation: RouteExplanation;
@@ -162,6 +169,7 @@ export async function routeEdit(params: {
         let source: string;
         try {
           source = await Bun.file(filePath).text();
+          editSource = source;
         } catch (e: any) {
           result = { success: false, message: `Failed to read file: ${e.message}` };
           break;
@@ -194,11 +202,14 @@ export async function routeEdit(params: {
       // Write result to file if successful
       if (result.success && (result as any).newSource && !dryRun) {
         await Bun.write(filePath, (result as any).newSource);
+        editResult = (result as any).newSource;
       }
       break;
     }
     case "hash":
+      editSource = await Bun.file(filePath).text();
       result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun });
+      editResult = (await Bun.file(filePath).text());
       break;
     case "diff": {
       if (!oldContent || !newContent) {
@@ -208,6 +219,7 @@ export async function routeEdit(params: {
       let source: string;
       try {
         source = await Bun.file(filePath).text();
+          editSource = source;
       } catch (e: any) {
         result = { success: false, message: `Failed to read file: ${e.message}` };
         break;
@@ -215,6 +227,7 @@ export async function routeEdit(params: {
       result = applyTextReplace(source, filePath, oldContent, newContent);
       if (result.success && (result as any).newSource && !dryRun) {
         await Bun.write(filePath, (result as any).newSource);
+        editResult = (result as any).newSource;
       }
       break;
     }
@@ -236,6 +249,15 @@ export async function routeEdit(params: {
     }
   }
 
+  const provenanceFields = buildProvenanceFields({
+    actor,
+    taskId,
+    reason,
+    source: editSource,
+    newSource: editResult,
+    filePath,
+  });
+
   recordEvent({
     operation,
     route,
@@ -246,6 +268,7 @@ export async function routeEdit(params: {
     retries: result.retries,
     elapsed_ms: elapsed,
     errorCode,
+    ...provenanceFields,
   });
 
   return { route, routeReason, fallback, result, elapsed_ms: elapsed, explanation };

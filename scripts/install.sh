@@ -267,6 +267,9 @@ else
 {
   "telemetry": {
     "enabled": true
+  },
+  "provenance": {
+    "maxContextLength": 500
   }
 }
 CONFIG

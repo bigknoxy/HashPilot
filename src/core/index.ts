@@ -61,6 +61,8 @@ export type {
 export { executeIntent, executePlan } from "./plan-executor";
 export type { StepResult, PlanResult, IntentResult } from "./plan-executor";
 export { loadConfig, policyForce } from "./config";
-export type { HashPilotConfig, RoutePolicy, TelemetryConfig } from "./config";
+export type { HashPilotConfig, RoutePolicy, TelemetryConfig, ProvenanceConfig } from "./config";
+export { createChangeSet, buildProvenanceFields, provenanceQuery, changeSetQuery, formatProvenanceHuman } from "./provenance";
+export type { ProvenanceInput, ProvenanceEntry, ChangeSetResult } from "./provenance";
 export { doctor } from "./doctor";
 export type { DoctorReport, DoctorCheck } from "./doctor";

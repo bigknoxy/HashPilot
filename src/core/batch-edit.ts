@@ -21,6 +21,10 @@ export interface BatchParams {
   // Diff params
   oldContent?: string;
   dryRun?: boolean;
+  // Provenance params
+  actor?: string;
+  taskId?: string;
+  reason?: string;
 }
 
 export interface BatchSummary {
@@ -55,6 +59,9 @@ async function editOne(
     content: params.content,
     oldContent: params.oldContent,
     dryRun: params.dryRun,
+    actor: params.actor,
+    taskId: params.taskId,
+    reason: params.reason,
   });
 }
 

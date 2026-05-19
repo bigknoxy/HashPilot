@@ -7,6 +7,8 @@ import {
   removeImport,
   insertBeforeSymbol,
   insertAfterSymbol,
+  insertParameter,
+  insertCallArg,
   detectLanguage,
   isLanguageSupported,
   supportedLanguages,
@@ -618,8 +620,6 @@ describe("insertAfterSymbol — Rust", () => {
   });
 });
 
-// ── Unsupported language handling ──────────────────────────────────────
-
 // ── astCapabilities ────────────────────────────────────────────────────
 
 describe("astCapabilities", () => {
@@ -666,5 +666,224 @@ describe("unsupported language error handling", () => {
     expect(addImport(SAMPLE_TS, file, "x").success).toBe(false);
     expect(insertBeforeSymbol(SAMPLE_TS, file, "x", "y").success).toBe(false);
     expect(insertAfterSymbol(SAMPLE_TS, file, "x", "y").success).toBe(false);
+  });
+});
+
+// ── TSX file support ──────────────────────────────────────────────────
+
+const SAMPLE_TSX = `import { Component } from 'react';
+
+interface Props {
+  name: string;
+}
+
+function App(props: Props): JSX.Element {
+  return <div>Hello, {props.name}</div>;
+}
+
+function greet(name: string): string {
+  return "Hello, " + name;
+}
+`;
+
+describe("findSymbols — TSX", () => {
+  test("finds symbols in a TSX/JSX file", () => {
+    const symbols = findSymbols(SAMPLE_TSX, "component.tsx");
+    const names = symbols.map((s) => s.name);
+    expect(names).toContain("App");
+    expect(names).toContain("greet");
+    expect(names).toContain("Props");
+  });
+});
+
+// ── insertParameter ────────────────────────────────────────────────────
+
+describe("insertParameter", () => {
+  test("inserts parameter at last position", () => {
+    const source =
+      "function greet(name: string): string {\n" +
+      '  return `hello ${name}`;\n' +
+      "}\n";
+    const result = insertParameter(source, "test.ts", "greet", "age: number", "last");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("greet(name: string, age: number)");
+  });
+
+  test("inserts parameter at first position", () => {
+    const source =
+      "function greet(name: string): string {\n" +
+      '  return `hello ${name}`;\n' +
+      "}\n";
+    const result = insertParameter(source, "test.ts", "greet", "age: number", "first");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("greet(age: number, name: string)");
+  });
+
+  test("inserts parameter into function with no existing params", () => {
+    const source =
+      "function greet(): string {\n" +
+      '  return "hello";\n' +
+      "}\n";
+    const result = insertParameter(source, "test.ts", "greet", "name: string", "last");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("greet(name: string)");
+  });
+
+  test("inserts parameter at first position when no existing params", () => {
+    const source =
+      "function greet(): string {\n" +
+      '  return "hello";\n' +
+      "}\n";
+    const result = insertParameter(source, "test.ts", "greet", "name: string", "first");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("greet(name: string)");
+  });
+
+  test("returns error for non-existent symbol", () => {
+    const source =
+      "function greet(): string {\n" +
+      '  return "hello";\n' +
+      "}\n";
+    const result = insertParameter(source, "test.ts", "nonexistent", "x: number", "last");
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("not found");
+  });
+
+  test("returns error for unsupported language", () => {
+    const source =
+      "function greet(): string {\n" +
+      '  return "hello";\n' +
+      "}\n";
+    const result = insertParameter(source, "test.rb", "greet", "x: number", "last");
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── insertCallArg ──────────────────────────────────────────────────────
+
+describe("insertCallArg", () => {
+  test("inserts argument into function call with no existing args", () => {
+    const source = 'const result = greet();\n';
+    const result = insertCallArg(source, "test.ts", "greet", '"world"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('greet("world")');
+  });
+
+  test("inserts argument into function call with existing args", () => {
+    const source = 'const result = greet("hello");\n';
+    const result = insertCallArg(source, "test.ts", "greet", '"world"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('greet("hello", "world")');
+  });
+
+  test("inserts argument into multiple call sites", () => {
+    const source =
+      'const a = greet("hello");\n' +
+      'const b = greet("hi");\n';
+    const result = insertCallArg(source, "test.ts", "greet", '"world"');
+    expect(result.success).toBe(true);
+    expect(result.changes).toBe(2);
+    expect(result.newSource).toContain('greet("hello", "world")');
+    expect(result.newSource).toContain('greet("hi", "world")');
+  });
+
+  test("returns error when no call sites found", () => {
+    const source = 'const result = foo();\n';
+    const result = insertCallArg(source, "test.ts", "greet", '"world"');
+    expect(result.success).toBe(false);
+  });
+
+  test("returns error for unsupported language", () => {
+    const source = 'const result = greet();\n';
+    const result = insertCallArg(source, "test.rb", "greet", '"world"');
+    expect(result.success).toBe(false);
+  });
+
+  test("inserts argument into Python function call", () => {
+    const source = 'result = greet()\n';
+    const result = insertCallArg(source, "test.py", "greet", '"world"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('greet("world")');
+  });
+
+  test("inserts argument into Go function call", () => {
+    const source = 'result := greet()\n';
+    const result = insertCallArg(source, "test.go", "greet", '"world"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('greet("world")');
+  });
+});
+
+// ── Python from-import edge cases ──────────────────────────────────────
+
+describe("addImport — Python from-import edge cases", () => {
+  const PY_OS_IMPORT = "from os import path\n\nx = 1\n";
+  const PY_NO_IMPORTS = "def f():\n    pass\n";
+
+  test("from-import creates new import when module doesn't match existing", () => {
+    const src = "from os import path\n\nx = 1\n";
+    const result = addImport(src, "test.py", "from sys import argv");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("from os import path");
+    expect(result.newSource).toContain("from sys import argv");
+  });
+
+  test("from-import duplicate name detection with no existing from-import", () => {
+    const src = "import os\n\nx = 1\n";
+    const result = addImport(src, "test.py", "from os import path");
+    expect(result.success).toBe(true);
+    // Should create new from-import since no existing `from os import` exists
+    expect(result.newSource).toContain("from os import path");
+  });
+
+  test("from-import with no existing imports at all", () => {
+    const result = addImport(PY_NO_IMPORTS, "test.py", "from sys import argv");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("from sys import argv");
+  });
+
+  test("from-import merging appends only non-duplicate names", () => {
+    const src = "from os import path, getcwd\n\nx = 1\n";
+    const result = addImport(src, "test.py", "from os import path");
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("already exists");
+  });
+});
+
+// ── Go addImport without package declaration ───────────────────────────
+
+describe("addImport — Go without package declaration", () => {
+  test("adds import to Go file with no package clause", () => {
+    const GO_NO_PACKAGE = 'func main() {}\n';
+    const result = addImport(GO_NO_PACKAGE, "test.go", "fmt");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('import "fmt"');
+  });
+});
+
+// ── removeImport edge cases ────────────────────────────────────────────
+
+describe("removeImport — edge cases", () => {
+  test("returns error for unsupported language (.rb)", () => {
+    const result = removeImport(SAMPLE_TS, "test.rb", "anything");
+    expect(result.success).toBe(false);
+  });
+
+  test("removes import from TSX file", () => {
+    const TSX_SOURCE = `import { Component } from 'react';\n\nconst x = 1;\n`;
+    const result = removeImport(TSX_SOURCE, "test.tsx", "react");
+    expect(result.success).toBe(true);
+    expect(result.newSource).not.toContain("react");
+  });
+});
+
+// ── replaceBody on interface/abstract method ───────────────────────────
+
+describe("replaceBody — interface method (no body)", () => {
+  test("returns error when symbol has no body (interface method declaration)", () => {
+    const SOURCE = `interface Greeter {\n  greet(name: string): string;\n}\n`;
+    const result = replaceBody(SOURCE, "test.ts", "greet", "return 'hi';");
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("no body");
   });
 });

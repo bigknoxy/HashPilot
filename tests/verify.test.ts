@@ -173,3 +173,202 @@ describe("verifyChanges", () => {
     expect(result.detected!.testRunner).toBe("jest");
   });
 });
+
+describe("autoDetect and buildTestFilterArgs", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  // ---- buildTestFilterArgs switch cases ----
+  // Each exercises a different branch of buildTestFilterArgs (lines 59-63)
+
+  test("buildTestFilterArgs: vitest case passes testFilter as --testNamePattern", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      testRunner: "vitest",
+      testFilter: "myTest",
+      timeout: 2000,
+    });
+    expect(result.tests).toBeDefined();
+  });
+
+  test("buildTestFilterArgs: jest case passes testFilter as --testNamePattern", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      testRunner: "jest",
+      testFilter: "myTest",
+      timeout: 2000,
+    });
+    expect(result.tests).toBeDefined();
+  });
+
+  test("buildTestFilterArgs: pytest case passes testFilter as -k", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      testRunner: "pytest",
+      testFilter: "myTest",
+      timeout: 2000,
+    });
+    expect(result.tests).toBeDefined();
+  });
+
+  test("buildTestFilterArgs: go test case passes testFilter as -run", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      testRunner: "go test",
+      testFilter: "myTest",
+      timeout: 2000,
+    });
+    expect(result.tests).toBeDefined();
+  });
+
+  // ---- @biomejs/biome detection (lines 84-87) ----
+  // When biome is present but prettier/eslint are not, biome fills both.
+
+  test("detects biome tools from package.json when present", async () => {
+    const pkg = JSON.stringify({
+      devDependencies: { "@biomejs/biome": "^1.0.0" },
+    });
+    writeFileSync(join(TMP_DIR, "package.json"), pkg);
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.formatter).toBe("biome format --write");
+    expect(result.detected!.linter).toBe("biome lint");
+  });
+
+  // ---- pyproject.toml scanner (lines 92-101) ----
+  // Detects pytest, mypy, ruff from pyproject.toml sections.
+
+  test("detects tools from pyproject.toml", async () => {
+    writeFileSync(
+      join(TMP_DIR, "pyproject.toml"),
+      "[tool.pytest]\n[tool.mypy]\n[tool.ruff]\n",
+    );
+    const pyFile = join(TMP_DIR, "sample.py");
+    writeFileSync(pyFile, "x = 1\n");
+    const result = await verifyChanges([pyFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.testRunner).toBe("pytest");
+    expect(result.detected!.typecheck).toBe("mypy");
+    expect(result.detected!.linter).toBe("ruff check");
+  });
+
+  // ---- go.mod scanner (lines 105-111) ----
+  // Detects go vet + go test when go.mod exists.
+
+  test("detects tools from go.mod", async () => {
+    writeFileSync(join(TMP_DIR, "go.mod"), "module test\n");
+    const goFile = join(TMP_DIR, "sample.go");
+    writeFileSync(goFile, "package main\n");
+    const result = await verifyChanges([goFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.typecheck).toBe("go vet");
+    expect(result.detected!.testRunner).toBe("go test");
+  });
+
+  // ---- Cargo.toml scanner (lines 115-123) ----
+  // Detects rustfmt, clippy, cargo check, cargo test.
+
+  test("detects tools from Cargo.toml", async () => {
+    writeFileSync(join(TMP_DIR, "Cargo.toml"), "[package]\nname = \"test\"\nversion = \"0.1.0\"\n");
+    const rsFile = join(TMP_DIR, "sample.rs");
+    writeFileSync(rsFile, "fn main() {}\n");
+    const result = await verifyChanges([rsFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.formatter).toBe("rustfmt --edition 2021");
+    expect(result.detected!.linter).toBe("cargo clippy");
+    expect(result.detected!.typecheck).toBe("cargo check");
+    expect(result.detected!.testRunner).toBe("cargo test");
+  });
+
+  // ---- findProjectRoot parent-walking (lines 141-146) ----
+  // File is two levels deep, package.json is in TMP_DIR root.
+  // findProjectRoot walks up from sub/deep/ → sub/ → TMP_DIR (found).
+
+  test("findProjectRoot walks up parent dirs to find config", async () => {
+    const subDir = join(TMP_DIR, "sub", "deep");
+    mkdirSync(subDir, { recursive: true });
+    const pkg = JSON.stringify({
+      devDependencies: { typescript: "^5.0.0" },
+    });
+    writeFileSync(join(TMP_DIR, "package.json"), pkg);
+    const deepFile = join(subDir, "file.ts");
+    writeFileSync(deepFile, "const x = 1;\n");
+    const result = await verifyChanges([deepFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.typecheck).toBe("tsc --noEmit");
+  });
+
+  // ---- Config iteration past first key (line 169) ----
+  // package.json is missing, pyproject.toml is present.
+  // The scanner iterates past package.json and uses pyproject.toml.
+
+  test("uses pyproject.toml when no package.json exists", async () => {
+    // Ensure no package.json from setup or previous tests
+    try { rmSync(join(TMP_DIR, "package.json"), { force: true }); } catch {}
+    writeFileSync(
+      join(TMP_DIR, "pyproject.toml"),
+      "[tool.pytest]\n[tool.ruff]\n",
+    );
+    const pyFile = join(TMP_DIR, "sample.py");
+    writeFileSync(pyFile, "x = 1\n");
+    const result = await verifyChanges([pyFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.testRunner).toBe("pytest");
+    expect(result.detected!.linter).toBe("ruff check");
+  });
+
+  // ---- Extension-based fallback (lines 174-184) ----
+  // No config files exist → falls back to EXT_TOOLS based on file extension.
+  // A .py file should default to pytest (test) and mypy (typecheck).
+
+  test("uses extension defaults when no config files exist", async () => {
+    // Wipe any config files that setup or prior tests may have left
+    for (const name of ["package.json", "pyproject.toml", "go.mod", "Cargo.toml"]) {
+      try { rmSync(join(TMP_DIR, name), { force: true }); } catch {}
+    }
+    const pyFile = join(TMP_DIR, "fallback.py");
+    writeFileSync(pyFile, "x = 1\n");
+    const result = await verifyChanges([pyFile], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "echo",
+      testRunner: "echo",
+    });
+    expect(result.detected).toBeDefined();
+    expect(result.detected!.testRunner).toBe("pytest");
+    expect(result.detected!.typecheck).toBe("mypy");
+  });
+});
