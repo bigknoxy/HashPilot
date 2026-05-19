@@ -19,7 +19,7 @@ The HashPilot Pi extension is installed at `~/.pi/agent/extensions/hashpilot.ts`
 | `hashpilot_search` | Grep regex across paths |
 | `hashpilot_read_hash` | Read line with hash anchor and context |
 | `hashpilot_replace_hash` | Hash-anchored content replacement |
-| `hashpilot_ast` | AST operations (find-symbols, rename, replace-body, add/remove import, insert) |
+| `hashpilot_ast` | AST operations for supported languages (find-symbols, rename, replace-body, add/remove import, insert) |
 | `hashpilot_verify` | Run formatter + linter + tests on files |
 | `hashpilot_status` | Show routing info and telemetry summary |
 
@@ -62,13 +62,29 @@ structured-edit read-hash src/main.ts 42
 HASH=$(structured-edit read-many src/config.py | jq -r '.[0].hash')
 structured-edit replace-hash src/config.py "$HASH" "new content"
 
-# AST operations (TypeScript/TSX)
+# AST operations (TypeScript, TSX, JavaScript, Python, Go, Rust)
 structured-edit ast find-symbols src/main.ts
 structured-edit ast rename-symbol src/main.ts oldFunc newFunc
 structured-edit ast replace-body src/main.ts myFunc 'return 42;'
+structured-edit ast add-import src/app.ts '{ Router } from express'
+structured-edit ast remove-import src/app.ts './bar'
 
-# Verify changes
-structured-edit verify-changes src/main.ts --formatter prettier --linter eslint
+# Generate and apply unified diffs
+structured-edit diff generate src/main.ts "$(cat old.ts)" "$(cat new.ts)"
+structured-edit diff apply src/main.ts --patch changes.patch
+
+# Route decisions and config
+structured-edit route src/main.ts rename-symbol
+structured-edit config
+
+# Batch edit across files
+structured-edit batch add-import src/*.ts --import-spec "{ z } from zod" --dry-run
+
+# Edit provenance
+structured-edit provenance query src/main.ts --human
+
+# Verify changes (with auto-detection)
+structured-edit verify-changes src/main.ts --auto-detect
 ```
 
 ## Routing Strategy
@@ -117,12 +133,14 @@ View current merged config: `structured-edit config`
 
 ## Stale Anchor Recovery
 
-When `replace-hash` returns `"stale": true`:
+HashPilot has **auto-recovery** for stale anchors. When the file has changed since the hash was computed, `replace-hash` auto-recovers by applying the edit to the current content and returning `"retries": 1`. This is always safe for full-file replaces.
+
+If auto-recovery fails or is disabled:
 1. Re-read the file: `structured-edit read-many <file>`
 2. Get the new hash from the response
 3. Retry `replace-hash` with the updated hash
 
-The native `hashpilot_replace_hash` tool returns this guidance automatically.
+The native `hashpilot_replace_hash` tool surfaces stale-anchor status in its response details (`details.stale`), and the extension handles the result accordingly.
 
 ## Telemetry
 
@@ -133,6 +151,9 @@ structured-edit telemetry summary       # Operation counts and timing
 structured-edit telemetry show -n 50    # Last 50 events
 structured-edit telemetry health -w 7   # Health report with per-language stats and warnings
 structured-edit telemetry health -w 7 --trend  # Compare to previous window
+structured-edit telemetry sessions      # List session-level summaries
+structured-edit telemetry export --from 2026-01-01  # Export events as NDJSON
+structured-edit telemetry prune --older-than 30  # Delete old rotated files
 structured-edit telemetry clear         # Clear log
 ```
 

@@ -1,6 +1,5 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
-import { detectLanguage } from "./ast-edit";
 import { loadConfig } from "./config";
 
 const HOME = process.env.HOME || "/root";

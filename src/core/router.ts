@@ -9,8 +9,8 @@ import {
   insertAfterSymbol,
   findSymbols,
 } from "./ast-edit";
-import { replaceHash, ReplaceHashResult } from "./hash-edit";
-import { ReadResult, ReadHashResult, readMany, readHash, computeHash } from "./read";
+import { replaceHash } from "./hash-edit";
+import { readMany, readHash, computeHash } from "./read";
 import { recordEvent, ErrorCode } from "./telemetry";
 import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";

@@ -92,18 +92,26 @@ structured-edit read-many <files...>
 structured-edit read-hash <file> <line> [-c <context>]
 structured-edit grep-many <pattern> <paths...>
 structured-edit symbol-lookup-many <paths...> --names n1,n2
-structured-edit replace-hash <file> <hash> <content> [--range s:e] [--dry-run]
+structured-edit replace-hash <file> <hash> <content> [--range s:e] [--dry-run] [--actor] [--task-id] [--reason]
 structured-edit ast find-symbols <file>
 structured-edit ast capabilities
-structured-edit ast rename-symbol <file> <old> <new>
-structured-edit ast replace-body <file> <symbol> <body>
-structured-edit ast add-import <file> '<spec>'
-structured-edit ast remove-import <file> '<spec>'
-structured-edit ast insert-before <file> <symbol> <content>
-structured-edit ast insert-after <file> <symbol> <content>
+structured-edit ast rename-symbol <file> <old> <new> [--actor] [--task-id] [--reason]
+structured-edit ast replace-body <file> <symbol> <body> [--actor] [--task-id] [--reason]
+structured-edit ast add-import <file> '<spec>' [--actor] [--task-id] [--reason]
+structured-edit ast remove-import <file> '<spec>' [--actor] [--task-id] [--reason]
+structured-edit ast insert-before <file> <symbol> <content> [--actor] [--task-id] [--reason]
+structured-edit ast insert-after <file> <symbol> <content> [--actor] [--task-id] [--reason]
+structured-edit diff generate <file> <old> <new>
+structured-edit diff apply <file> --patch <file> [--dry-run]
 structured-edit route <file> <op> [--policy <json>]
+structured-edit route-edit <file> <op> [--method <route>] [--dry-run]
+structured-edit batch <op> <files...> [--serial] [--dry-run]
+structured-edit intent '<json>' [--project-root <dir>] [--dry-run]
 structured-edit config
-structured-edit verify-changes <files...> [--formatter] [--linter] [--test-filter]
-structured-edit telemetry [show|summary|health|clear]
+structured-edit doctor
+structured-edit verify-changes <files...> [--formatter] [--linter] [--typecheck] [--test-filter] [--auto-detect]
+structured-edit provenance query <file> [<line>] [--human]
+structured-edit provenance changeset <changeSetId> [--human]
+structured-edit telemetry [show|summary|health|clear|sessions|export|prune]
 structured-edit telemetry health [-w <days>] [--trend]
 ```

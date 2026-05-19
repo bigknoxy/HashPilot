@@ -194,12 +194,12 @@ describe("symbolLookupMany", () => {
     expect(results[0].kind).toBe("var");
   });
 
-  test("returns 'unknown' for export const pattern", async () => {
-    // "export const baz = 20;" — grep matches "const baz" but detectSymbolKind
-    // sees the full line "export const baz = 20;", which doesn't start with "const "
+  test("identifies export const pattern as 'const'", async () => {
+    // "export const baz = 20;" — detectSymbolKind now strips
+    // the "export " prefix and correctly identifies "const"
     const results = await symbolLookupMany(["baz"], [TMP_DIR]);
     expect(results.length).toBe(1);
-    expect(results[0].kind).toBe("unknown");
+    expect(results[0].kind).toBe("const");
   });
 
   test("handles special regex chars via escapeRegex", async () => {

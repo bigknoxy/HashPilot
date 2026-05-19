@@ -604,7 +604,7 @@ diffCmd
       patchText = await Bun.file(opts.patch).text();
     } else {
       console.log(JSON.stringify({ success: false, message: "--patch is required" }));
-      process.exit(1);
+      process.exitCode = 1;
     }
     const result = await applyPatch(file, patchText, {
       dryRun: opts.dryRun,

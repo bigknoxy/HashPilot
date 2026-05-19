@@ -4,7 +4,7 @@ import Python from "tree-sitter-python";
 import JavaScript from "tree-sitter-javascript";
 import Go from "tree-sitter-go";
 import Rust from "tree-sitter-rust";
-import { recordEvent } from "./telemetry";
+import { escapeRegex } from "./utils";
 
 // Language registry: maps internal language IDs to parser + metadata
 interface LangEntry {
@@ -773,10 +773,6 @@ export function insertAfterSymbol(
   const indented = content.split("\n").map((l) => indent + l).join("\n") + "\n";
   const newSource = source.slice(0, pos) + indented + source.slice(pos);
   return { success: true, path: filePath, operation: "insert-after", changes: 1, message: `Inserted content after '${symbolName}'`, newSource };
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

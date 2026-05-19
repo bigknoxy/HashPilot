@@ -22,18 +22,29 @@ Use `structured-edit` for file operations instead of raw text editing when avail
 ### Key Commands
 - `structured-edit read-many <files>` — batch read with hashes
 - `structured-edit read-hash <file> <line>` — read line with context hash
-- `structured-edit replace-hash <file> <hash> <content> [--range start:end]` — hash-anchored edit
-- `structured-edit ast find-symbols <file>` — list symbols
+- `structured-edit replace-hash <file> <hash> <content> [--range start:end] [--actor] [--task-id] [--reason]` — hash-anchored edit
 - `structured-edit ast capabilities` — show supported languages and limitations
-- `structured-edit ast rename-symbol <file> <old> <new>` — rename
-- `structured-edit ast replace-body <file> <symbol> <body>` — replace function body
-- `structured-edit ast add-import <file> <spec>` — add import
-- `structured-edit ast remove-import <file> <spec>` — remove import
+- `structured-edit ast find-symbols <file>` — list symbols
+- `structured-edit ast rename-symbol <file> <old> <new> [--actor] [--task-id] [--reason]` — rename
+- `structured-edit ast replace-body <file> <symbol> <body> [--actor] [--task-id] [--reason]` — replace function body
+- `structured-edit ast add-import <file> <spec> [--actor] [--task-id] [--reason]` — add import
+- `structured-edit ast remove-import <file> <spec> [--actor] [--task-id] [--reason]` — remove import
+- `structured-edit ast insert-before/insert-after <file> <symbol> <content> [--actor]` — insert around a symbol
+- `structured-edit diff generate <file> <old> <new>` — generate unified diff
+- `structured-edit diff apply <file> --patch <file>` — apply unified diff patch
 - `structured-edit route <file> <op> [--policy <json>]` — detailed route explanation with policy testing
+- `structured-edit route-edit <file> <op> [options]` — auto-routed edit via AST→hash→diff
+- `structured-edit batch <op> <files...>` — apply same edit to multiple files
+- `structured-edit intent '<json>'` — intent-based multi-step editing (auto-discovers references)
 - `structured-edit config` — show current merged configuration
-- `structured-edit verify-changes <files>` — run formatter + linter + tests
+- `structured-edit verify-changes <files> [--auto-detect] [--revert-on-failure]` — run formatter + linter + typecheck + tests
+- `structured-edit provenance query <file> [--human]` — edit history (like `git blame` for agent edits)
+- `structured-edit provenance changeset <id> [--human]` — show all edits in a changeSet
 - `structured-edit telemetry summary` — check usage stats
 - `structured-edit telemetry health [-w <days>] [--trend]` — health report with per-language stats and trend comparison
+- `structured-edit telemetry sessions` — list session summaries
+- `structured-edit telemetry export [--from <date>] [--to <date>]` — export events as NDJSON
+- `structured-edit telemetry prune [--older-than <days>]` — delete old rotated files
 
 ### Config file
 
@@ -61,8 +72,8 @@ structured-edit ast find-symbols src/utils.ts
 structured-edit ast replace-body src/utils.ts formatDate 'return new Date(d).toISOString();'
 # → success, body replaced
 
-# 3. Verify
-structured-edit verify-changes src/utils.ts --formatter prettier --linter eslint
+# 3. Verify (auto-detect tools from package.json)
+structured-edit verify-changes src/utils.ts --auto-detect
 ```
 
 ### Hash-anchored edit for a non-TS file

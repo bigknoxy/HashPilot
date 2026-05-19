@@ -38,7 +38,20 @@ HashPilot is configured via config files and environment variables, merged with 
 
 **Environment variables:**
 - `HASHPILOT_ROUTE_POLICY` — JSON string overriding route policy. Example: `'{"languageOverrides":{"python":"hash"}}'`
-- `HASHPILOT_CONFIG` — Path to an additional config file (deprecated; use `--config`)
+
+---
+
+### provenance tracking (optional on all write commands)
+
+The following options are available on all write operations (`replace-hash`, `ast rename-symbol`, `ast replace-body`, `ast add-import`, `ast remove-import`, `ast insert-before`, `ast insert-after`, `diff apply`, `batch`):
+
+| Option | Description |
+|--------|-------------|
+| `--actor <name>` | Agent identity for provenance tracking (e.g. `"claude-opus-4.7"`) |
+| `--task-id <id>` | Task/issue reference (e.g. `"ISSUE-142"`, `"GH#123"`) |
+| `--reason <text>` | Human-readable reason for the edit |
+
+These are recorded alongside telemetry and queryable via `provenance query`.
 
 ---
 
@@ -158,8 +171,9 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 
 - `<new-content>` can be `@filepath` to read from a file
 - `--range` is 1-indexed, inclusive start and exclusive end
+- Provenance options: `--actor`, `--task-id`, `--reason`
 
-**Auto-recovery:** If the file was modified since the hash was computed (stale anchor), the tool auto-recovers by applying the edit to the current file content and returns `retries: 1`. For full-file replaces (no `--range`), this is always safe. For range-based replaces, the edit applies to the current range content.
+**Auto-recovery:** If the file was modified since the hash was computed (stale anchor), the tool auto-recovers by default, applying the edit to the current file content. Returns `retries: 1` on recovery. For full-file replaces (no `--range`), this is always safe. For range-based replaces, the edit applies to the current range content. To disable auto-recovery and force stale-anchor failure, pass `--no-recovery` (internal API only).
 
 **Output (success):**
 ```json
@@ -247,7 +261,7 @@ Rename all references to a symbol.
 
 **Invocation:**
 ```
-structured-edit ast rename-symbol <file> <old-name> <new-name> [--dry-run]
+structured-edit ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 **Output:**
@@ -269,7 +283,7 @@ Replace a function/method body.
 
 **Invocation:**
 ```
-structured-edit ast replace-body <file> <symbol-name> <new-body> [--dry-run]
+structured-edit ast replace-body <file> <symbol-name> <new-body> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<new-body>` can be `@filepath` to read from a file.
@@ -293,7 +307,7 @@ Add an import statement.
 
 **Invocation:**
 ```
-structured-edit ast add-import <file> <import-spec> [--dry-run]
+structured-edit ast add-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<import-spec>` examples: `'{ Foo } from ./bar'`, `'* as React from react'`
@@ -306,7 +320,7 @@ Remove an import line.
 
 **Invocation:**
 ```
-structured-edit ast remove-import <file> <import-spec> [--dry-run]
+structured-edit ast remove-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 ---
@@ -317,20 +331,70 @@ Insert content before or after a named symbol.
 
 **Invocation:**
 ```
-structured-edit ast insert-before <file> <symbol-name> <content> [--dry-run]
-structured-edit ast insert-after <file> <symbol-name> <content> [--dry-run]
+structured-edit ast insert-before <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+structured-edit ast insert-after <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+```
+
+---
+
+### diff generate
+
+Generate a unified diff between old and new content.
+
+**Invocation:**
+```
+structured-edit diff generate <file> <old-content> <new-content> [-c <context-lines>]
+```
+
+`<old-content>` and `<new-content>` can be `@filepath` to read from files.
+
+**Output:** Unified diff text (not JSON). Prints `"(no changes)"` if inputs are identical.
+
+---
+
+### diff apply
+
+Apply a unified diff patch to a file.
+
+**Invocation:**
+```
+structured-edit diff apply <file> [--patch <file>] [--dry-run] [-f <fuzzy>] [--actor <name>] [--task-id <id>] [--reason <text>]
+```
+
+- `--patch <file>` — patch file to apply (use `-` for stdin)
+- `-f, --fuzzy <n>` — fuzzy match tolerance (default 3)
+
+**Output:**
+```json
+{
+  "success": true,
+  "hunksApplied": 1,
+  "hunksFailed": 0,
+  "message": "Applied 1 hunk(s)",
+  "newSource": "..."
+}
 ```
 
 ---
 
 ### verify-changes
 
-Run formatter, linter, and tests on changed files.
+Run formatter, linter, typechecker, and tests on changed files. Supports auto-detection from project config files.
 
 **Invocation:**
 ```
-structured-edit verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--test-filter <pattern>] [--formatter-args ...] [--linter-args ...]
+structured-edit verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--typecheck <cmd>] [--test-filter <pattern>] [--test-runner <runner>] [--auto-detect] [--revert-on-failure] [--timeout <ms>] [--formatter-args ...] [--linter-args ...] [--test-args ...]
 ```
+
+**Options:**
+- `--formatter <cmd>` — formatter command (e.g. `prettier --write`)
+- `--linter <cmd>` — linter command (e.g. `eslint`, `biome lint`)
+- `--typecheck <cmd>` — type checker command (e.g. `tsc --noEmit`)
+- `--test-filter <pattern>` — filter tests by name pattern
+- `--test-runner <runner>` — explicit test runner (`bun test`, `vitest`, `jest`, `pytest`, `go test`, `cargo test`)
+- `--auto-detect` — auto-detect tools from `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`
+- `--revert-on-failure` — restore originals if any check fails
+- `--timeout <ms>` — per-check timeout (default 30000)
 
 **Output:**
 ```json
@@ -339,15 +403,163 @@ structured-edit verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter
   "formatter": { "passed": true, "output": "..." },
   "linter": { "passed": true, "output": "..." },
   "tests": { "passed": true, "output": "..." },
+  "typecheck": { "passed": true, "output": "..." },
   "overall": "pass",
   "elapsed_ms": 120,
-  "fileHashes": { "/abs/path/file.ts": "abc123def456" }
+  "fileHashes": { "/abs/path/file.ts": "abc123def456" },
+  "detected": { "formatter": "prettier --write", "testRunner": "vitest" },
+  "revertedFiles": ["/abs/path/file.ts"]
 }
 ```
 
-`overall` is `"pass"`, `"fail"`, or `"partial"` (some checks not run).
+`overall` is `"pass"` or `"fail"`. When `--revert-on-failure` is set, `revertedFiles` lists files restored to their original state.
 
 ---
+
+### route-edit
+
+Auto-routed structured edit through AST → Hash → Diff pipeline. One command dispatches to the best available route.
+
+**Invocation:**
+```
+structured-edit route-edit <file> <operation> [options...]
+```
+
+**Operations:** `rename-symbol`, `replace-body`, `add-import`, `remove-import`, `insert-before`, `insert-after`, `replace-hash`, `replace-content`
+
+**Key options:**
+- `--method <route>` — force a specific route (`ast`, `hash`, `diff`)
+- `--policy <json>` — inline RoutePolicy JSON for testing
+- `--dry-run` — preview without writing
+- All provenance options: `--actor`, `--task-id`, `--reason`
+- AST-specific: `--symbol`, `--old-name`, `--new-name`, `--new-body`, `--import-spec`, `--content`
+- Hash-specific: `--old-hash`, `--new-content`, `--range`
+- Diff-specific: `--old-content`, `--new-content`
+
+**Output:** Same as the underlying route operation.
+
+---
+
+### batch
+
+Apply the same edit to multiple files in parallel (or serial with `--serial`).
+
+**Invocation:**
+```
+structured-edit batch <operation> <files...> [options...]
+```
+
+Accepts the same options as `route-edit`, plus `--serial` for sequential execution.
+
+**Output:**
+```json
+{
+  "results": [ ... ],
+  "summary": {
+    "total": 5,
+    "succeeded": 4,
+    "failed": 1,
+    "elapsed_ms": 1234
+  }
+}
+```
+
+---
+
+### intent
+
+Execute an editing intent — one command, full blast radius. Parses a structured intent, discovers symbol definitions and references, generates an edit plan, and executes it.
+
+**Invocation:**
+```
+structured-edit intent '<json>' [--project-root <dir>] [--dry-run] [--no-verify] [--no-revert] [--timeout <ms>] [--actor <name>] [--task-id <id>] [--reason <text>] [--context <text>]
+```
+
+**Intent format (JSON):**
+```json
+{"operation":"add-parameter","symbol":"myFunction","param":{"name":"x","type":"string","default":"\"hello\""}}
+```
+
+**Supported operations:** `add-parameter`, `remove-parameter`, `rename-exported-symbol`
+
+**Output:**
+```json
+{
+  "success": true,
+  "plan": { "intent": {...}, "definition": {...}, "impactSummary": "..." },
+  "execution": { "steps": [...], "summary": {...}, "verification": {...} }
+}
+```
+
+---
+
+### provenance query
+
+Show edit history for a file — like `git blame` for agent edits.
+
+**Invocation:**
+```
+structured-edit provenance query <file> [<line-number>] [--human] [--fuzzy] [--limit <n>]
+```
+
+- `--human` — human-readable table format
+- `--fuzzy` — include edits without diff data in line-filtered queries
+
+**Output (JSON):**
+```json
+[
+  {
+    "timestamp": "2026-05-19T00:00:00.000Z",
+    "actor": "agent-name",
+    "taskId": "ISSUE-142",
+    "reason": "Rename function per spec",
+    "operation": "rename-symbol",
+    "route": "ast",
+    "success": true,
+    "diff": "@@ -10,3 +10,3 @@\n-oldFunc\n+newFunc"
+  }
+]
+```
+
+---
+
+### provenance changeset
+
+Show all edits belonging to a changeSet (multi-step edit group).
+
+**Invocation:**
+```
+structured-edit provenance changeset <changeSetId> [--human]
+```
+
+---
+
+### telemetry
+
+View or manage telemetry.
+
+**Invocation:**
+```
+structured-edit telemetry show [-n <limit>]
+structured-edit telemetry summary
+structured-edit telemetry health [-w <days>] [--trend]
+structured-edit telemetry sessions
+structured-edit telemetry export [--from <date>] [--to <date>] [--session <id>]
+structured-edit telemetry prune [--older-than <days>]
+structured-edit telemetry clear
+```
+
+**`telemetry show`** — Show recent telemetry events (default 20).
+
+**`telemetry summary`** — Aggregate counts by route:operation with success rate and average timing.
+
+**`telemetry sessions`** — List session-level summaries (event count, error rate, duration).
+
+**`telemetry export`** — Export events as NDJSON with optional date range or session ID filter.
+
+**`telemetry prune`** — Delete rotated telemetry files older than N days (default 30).
+
+**Event schema:**
 
 ### route
 
@@ -563,12 +775,12 @@ Compare the current window against the previous window of the same length.
 ## Error Handling
 
 All commands return JSON with:
-- `error` field on failure
 - `success: false` on operation failure
-- `stale: true` on hash mismatch (recoverable by re-reading)
+- `error` field on file-level failures
+- `stale: true` on hash mismatch (auto-recovered by default, `"retries": 1` on recovery)
+- `message` with human-readable description
 
 ## Exit Codes
 
 - `0`: Success
-- `1`: General error (file not found, parse error, etc.)
-- `2`: Stale anchor (hash mismatch)
+- `1`: General error (file not found, parse error, stale anchor, etc.)

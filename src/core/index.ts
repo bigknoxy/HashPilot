@@ -66,3 +66,4 @@ export { createChangeSet, buildProvenanceFields, provenanceQuery, changeSetQuery
 export type { ProvenanceInput, ProvenanceEntry, ChangeSetResult } from "./provenance";
 export { doctor } from "./doctor";
 export type { DoctorReport, DoctorCheck } from "./doctor";
+export { escapeRegex } from "./utils";

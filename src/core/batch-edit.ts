@@ -64,12 +64,13 @@ async function editOne(
     reason: params.reason,
   });
 }
-
 export async function editMany(params: BatchParams): Promise<BatchResult> {
   const start = Date.now();
 
+  const uniqueFiles = [...new Set(params.files)];
+
   const results = await Promise.all(
-    params.files.map((f) => editOne(f, params))
+    uniqueFiles.map((f) => editOne(f, params))
   );
 
   const elapsed = Date.now() - start;
@@ -79,17 +80,16 @@ export async function editMany(params: BatchParams): Promise<BatchResult> {
   recordEvent({
     operation: `batch-${params.operation}`,
     route: "batch",
-    files_count: params.files.length,
+    files_count: uniqueFiles.length,
     success: failed === 0,
     elapsed_ms: elapsed,
   });
 
   return {
     results,
-    summary: { total: params.files.length, succeeded, failed, elapsed_ms: elapsed },
+    summary: { total: uniqueFiles.length, succeeded, failed, elapsed_ms: elapsed },
   };
 }
-
 export async function editManySerial(params: BatchParams): Promise<BatchResult> {
   const start = Date.now();
 

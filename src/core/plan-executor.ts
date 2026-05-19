@@ -1,4 +1,4 @@
-import { EditPlan, EditStep, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
+import { EditPlan, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
 import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
 import { computeHash } from "./read";
