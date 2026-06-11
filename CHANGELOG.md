@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/bigknoxy/HashPilot/compare/v1.3.1...v1.4.0) (2026-06-11)
+
+
+### Features
+
+* add index.html landing page with dark-themed design ([6508323](https://github.com/bigknoxy/HashPilot/commit/650832320f5fd63b16ec791b1c8f9cda2c140d8d))
+
 ## [1.3.1](https://github.com/bigknoxy/HashPilot/compare/v1.3.0...v1.3.1) (2026-06-11)
 
 
