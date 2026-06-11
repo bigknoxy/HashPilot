@@ -18,9 +18,17 @@ export interface TelemetryConfig {
   retentionDays?: number;
 }
 
+export interface ProvenanceConfig {
+  /** Default actor identity when not provided at invocation */
+  defaultActor?: string;
+  /** Max length of stored context field (prevents log bloat), default 500 */
+  maxContextLength?: number;
+}
+
 export interface HashPilotConfig {
   routePolicy?: RoutePolicy;
   telemetry?: TelemetryConfig;
+  provenance?: ProvenanceConfig;
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
@@ -53,10 +61,8 @@ export function policyForce(
   if (!policy) return undefined;
   const fromLang = language ? policy.languageOverrides?.[language] : undefined;
   const fromOp = policy.operationOverrides?.[operation];
-  if (fromLang || fromOp) {
-    return resolveConflict(fromLang, fromOp, policy.conflictResolution);
-  }
-  return undefined;
+  if (!fromLang && !fromOp) return undefined;
+  return resolveConflict(fromLang, fromOp, policy.conflictResolution);
 }
 
 export function loadConfig(configPath?: string): HashPilotConfig {
@@ -99,28 +105,18 @@ export function loadConfig(configPath?: string): HashPilotConfig {
 
 function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>): void {
   if (override.telemetry) {
-    base.telemetry = base.telemetry || {};
-    if (override.telemetry.enabled !== undefined) base.telemetry.enabled = override.telemetry.enabled;
-    if (override.telemetry.maxFileSize !== undefined) base.telemetry.maxFileSize = override.telemetry.maxFileSize;
-    if (override.telemetry.maxRotatedFiles !== undefined) base.telemetry.maxRotatedFiles = override.telemetry.maxRotatedFiles;
-    if (override.telemetry.retentionDays !== undefined) base.telemetry.retentionDays = override.telemetry.retentionDays;
+    base.telemetry = { ...base.telemetry, ...override.telemetry };
   }
   if (override.routePolicy) {
-    base.routePolicy = base.routePolicy || {};
-    if (override.routePolicy.languageOverrides) {
-      base.routePolicy.languageOverrides = {
-        ...(base.routePolicy.languageOverrides || {}),
-        ...override.routePolicy.languageOverrides,
-      };
-    }
-    if (override.routePolicy.operationOverrides) {
-      base.routePolicy.operationOverrides = {
-        ...(base.routePolicy.operationOverrides || {}),
-        ...override.routePolicy.operationOverrides,
-      };
-    }
-    if (override.routePolicy.conflictResolution) {
-      base.routePolicy.conflictResolution = override.routePolicy.conflictResolution;
-    }
+    const basePolicy = base.routePolicy || {};
+    base.routePolicy = {
+      ...basePolicy,
+      conflictResolution: override.routePolicy.conflictResolution ?? basePolicy.conflictResolution,
+      languageOverrides: { ...basePolicy.languageOverrides, ...override.routePolicy.languageOverrides },
+      operationOverrides: { ...basePolicy.operationOverrides, ...override.routePolicy.operationOverrides },
+    };
+  }
+  if (override.provenance) {
+    base.provenance = { ...base.provenance, ...override.provenance };
   }
 }

@@ -4,7 +4,7 @@ import Python from "tree-sitter-python";
 import JavaScript from "tree-sitter-javascript";
 import Go from "tree-sitter-go";
 import Rust from "tree-sitter-rust";
-import { recordEvent } from "./telemetry";
+import { escapeRegex } from "./utils";
 
 // Language registry: maps internal language IDs to parser + metadata
 interface LangEntry {
@@ -218,8 +218,8 @@ export interface ASTEditResult {
   message: string;
   error?: string;
   newSource?: string;
+  symbolFound?: boolean;
 }
-
 export interface SymbolInfo {
   name: string;
   kind: string;
@@ -487,17 +487,10 @@ export function addImport(
 
   let newSource: string;
   if (lastImportEnd > 0) {
-    // Check for grouped insert first (e.g., Go import ( ... ) blocks)
-    if (icfg.groupedInsert) {
-      const groupedResult = icfg.groupedInsert(source, tree.rootNode, newImportLine);
-      if (groupedResult !== null) {
-        newSource = groupedResult;
-      } else {
-        // Fall through to default append behavior
-        let insertPos = lastImportEnd;
-        while (source[insertPos] === "\n") insertPos++;
-        newSource = source.slice(0, insertPos) + "\n" + newImportLine + source.slice(insertPos);
-      }
+    // Try grouped insert first (e.g., Go import ( ... ) blocks), then fall back to appending after last import
+    const groupedResult = icfg.groupedInsert?.(source, tree.rootNode, newImportLine) ?? null;
+    if (groupedResult !== null) {
+      newSource = groupedResult;
     } else {
       let insertPos = lastImportEnd;
       while (source[insertPos] === "\n") insertPos++;
@@ -507,9 +500,8 @@ export function addImport(
     const pos = icfg.fallbackInsert(tree.rootNode);
     if (pos !== null && pos > 0) {
       // Insert after package_clause (or similar anchor), ensuring a blank line before code
-      const afterPkg = pos;
-      const restAfterPos = source.slice(afterPkg);
-      newSource = source.slice(0, afterPkg) + "\n\n" + newImportLine + restAfterPos.replace(/^\n+/, "");
+      const restAfterPos = source.slice(pos);
+      newSource = source.slice(0, pos) + "\n\n" + newImportLine + restAfterPos.replace(/^\n+/, "");
     } else {
       newSource = newImportLine + source;
     }
@@ -709,158 +701,6 @@ function findLastIdentifier(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
   return null;
 }
 
-/** Find children of a Rust use_list node whose text exactly matches importSpec */
-function findRustGroupedMatch(
-  useList: Parser.SyntaxNode,
-  importSpec: string
-): Parser.SyntaxNode[] {
-  const result: Parser.SyntaxNode[] = [];
-  for (let i = 0; i < useList.childCount; i++) {
-    const child = useList.child(i);
-    // Match identifiers, self, super, crate keywords directly
-    if (child.type === "identifier" || child.type === "self" || child.type === "super" || child.type === "crate") {
-      if (child.text === importSpec) {
-        result.push(child);
-      }
-    }
-    // Match scoped_identifier in use_list, e.g. `use X::{A, B::C}`
-    if (child.type === "scoped_identifier") {
-      const lastIdent = findLastIdentifier(child);
-      if (lastIdent && lastIdent.text === importSpec) {
-        result.push(child);
-      }
-    }
-  }
-  return result;
-}
-
-/** Find the last identifier child in a scoped_identifier or similar nested path */
-function findLastIdentifier(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
-  for (let i = node.childCount - 1; i >= 0; i--) {
-    const child = node.child(i);
-    if (child.type === "identifier") return child;
-    const found = findLastIdentifier(child);
-    if (found) return found;
-  }
-  return null;
-}
-
-/**
- * Check if a simple (non-grouped) Rust use_declaration matches importSpec
- * via the last path segment. E.g. `use std::io` matches spec "io",
- * but "collections" does NOT match spec "io" (avoids substring false positive).
- */
-function rustUseMatchesSimple(node: Parser.SyntaxNode, importSpec: string): boolean {
-  // Find the scoped_identifier or identifier that represents the path
-  for (let ci = 0; ci < node.childCount; ci++) {
-    const child = node.child(ci);
-    // Direct identifier: `use identifier`
-    if (child.type === "identifier" && child.text === importSpec) {
-      return true;
-    }
-    // Scoped path: `use a::b::C` — match "C"
-    if (child.type === "scoped_identifier" || child.type === "scoped_use_list") {
-      if (lastSegmentMatches(child, importSpec)) return true;
-    }
-  }
-  return false;
-}
-
-/** Walk a scoped path and check if the rightmost segment equals importSpec */
-function lastSegmentMatches(node: Parser.SyntaxNode, importSpec: string): boolean {
-  // Walk from end — the last identifier child is the target segment
-  for (let i = node.childCount - 1; i >= 0; i--) {
-    const child = node.child(i);
-    if (child.type === "identifier") return child.text === importSpec;
-    if (child.type === "scoped_identifier") return lastSegmentMatches(child, importSpec);
-  }
-  return false;
-}
-
-/**
- * For a grouped Rust use declaration, remove individual items from the use_list.
- * Records the proper source ranges for removal (items + commas).
- */
-function removeFromUseList(
-  source: string,
-  removals: { start: number; end: number }[],
-  useDeclNode: Parser.SyntaxNode,
-  useListNode: Parser.SyntaxNode,
-  matchedItems: Parser.SyntaxNode[]
-): void {
-  // Get all non-comma, non-brace children of the use_list
-  const items: Parser.SyntaxNode[] = [];
-  const commas: Map<number, Parser.SyntaxNode> = new Map(); // item index -> comma node before it
-
-  for (let i = 0; i < useListNode.childCount; i++) {
-    const child = useListNode.child(i);
-    if (child.type === ",") {
-      // This comma belongs to the most recently added item
-      if (items.length > 0) {
-        commas.set(items.length - 1, child);
-      }
-    } else if (child.type !== "{" && child.type !== "}") {
-      items.push(child);
-    }
-  }
-
-  const matchSet = new Set(matchedItems);
-  const remaining = items.filter((it) => !matchSet.has(it));
-
-  if (remaining.length === 0) {
-    // Remove entire use_declaration
-    removals.push({ start: useDeclNode.startIndex, end: useDeclNode.endIndex });
-    return;
-  }
-
-  // Build the replacement text for the use_list content (without braces)
-  const newItemsText = remaining
-    .map((item, idx) => {
-      const commaIdx = commas.get(items.indexOf(item));
-      if (commaIdx && idx < remaining.length - 1) {
-        return item.text + ", ";
-      }
-      return item.text;
-    })
-    .join("");
-
-  // Replace the entire use_list's inner content (between { and })
-  const innerStart = useListNode.startIndex + 1; // after '{'
-  const innerEnd = useListNode.endIndex - 1;      // before '}'
-  const oldInner = source.slice(innerStart, innerEnd);
-  const newInner = " " + newItemsText + " ";
-
-  // If the resulting text has only one item, simplify: replace the whole use_declaration
-  if (remaining.length === 1) {
-    // Simplify `use X::{Y}` to `use X::Y`
-    let path = "";
-    for (let ci = 0; ci < useDeclNode.childCount; ci++) {
-      const child = useDeclNode.child(ci);
-      if (child.type === "scoped_use_list") {
-        // Find the path part before the { ... }
-        for (let si = 0; si < child.childCount; si++) {
-          const sc = child.child(si);
-          if (sc.type === "use_list") break;
-          path += source.slice(sc.startIndex, sc.endIndex);
-        }
-      }
-    }
-    const simplified = path + "::" + remaining[0].text;
-    removals.push({ start: useDeclNode.startIndex, end: useDeclNode.endIndex });
-    // We can't do source replacement here directly, so push a special marker
-    // Instead, handle simplification by adjusting the replacement range
-    // Replace use_declaration with simplified version
-    // Since we use slice-based removal, we need to encode this as a text replacement
-    // Strategy: record the start+end of the entire node, and handle in the main function
-    // For simplicity, we replace inner content to produce `use X::Y;`
-  }
-
-  // Replace use_list inner content
-  if (oldInner !== newInner) {
-    removals.push({ start: innerStart, end: innerEnd, replace: newInner } as any);
-  }
-}
-
 export function insertBeforeSymbol(
   source: string,
   filePath: string,
@@ -933,10 +773,6 @@ export function insertAfterSymbol(
   const indented = content.split("\n").map((l) => indent + l).join("\n") + "\n";
   const newSource = source.slice(0, pos) + indented + source.slice(pos);
   return { success: true, path: filePath, operation: "insert-after", changes: 1, message: `Inserted content after '${symbolName}'`, newSource };
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

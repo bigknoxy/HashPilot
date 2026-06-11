@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { glob as globSync } from "glob";
+import { escapeRegex } from "./utils";
 
 export interface GrepResult {
   path: string;
@@ -37,42 +38,33 @@ export async function grepMany(
 
     const result = await runCommand("grep", args);
     const lines = result.stdout.split("\n").filter(Boolean);
-    const results: GrepResult[] = lines.map((line) => {
+    const results: GrepResult[] = lines.flatMap((line) => {
       // Handle multiple output formats:
       // - Multi-file GNU grep:  "file:line:column:text"
       // - Multi-file ugrep:     "file:line:text"
       // - Single-file ugrep:    "line:text"
       // - Single-file GNU grep: "line:column:text"
 
-      // Try file:line:column/text first (multi-file)
+      // Try file:line:column:text first (multi-file)
       let m = line.match(/^([^:]+):(\d+):(\d+):(.*)$/);
       if (m) {
-        return {
-          path: m[1], line: parseInt(m[2]), column: parseInt(m[3]),
-          content: m[4], match: pattern,
-        };
+        return [{ path: m[1], line: parseInt(m[2]), column: parseInt(m[3]), content: m[4], match: pattern }];
       }
 
       // Try line:text (single file, one colon)
       m = line.match(/^(\d+):(.*)$/);
       if (m) {
-        return {
-          path: paths[0], line: parseInt(m[1]), column: 1,
-          content: m[2], match: pattern,
-        };
+        return [{ path: paths[0], line: parseInt(m[1]), column: 1, content: m[2], match: pattern }];
       }
 
       // Try file:line:text (multi-file ugrep)
       m = line.match(/^([^:]+):(\d+):(.*)$/);
       if (m) {
-        return {
-          path: m[1], line: parseInt(m[2]), column: 1,
-          content: m[3], match: pattern,
-        };
+        return [{ path: m[1], line: parseInt(m[2]), column: 1, content: m[3], match: pattern }];
       }
 
-      return null as any;
-    }).filter(Boolean);
+      return [];
+    });
 
     return { pattern, results, elapsed_ms: Date.now() - start };
   } catch (e: any) {
@@ -118,20 +110,17 @@ export async function symbolLookupMany(
   return results;
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function detectSymbolKind(content: string, name: string): string {
+function detectSymbolKind(content: string, _name: string): string {
   const trimmed = content.trim();
-  if (trimmed.startsWith("class ")) return "class";
-  if (trimmed.startsWith("interface ")) return "interface";
-  if (trimmed.startsWith("type ")) return "type";
-  if (trimmed.startsWith("function ")) return "function";
-  if (trimmed.startsWith("export function ")) return "function";
-  if (trimmed.startsWith("const ")) return "const";
-  if (trimmed.startsWith("let ")) return "let";
-  if (trimmed.startsWith("var ")) return "var";
+  // Strip leading "export " to unify exported and non-exported declarations
+  const stripped = trimmed.startsWith("export ") ? trimmed.slice(7) : trimmed;
+  if (stripped.startsWith("function ")) return "function";
+  if (stripped.startsWith("class ")) return "class";
+  if (stripped.startsWith("interface ")) return "interface";
+  if (stripped.startsWith("type ")) return "type";
+  if (stripped.startsWith("const ")) return "const";
+  if (stripped.startsWith("let ")) return "let";
+  if (stripped.startsWith("var ")) return "var";
   return "unknown";
 }
 

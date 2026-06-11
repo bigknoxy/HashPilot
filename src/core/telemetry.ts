@@ -32,7 +32,7 @@ export interface TelemetryEvent {
   timestamp: string;
   sessionId: string;
   operation: string;
-  route: "ast" | "hash" | "diff" | "read" | "grep" | "verify" | "other";
+  route: "ast" | "hash" | "diff" | "read" | "grep" | "verify" | "intent" | "other";
   file?: string;
   files_count?: number;
   lines_read?: number;
@@ -46,6 +46,28 @@ export interface TelemetryEvent {
   elapsed_ms: number;
   detail?: string;
   errorCode?: ErrorCode;
+
+  // ── M6: Provenance fields (all optional) ──────────────────────────
+  /** Agent identity (e.g. "claude-opus-4.7@anthropic") */
+  actor?: string;
+  /** Task or issue reference (e.g. "ISSUE-142", "GH#123") */
+  taskId?: string;
+  /** UUID linking multi-step edits into one logical change */
+  changeSetId?: string;
+  /** Human-readable reason for the edit */
+  reason?: string;
+  /** SHA-256 hash of file content before edit (12-char truncated) */
+  beforeHash?: string;
+  /** SHA-256 hash of file content after edit (12-char truncated) */
+  afterHash?: string;
+  /** Unified diff of the change */
+  diff?: string;
+  /** 0-indexed position of this step within a changeSet */
+  stepIndex?: number;
+  /** Total number of steps in the changeSet */
+  stepTotal?: number;
+  /** Truncated agent prompt/context that produced this edit */
+  context?: string;
 }
 
 export interface SessionSummary {
@@ -274,12 +296,7 @@ export interface HealthReport {
   warnings: string[];
 }
 
-export function health(windowDays: number = 7): HealthReport {
-  const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-  const events = readAllEvents().filter((e) => {
-    return new Date(e.timestamp).getTime() >= cutoff;
-  });
-
+function computeHealthFromEvents(events: TelemetryEvent[], windowDays: number): Omit<HealthReport, "topFallbackCauses" | "warnings"> {
   const routeDistribution: Record<string, { count: number; success: number }> = {};
   for (const e of events) {
     const r = routeDistribution[e.route] || (routeDistribution[e.route] = { count: 0, success: 0 });
@@ -321,6 +338,30 @@ export function health(windowDays: number = 7): HealthReport {
     }
   }
 
+  return {
+    totalEvents: events.length,
+    windowDays,
+    routeDistribution,
+    fallbackFrequency,
+    staleAnchors,
+    perLanguage,
+    verifyFailures,
+  };
+}
+
+export function health(windowDays: number = 7): HealthReport {
+  const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  const events = readAllEvents().filter((e) => {
+    return new Date(e.timestamp).getTime() >= cutoff;
+  });
+
+  const base = computeHealthFromEvents(events, windowDays);
+  const { routeDistribution, staleAnchors, perLanguage, verifyFailures } = base;
+
+  const replaceHashCount = events.filter((e) => e.operation === "replace-hash").length;
+  const verifyEventCount = events.filter((e) => e.operation === "verify-changes").length;
+  const verifyFailCount = verifyFailures.total;
+
   const fc: Record<string, number> = {};
   for (const e of events) {
     if (e.fallback_reason) fc[e.fallback_reason] = (fc[e.fallback_reason] || 0) + 1;
@@ -332,11 +373,11 @@ export function health(windowDays: number = 7): HealthReport {
 
   const warnings: string[] = [];
 
-  if (replaceHashEvents.length > 0) {
-    const staleRate = staleAnchors.total / replaceHashEvents.length;
+  if (replaceHashCount > 0) {
+    const staleRate = staleAnchors.total / replaceHashCount;
     if (staleRate > 0.1) {
       warnings.push(
-        `Stale-anchor rate ${(staleRate * 100).toFixed(0)}% exceeds threshold of 10% (${staleAnchors.total}/${replaceHashEvents.length} replace-hash calls)`
+        `Stale-anchor rate ${(staleRate * 100).toFixed(0)}% exceeds threshold of 10% (${staleAnchors.total}/${replaceHashCount} replace-hash calls)`
       );
     }
   }
@@ -348,11 +389,11 @@ export function health(windowDays: number = 7): HealthReport {
     );
   }
 
-  if (verifyEvents.length > 0) {
-    const verifyFailRate = verifyEvents.filter((e) => !e.success).length / verifyEvents.length;
+  if (verifyEventCount > 0) {
+    const verifyFailRate = verifyFailCount / verifyEventCount;
     if (verifyFailRate > 0.2) {
       warnings.push(
-        `Verify-changes failure rate ${(verifyFailRate * 100).toFixed(0)}% exceeds threshold of 20% (${verifyFailures.total}/${verifyEvents.length})`
+        `Verify-changes failure rate ${(verifyFailRate * 100).toFixed(0)}% exceeds threshold of 20% (${verifyFailCount}/${verifyEventCount})`
       );
     }
   }
@@ -366,13 +407,7 @@ export function health(windowDays: number = 7): HealthReport {
   }
 
   return {
-    totalEvents: events.length,
-    windowDays,
-    routeDistribution,
-    fallbackFrequency,
-    staleAnchors,
-    perLanguage,
-    verifyFailures,
+    ...base,
     topFallbackCauses,
     warnings,
   };
@@ -409,55 +444,9 @@ function healthFromWindow(pastDays: number, offsetDays: number): HealthReport {
     return ts >= windowStart && ts < windowEnd;
   });
 
-  const routeDistribution: Record<string, { count: number; success: number }> = {};
-  for (const e of events) {
-    const r = routeDistribution[e.route] || (routeDistribution[e.route] = { count: 0, success: 0 });
-    r.count++;
-    if (e.success) r.success++;
-  }
-
-  const fallbackFrequency: Record<string, number> = {};
-  for (const e of events) {
-    if (e.fallback_reason) {
-      fallbackFrequency[e.fallback_reason] = (fallbackFrequency[e.fallback_reason] || 0) + 1;
-    }
-  }
-
-  const replaceHashEvents = events.filter((e) => e.operation === "replace-hash");
-  const staleAnchors = {
-    total: replaceHashEvents.filter((e) => (e.retries ?? 0) > 0 || e.fallback_reason === "stale-anchor").length,
-    recovered: replaceHashEvents.filter((e) => (e.retries ?? 0) > 0).length,
-    failed: replaceHashEvents.filter((e) => e.fallback_reason === "stale-anchor" && !e.success).length,
-  };
-
-  const perLanguage: Record<string, { operations: number; failures: number }> = {};
-  for (const e of events) {
-    if (e.language) {
-      const l = perLanguage[e.language] || (perLanguage[e.language] = { operations: 0, failures: 0 });
-      l.operations++;
-      if (!e.success) l.failures++;
-    }
-  }
-
-  const verifyEvents = events.filter((e) => e.operation === "verify-changes");
-  const verifyFailures = { total: 0, byCheck: {} as Record<string, number> };
-  for (const e of verifyEvents) {
-    if (!e.success) verifyFailures.total++;
-    if (e.failed_in) {
-      for (const check of e.failed_in) {
-        verifyFailures.byCheck[check] = (verifyFailures.byCheck[check] || 0) + 1;
-      }
-    }
-  }
-
+  const base = computeHealthFromEvents(events, pastDays);
   return {
-    totalEvents: events.length,
-    windowDays: pastDays,
-    routeDistribution,
-    fallbackFrequency,
-    staleAnchors,
-    perLanguage,
-    verifyFailures,
+    ...base,
     topFallbackCauses: [],
     warnings: [],
   };
@@ -484,8 +473,10 @@ function compareHealth(current: HealthReport, previous: HealthReport): HealthTre
 
   const staleAnchorDelta = current.staleAnchors.total - previous.staleAnchors.total;
 
-  const curVerifyRate = current.verifyFailures.total / Math.max(1, Object.values(current.routeDistribution).filter(r => r.count > 0).length);
-  const prevVerifyRate = previous.verifyFailures.total / Math.max(1, Object.values(previous.routeDistribution).filter(r => r.count > 0).length);
+  const curVerifyOps = current.routeDistribution["verify"]?.count || 1;
+  const curVerifyRate = current.verifyFailures.total / curVerifyOps;
+  const prevVerifyOps = previous.routeDistribution["verify"]?.count || 1;
+  const prevVerifyRate = previous.verifyFailures.total / prevVerifyOps;
   const verifyFailureDelta = (curVerifyRate - prevVerifyRate) * 100;
 
   const languageRegressions: string[] = [];

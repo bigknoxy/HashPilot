@@ -36,6 +36,11 @@ import {
   listSessions,
   exportEvents,
   pruneEvents,
+  createChangeSet,
+  buildProvenanceFields,
+  provenanceQuery,
+  changeSetQuery,
+  formatProvenanceHuman,
 } from "./core/index";
 
 const program = new Command();
@@ -129,6 +134,9 @@ program
   .argument("<new-content>", "New content (or @file to read from file)")
   .option("--range <start:end>", "Line range (1-indexed)")
   .option("--dry-run", "Preview without writing")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, oldHash: string, newContent: string, opts) => {
     let content = newContent;
@@ -144,6 +152,12 @@ program
       range,
       dryRun: opts.dryRun,
     });
+    const provFields = buildProvenanceFields({
+      actor: opts.actor,
+      taskId: opts.taskId,
+      reason: opts.reason,
+      filePath: file,
+    });
     recordEvent({
       operation: "replace-hash",
       route: "hash",
@@ -153,6 +167,7 @@ program
       fallback_reason: result.stale ? "stale-anchor" : undefined,
       retries: result.retries ?? 0,
       elapsed_ms: 0,
+      ...provFields,
     });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -178,6 +193,22 @@ astCmd
     console.log(JSON.stringify(symbols, null, 2));
   });
 
+function recordProvenanceEvent(opts: {
+  operation: string; route: TelemetryEvent["route"]; file: string; success: boolean; elapsed_ms: number;
+  source?: string; newSource?: string; errorCode?: ErrorCode; language?: string;
+  actor?: string; taskId?: string; reason?: string; filePath?: string;
+}) {
+  const provFields = buildProvenanceFields({
+    actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    source: opts.source, newSource: opts.newSource, filePath: opts.filePath,
+  });
+  recordEvent({
+    operation: opts.operation, route: opts.route, file: opts.file,
+    language: opts.language, success: opts.success, elapsed_ms: opts.elapsed_ms,
+    errorCode: opts.errorCode, ...provFields,
+  });
+}
+
 astCmd
   .command("rename-symbol")
   .description("Rename a symbol across a file")
@@ -185,6 +216,9 @@ astCmd
   .argument("<old-name>", "Current symbol name")
   .argument("<new-name>", "New symbol name")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, oldName: string, newName: string, opts) => {
     const start = Date.now();
@@ -193,14 +227,13 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({
-      operation: "rename-symbol",
-      route: "ast",
-      file,
+    recordProvenanceEvent({
+      operation: "rename-symbol", route: "ast", file,
       language: detectLanguage(file) || undefined,
-      success: result.success,
-      elapsed_ms: Date.now() - start,
-      errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR),
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: content, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -212,6 +245,9 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<new-body>", "New body (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, symbol: string, newBody: string, opts) => {
     const start = Date.now();
@@ -222,7 +258,14 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "replace-body", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
+    recordProvenanceEvent({
+      operation: "replace-body", route: "ast", file,
+      language: detectLanguage(file) || undefined,
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: content, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -232,6 +275,9 @@ astCmd
   .argument("<file>", "File path")
   .argument("<import-spec>", "Import spec (e.g. '{ Foo } from ./bar')")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, importSpec: string, opts) => {
     const start = Date.now();
@@ -240,7 +286,14 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "add-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR });
+    recordProvenanceEvent({
+      operation: "add-import", route: "ast", file,
+      language: detectLanguage(file) || undefined,
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: content, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -250,6 +303,9 @@ astCmd
   .argument("<file>", "File path")
   .argument("<import-spec>", "Import spec to remove")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, importSpec: string, opts) => {
     const start = Date.now();
@@ -258,7 +314,14 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "remove-import", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR });
+    recordProvenanceEvent({
+      operation: "remove-import", route: "ast", file,
+      language: detectLanguage(file) || undefined,
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: content, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -269,6 +332,9 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<content>", "Content to insert (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, symbol: string, content: string, opts) => {
     const start = Date.now();
@@ -279,7 +345,14 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "insert-before", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
+    recordProvenanceEvent({
+      operation: "insert-before", route: "ast", file,
+      language: detectLanguage(file) || undefined,
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: src, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -290,6 +363,9 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<content>", "Content to insert (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, symbol: string, content: string, opts) => {
     const start = Date.now();
@@ -300,7 +376,14 @@ astCmd
     if (result.success && result.newSource && !opts.dryRun) {
       await Bun.write(file, result.newSource);
     }
-    recordEvent({ operation: "insert-after", route: "ast", file, language: detectLanguage(file) || undefined, success: result.success, elapsed_ms: Date.now() - start, errorCode: result.success ? undefined : (result.symbolFound === false ? ErrorCode.SYMBOL_NOT_FOUND : ErrorCode.PARSE_ERROR) });
+    recordProvenanceEvent({
+      operation: "insert-after", route: "ast", file,
+      language: detectLanguage(file) || undefined,
+      success: result.success, elapsed_ms: Date.now() - start,
+      errorCode: result.success ? undefined : ErrorCode.PARSE_ERROR,
+      source: src, newSource: result.newSource, filePath: file,
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -322,6 +405,9 @@ program
   .option("--content <text>", "Content (insert-before, insert-after, or @file)")
   .option("--policy <json>", "Inline RoutePolicy JSON")
   .option("--dry-run", "Preview without writing")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, operation: string, opts) => {
     const resolveContent = async (val?: string): Promise<string | undefined> => {
@@ -346,6 +432,9 @@ program
       content: await resolveContent(opts.content),
       policy: opts.policy ? JSON.parse(opts.policy) : undefined,
       dryRun: opts.dryRun,
+      actor: opts.actor,
+      taskId: opts.taskId,
+      reason: opts.reason,
     });
 
     console.log(JSON.stringify(result, null, 2));
@@ -370,6 +459,9 @@ program
   .option("--policy <json>", "Inline RoutePolicy JSON")
   .option("--serial", "Execute sequentially instead of parallel")
   .option("--dry-run", "Preview without writing")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (operation: string, files: string[], opts) => {
     const resolveContent = async (val?: string): Promise<string | undefined> => {
@@ -394,6 +486,9 @@ program
       content: await resolveContent(opts.content),
       policy: opts.policy ? JSON.parse(opts.policy) : undefined,
       dryRun: opts.dryRun,
+      actor: opts.actor,
+      taskId: opts.taskId,
+      reason: opts.reason,
     };
 
     const result = opts.serial
@@ -412,15 +507,28 @@ program
   .option("--no-verify", "Skip verification after execution")
   .option("--no-revert", "Don't roll back on failure")
   .option("--timeout <ms>", "Timeout per operation in ms", "30000")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
+  .option("--context <text>", "Agent prompt/context (or @file)")
   .option("--json", "Output as JSON", true)
   .action(async (intent: string, opts) => {
     try {
+      let context = opts.context;
+      if (context && context.startsWith("@")) {
+        context = await Bun.file(context.slice(1)).text();
+      }
+
       const result = await executeIntent(intent, {
         projectRoot: opts.projectRoot || process.cwd(),
         dryRun: opts.dryRun,
         verify: opts.verify,
         revertOnFailure: opts.revert,
         timeout: parseInt(opts.timeout),
+        actor: opts.actor,
+        taskId: opts.taskId,
+        reason: opts.reason,
+        context,
       });
 
       if (opts.json) {
@@ -478,6 +586,9 @@ diffCmd
   .option("--patch <file>", "Patch file to apply (or '-' for stdin)")
   .option("--dry-run", "Preview without writing")
   .option("-f, --fuzzy <n>", "Fuzzy match tolerance", "3")
+  .option("--actor <name>", "Agent identity for provenance tracking")
+  .option("--task-id <id>", "Task/issue reference for provenance")
+  .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, opts) => {
     const start = Date.now();
@@ -493,11 +604,14 @@ diffCmd
       patchText = await Bun.file(opts.patch).text();
     } else {
       console.log(JSON.stringify({ success: false, message: "--patch is required" }));
-      process.exit(1);
+      process.exitCode = 1;
     }
     const result = await applyPatch(file, patchText, {
       dryRun: opts.dryRun,
       fuzzyMatch: parseInt(opts.fuzzy),
+    });
+    const provFields = buildProvenanceFields({
+      actor: opts.actor, taskId: opts.taskId, reason: opts.reason, filePath: file,
     });
     recordEvent({
       operation: "diff-apply",
@@ -506,6 +620,7 @@ diffCmd
       language: detectLanguage(file) || undefined,
       success: result.success,
       elapsed_ms: Date.now() - start,
+      ...provFields,
     });
     console.log(JSON.stringify(result, null, 2));
   });
@@ -618,6 +733,55 @@ telCmd
   .action((opts) => {
     const deleted = pruneEvents(parseInt(opts.olderThan));
     console.log(`Pruned ${deleted} telemetry file(s).`);
+  });
+
+const provCmd = program
+  .command("provenance")
+  .description("Query edit provenance — who changed what, when, and why");
+
+provCmd
+  .command("query")
+  .description("Show edit history for a file (like git blame for agent edits)")
+  .argument("<file>", "File path")
+  .argument("[line]", "Optional line number to filter by")
+  .option("--human", "Human-readable output")
+  .option("--json", "JSON output (default)", true)
+  .option("--fuzzy", "Include edits without diff data in line-filtered queries")
+  .option("--limit <n>", "Max entries to show")
+  .action((file, line, opts) => {
+    const lineNum = line ? parseInt(line) : undefined;
+    let results = provenanceQuery(file, lineNum, !!opts.fuzzy);
+    if (opts.limit) results = results.slice(0, parseInt(opts.limit));
+    if (opts.human) {
+      console.log(formatProvenanceHuman(results));
+    } else {
+      console.log(JSON.stringify(results, null, 2));
+    }
+  });
+
+provCmd
+  .command("changeset")
+  .description("Show all edits in a changeSet")
+  .argument("<changeSetId>", "ChangeSet UUID")
+  .option("--human", "Human-readable output")
+  .action((changeSetId, opts) => {
+    const result = changeSetQuery(changeSetId);
+    if (!result) {
+      console.log(`No edits found for changeSet: ${changeSetId}`);
+      process.exitCode = 1;
+      return;
+    }
+    if (opts.human) {
+      console.log(`ChangeSet: ${result.changeSetId}`);
+      console.log(`Actor: ${result.actor}`);
+      console.log(`Task: ${result.taskId ?? "N/A"}`);
+      console.log(`Reason: ${result.reason}`);
+      console.log(`Edits: ${result.editCount}`);
+      console.log(`Time: ${result.timeRange.first} -- ${result.timeRange.last}\n`);
+      console.log(formatProvenanceHuman(result.entries));
+    } else {
+      console.log(JSON.stringify(result, null, 2));
+    }
   });
 
 program

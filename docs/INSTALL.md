@@ -56,8 +56,9 @@ tree-sitter-rust@^0.24.0        # Rust
 ## Requirements
 
 - **Bun** 1.2+ (runtime)
-- **Node.js** 20+ (alternative runtime)
 - **grep** (for search operations)
+
+> **Note:** HashPilot is Bun-only. It uses Bun-specific APIs (Bun.file(), Bun.write(), Bun.spawn()) and runs via `#!/usr/bin/env bun`. Node.js is not supported as a runtime.
 
 ## Supported Environments
 
@@ -133,6 +134,9 @@ HashPilot uses a layered config system. A default config is created at `~/.confi
   },
   "telemetry": {
     "enabled": true
+  },
+  "provenance": {
+    "maxContextLength": 500
   }
 }
 ```
@@ -194,9 +198,29 @@ structured-edit config
 structured-edit telemetry summary
 structured-edit telemetry show -n 50
 structured-edit telemetry health -w 7
+structured-edit telemetry sessions
+structured-edit telemetry export --from 2026-01-01
 
 # Telemetry health with trend comparison
 structured-edit telemetry health -w 7 --trend
+
+# Generate and apply unified diffs
+structured-edit diff generate myfile.ts "$(cat old.ts)" "$(cat new.ts)"
+structured-edit diff apply myfile.ts --patch changes.patch
+
+# Batch edit across files
+structured-edit batch add-import src/*.ts --import-spec "{ z } from zod"
+
+# Route decisions and config
+structured-edit route myfile.ts add-import --policy '{"operationOverrides":{"add-import":"diff"}}'
+structured-edit config
+
+# Edit history (provenance)
+structured-edit provenance query myfile.ts --human
+structured-edit provenance changeset <changeSetId> --human
+
+# Intent-based multi-step editing
+structured-edit intent '{"operation":"add-parameter","symbol":"myFunc","param":{"name":"x"}}' --dry-run
 ```
 
 ## Running Tests
@@ -283,8 +307,14 @@ bash scripts/uninstall.sh --force
         hash-edit.ts        # Hash-anchored editing
         read.ts             # File reading
         grep.ts             # Search operations
-        verify.ts           # Verification
+        verify.ts           # Verification (bundled checks)
         telemetry.ts        # Telemetry logging and health
+        diff-engine.ts      # LCS-based unified diff + patch
+        batch-edit.ts       # Parallel/serial batch editing
+        intent.ts           # M5 intent parsing and plan generation
+        plan-executor.ts    # M5 plan execution with rollback
+        provenance.ts       # M6 edit history tracking
+        utils.ts            # Shared utilities
     scripts/
       install.sh            # Portable installer
       doctor.sh             # Standalone doctor

@@ -1,6 +1,7 @@
 import { findSymbols, insertParameter, insertCallArg } from "./ast-edit";
 import { grepMany } from "./grep";
 import { glob } from "glob";
+import { escapeRegex } from "./utils";
 
 // ── Intent types ──────────────────────────────────────────────────────
 
@@ -323,10 +324,6 @@ export function generatePlan(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 function shortPath(file: string): string {
   const idx = file.lastIndexOf("/src/");

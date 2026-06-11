@@ -57,6 +57,11 @@ export function helper(data: string): string {
 
   // Add a package.json so findProjectRoot works
   writeFileSync(join(TMP_DIR, "package.json"), JSON.stringify({ name: "temp" }));
+  // Add minimal tsconfig to prevent tsc --noEmit from walking up to project root
+  writeFileSync(join(TMP_DIR, "tsconfig.json"), JSON.stringify({
+    compilerOptions: { target: "ESNext", module: "ESNext", strict: false, noEmit: true },
+    include: ["*.ts"],
+  }));
 }
 
 function cleanup() {
@@ -485,5 +490,224 @@ describe("executeIntent", () => {
 
     expect(result.plan.impactSummary).toContain("references");
     expect(result.execution.summary.totalSteps).toBeGreaterThan(0);
+  });
+});
+
+// ── plan-executor edge cases ─────────────────────────────────────────
+
+describe("plan-executor edge cases", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  test("replace-hash operation replaces file content", async () => {
+    const content = await Bun.file(FILE_A).text();
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "replace-hash",
+          description: "Replace content via hash",
+          params: { newContent: content + "\n// hash-modified" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: false });
+    expect(result.success).toBe(true);
+    expect(result.steps[0].success).toBe(true);
+    expect(result.steps[0].operation).toBe("replace-hash");
+    expect(await Bun.file(FILE_A).text()).toContain("// hash-modified");
+  });
+
+  test("diff: missing params fails with validation error", async () => {
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "Missing params",
+          params: {},
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false });
+    expect(result.steps[0].success).toBe(false);
+    expect(result.steps[0].message).toBe("Diff requires oldContent and newContent");
+  });
+
+  test("diff: content not found in file", async () => {
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "Content not found",
+          params: { oldContent: "%%%NOT_IN_FILE%%%", newContent: "replacement" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false });
+    expect(result.steps[0].success).toBe(false);
+    expect(result.steps[0].message).toContain("Content not found");
+  });
+
+  test("diff: ambiguous content that appears multiple times", async () => {
+    // "export function" appears twice in FILE_A
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "Ambiguous content",
+          params: { oldContent: "export function", newContent: "export async function" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false });
+    expect(result.steps[0].success).toBe(false);
+    expect(result.steps[0].message).toContain("appears");
+    expect(result.steps[0].message).toContain("disambiguate");
+  });
+
+  test("diff: happy path replaces content", async () => {
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "Replace text",
+          params: { oldContent: '"Hello, "', newContent: '"Hi, "' },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: false });
+    expect(result.steps[0].success).toBe(true);
+    expect(result.steps[0].message).toBe("Replaced content");
+    expect(await Bun.file(FILE_A).text()).toContain('"Hi, "');
+  });
+
+  test("catch block handles step execution errors", async () => {
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: "/nonexistent/file.ts", name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: "/nonexistent/file.ts",
+          operation: "rename-symbol",
+          description: "Should throw",
+          params: { oldName: "greet", newName: "sayHello" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: false });
+    expect(result.steps[0].success).toBe(false);
+    expect(result.steps[0].message).toContain("Error:");
+  });
+
+  test("verification runs and populates the result", async () => {
+    // Use a non-.ts file so auto-detection finds no tools and returns quickly
+    const txtFile = join(TMP_DIR, "verification_test.txt");
+    writeFileSync(txtFile, "Hello World\nFoo Bar\n");
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "greet", param: { name: "x" } },
+      definition: { file: txtFile, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: txtFile,
+          operation: "diff",
+          description: "Replace text",
+          params: { oldContent: "World", newContent: "Universe" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: true, dryRun: false, revertOnFailure: false });
+    expect(result.verification).toBeDefined();
+    expect(["pass", "fail"]).toContain(result.verification!.overall);
+    // File should still be modified
+    expect(await Bun.file(txtFile).text()).toContain("Universe");
+  });
+
+  test("rollback restores files when steps fail", async () => {
+    const originalA = await Bun.file(FILE_A).text();
+
+    const plan = {
+      intent: { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "rename-symbol",
+          description: "Rename greet to sayHello",
+          params: { oldName: "greet", newName: "sayHello" },
+        },
+        {
+          order: 1,
+          file: FILE_A,
+          operation: "diff",
+          description: "Content not found",
+          params: { oldContent: "%%%NOT_FOUND%%%", newContent: "replacement" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: true });
+    expect(result.reverted).toBe(true);
+    expect(result.steps[0].success).toBe(true);
+    expect(result.steps[1].success).toBe(false);
+    expect(await Bun.file(FILE_A).text()).toBe(originalA);
+  });
+});
+
+// ── Intent edge cases ────────────────────────────────────────────────
+
+describe("intent edge cases", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  test("findSymbolDefinition handles hint file that cannot be read", async () => {
+    // hint file is nonexistent → error caught, falls through to project scan
+    const def = await findSymbolDefinition("greet", TMP_DIR, "/nonexistent/hint/file.ts");
+    expect(def).not.toBeNull();
+    expect(def!.name).toBe("greet");
   });
 });

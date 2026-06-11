@@ -1,9 +1,11 @@
-import { EditPlan, EditStep, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
+import { EditPlan, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
 import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
 import { computeHash } from "./read";
 import { verifyChanges, VerifyResult } from "./verify";
 import { recordEvent } from "./telemetry";
+import type { TelemetryEvent } from "./telemetry";
+import { createChangeSet, buildProvenanceFields } from "./provenance";
 
 // ── Result types ──────────────────────────────────────────────────────
 
@@ -40,6 +42,10 @@ export async function executePlan(
     verify?: boolean;
     revertOnFailure?: boolean;
     timeout?: number;
+    actor?: string;
+    taskId?: string;
+    reason?: string;
+    context?: string;
   } = {}
 ): Promise<PlanResult> {
   const start = Date.now();
@@ -47,6 +53,13 @@ export async function executePlan(
   const doVerify = options.verify ?? true;
   const doRevert = options.revertOnFailure ?? true;
   const timeout = options.timeout ?? 30000;
+
+  const planActor = options.actor;
+  const planTaskId = options.taskId;
+  const planContext = options.context;
+  const planReason = options.reason ?? `${plan.intent.operation} on '${plan.intent.symbol}'`;
+  const changeSetId = createChangeSet();
+  const stepTotal = plan.steps.length;
 
   // Snapshot all impacted files for rollback
   const originals = new Map<string, string>();
@@ -61,8 +74,14 @@ export async function executePlan(
   // Execute steps in order (sequential is safer for dependent edits)
   for (const step of plan.steps) {
     const stepStart = Date.now();
+    let stepSuccess = false;
+    let stepMessage = "";
+    let stepNewSource: string | undefined;
+    let stepSource: string | undefined;
+
     try {
-      const source = await Bun.file(step.file).text();
+      stepSource = await Bun.file(step.file).text();
+      const source = stepSource;
       let result: { success: boolean; message: string; newSource?: string };
 
       switch (step.operation) {
@@ -107,29 +126,53 @@ export async function executePlan(
           result = { success: false, message: `Unknown operation: ${step.operation}` };
       }
 
-      // Write result
-      if (result.success && result.newSource && !dryRun) {
-        await Bun.write(step.file, result.newSource);
-      }
+      stepSuccess = result.success;
+      stepMessage = result.message;
+      stepNewSource = result.newSource;
 
-      results.push({
-        step: step.order,
-        file: step.file,
-        operation: step.operation,
-        success: result.success,
-        message: result.message,
-        elapsed_ms: Date.now() - stepStart,
-      });
+      if (stepSuccess && stepNewSource && !dryRun) {
+        await Bun.write(step.file, stepNewSource);
+      }
     } catch (err: any) {
-      results.push({
-        step: step.order,
-        file: step.file,
-        operation: step.operation,
-        success: false,
-        message: `Error: ${err.message}`,
-        elapsed_ms: Date.now() - stepStart,
-      });
+      stepSuccess = false;
+      stepMessage = `Error: ${err.message}`;
     }
+
+    results.push({
+      step: step.order,
+      file: step.file,
+      operation: step.operation,
+      success: stepSuccess,
+      message: stepMessage,
+      elapsed_ms: Date.now() - stepStart,
+    });
+
+    const stepProvenance = buildProvenanceFields({
+      actor: planActor,
+      taskId: planTaskId,
+      changeSetId,
+      reason: step.description,
+      source: stepSource,
+      newSource: stepNewSource,
+      stepIndex: step.order,
+      stepTotal,
+      context: planContext,
+      filePath: step.file,
+    });
+
+    let stepRoute: TelemetryEvent["route"] = "ast";
+    if (step.operation === "diff") stepRoute = "diff";
+    else if (step.operation === "replace-hash") stepRoute = "hash";
+
+    recordEvent({
+      operation: step.operation,
+      route: stepRoute,
+      file: step.file,
+      language: detectLanguage(step.file) || undefined,
+      success: stepSuccess,
+      elapsed_ms: Date.now() - stepStart,
+      ...stepProvenance,
+    });
   }
 
   const succeeded = results.filter((r) => r.success).length;
@@ -164,6 +207,12 @@ export async function executePlan(
     success: allPassed,
     elapsed_ms: elapsed,
     files_count: plan.steps.length,
+    changeSetId,
+    actor: planActor,
+    taskId: planTaskId,
+    reason: planReason,
+    context: planContext,
+    stepTotal: plan.steps.length,
   });
 
   return {
@@ -202,6 +251,10 @@ export async function executeIntent(
     verify?: boolean;
     revertOnFailure?: boolean;
     timeout?: number;
+    actor?: string;
+    taskId?: string;
+    reason?: string;
+    context?: string;
   } = {}
 ): Promise<IntentResult> {
   const intent = parseIntent(rawIntent);

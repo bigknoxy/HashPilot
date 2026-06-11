@@ -1,4 +1,4 @@
-import { computeHash, computeLineHash } from "./read";
+import { computeHash } from "./read";
 
 export interface ReplaceHashOptions {
   range?: { start: number; end: number };
@@ -65,40 +65,7 @@ export async function replaceHash(
     if (!noRecovery) {
       // Auto-recovery: the file has changed since the hash was computed.
       // Apply the edit to the current file content instead of failing.
-      // For full-file replaces (no range), this is safe because the caller
-      // wanted to replace everything. For range-based replaces, the edit
-      // applies to the current range content.
-      const newContentLines = newContent.split("\n");
-      if (newContentLines[newContentLines.length - 1] === "" && !targetText.endsWith("\n")) {
-        newContentLines.pop();
-      }
-
-      const newLines = [
-        ...lines.slice(0, targetStart),
-        ...newContentLines,
-        ...lines.slice(targetEnd),
-      ];
-      const newFullContent = newLines.join("\n");
-      const newFullHash = computeHash(newFullContent);
-      const diff = buildDiff(targetStart + 1, targetLines, newContentLines);
-
-      if (!dryRun) {
-        await Bun.write(filePath, newFullContent);
-      }
-
-      return {
-        path: filePath,
-        success: true,
-        oldHash,
-        newHash: newFullHash,
-        linesChanged: Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines),
-        stale: false,
-        retries: 1,
-        message: dryRun
-          ? `Dry run: would replace ${targetLines.length} lines with ${newContentLines.length} lines (auto-recovered from stale anchor)`
-          : `Replaced ${targetLines.length} lines with ${newContentLines.length} lines (auto-recovered from stale anchor, range ${targetStart + 1}-${targetEnd})`,
-        diff,
-      };
+      return applyReplacement(filePath, lines, targetStart, targetEnd, targetLines, targetText, newContent, oldHash, dryRun, true, 1, " (auto-recovered from stale anchor)");
     }
 
     const staleMsg = buildStaleMessage(oldHash, currentHash, targetStart + 1, targetEnd);
@@ -114,6 +81,23 @@ export async function replaceHash(
     };
   }
 
+  return applyReplacement(filePath, lines, targetStart, targetEnd, targetLines, targetText, newContent, oldHash, dryRun, false, 0);
+}
+
+async function applyReplacement(
+  filePath: string,
+  lines: string[],
+  targetStart: number,
+  targetEnd: number,
+  targetLines: string[],
+  targetText: string,
+  newContent: string,
+  oldHash: string,
+  dryRun: boolean,
+  stale: boolean,
+  retries: number,
+  messageSuffix: string = ""
+): Promise<ReplaceHashResult> {
   const newContentLines = newContent.split("\n");
   if (newContentLines[newContentLines.length - 1] === "" && !targetText.endsWith("\n")) {
     newContentLines.pop();
@@ -126,24 +110,26 @@ export async function replaceHash(
   ];
   const newFullContent = newLines.join("\n");
   const newFullHash = computeHash(newFullContent);
-
   const diff = buildDiff(targetStart + 1, targetLines, newContentLines);
+  const linesChanged = Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines);
+  const rangeLabel = `range ${targetStart + 1}-${targetEnd}`;
 
   if (!dryRun) {
     await Bun.write(filePath, newFullContent);
   }
 
+  const action = dryRun ? "Dry run: would replace" : "Replaced";
   return {
     path: filePath,
     success: true,
     oldHash,
     newHash: newFullHash,
-    linesChanged: Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines),
-    stale: false,
-    retries: 0,
+    linesChanged,
+    stale,
+    retries,
     message: dryRun
-      ? `Dry run: would replace ${targetLines.length} lines with ${newContentLines.length} lines`
-      : `Replaced ${targetLines.length} lines with ${newContentLines.length} lines (range ${targetStart + 1}-${targetEnd})`,
+      ? `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix}`
+      : `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix} (${rangeLabel})`,
     diff,
   };
 }
