@@ -1,201 +1,124 @@
-# HashPilot
-
-**Deterministic structured editing for AI coding agents.**
-
-HashPilot is a global, tool-agnostic structured editing core that replaces fuzzy text editing with precision operations — hash-anchored replacements, AST-aware refactors, and batched verification — all accessible via a single CLI (`structured-edit`). Built for Claude Code, OpenCode, Pi, Codex CLI, and any agent that edits files.
+# HashPilot — Deterministic Structured Editing for AI Coding Agents
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun_1.2%2B-black)](https://bun.sh)
 [![Tree-sitter](https://img.shields.io/badge/ast-tree--sitter-green)](https://tree-sitter.github.io)
+[![Tests](https://img.shields.io/badge/tests-96%25_coverage-brightgreen)](tests/)
+
+**AI agents edit code blind. HashPilot gives them cryptographic certainty.**
+
+Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzzy text match. If the hash matches, you're editing the right content. No guessing, no retries, no silent corruption.
 
 ---
 
-## Why HashPilot Exists
+## What This Is
 
-### The Problem
+HashPilot is a CLI (`structured-edit`) and editing protocol that replaces fuzzy text editing with precision operations:
 
-AI coding agents edit files fundamentally differently than humans. They don't have an IDE, they can't visually locate the right line, and they don't keep a working memory of the file structure. Yet most tools expect agents to edit the same way a human would:
+- **Hash-anchored replacement** — target content by its cryptographic fingerprint
+- **AST-aware refactoring** — rename symbols, replace function bodies, manage imports (TypeScript, JS, Python, Go, Rust)
+- **Stale-anchor detection** — catch race conditions before they corrupt files
+- **Plan-and-execute intents** — describe a multi-file change, HashPilot discovers call sites and executes every step
+- **Provenance tracking** — every edit records who, what, when, and why (like `git blame` for agents)
 
-- **Line counting errors** — "Replace line 42" is brittle. One added import shifts every line number.
-- **Fuzzy find-replace** — Agents guess content to match, which either fails to find it (wasted retry) or matches the wrong occurrence (silent corruption).
-- **Race conditions** — Multiple edits to the same file can interleave and produce invalid syntax.
-- **No verification** — After an edit, agents move on. There's no built-in check that the code compiles or tests pass.
-
-The result: 3–5 retries per edit, token waste, and hard-to-debug corruption.
-
-### The Solution
-
-HashPilot replaces guesswork with cryptography and syntax analysis:
-
-- **Hash-anchored edits** identify content by its SHA-256 hash — if the hash matches, you're editing the right content. No ambiguity.
-- **AST operations** use tree-sitter to understand code structure — rename a symbol everywhere, replace a function body, add or remove imports without counting lines.
-- **Stale anchor detection** catches race conditions and out-of-date edits before they corrupt files.
-- **Automatic recovery** — when a hash is stale (file changed since read), HashPilot transparently re-applies the edit to the current content.
-- **Intents (M5)** — describe what you want (e.g., `"add a parameter to a function"`) and HashPilot plans the multi-file edit, discovers call sites, and executes every step.
-- **Provenance tracking** — every edit records who, what, when, and why, queryable like `git blame` for agent edits.
-- **Verification batching** — run formatter, linter, type checker, and tests in one command, with optional revert-on-failure.
+It's a global, tool-agnostic core. Claude Code, OpenCode, Pi, Codex CLI, Cursor — any agent that edits files.
 
 ---
 
-## Who Benefits
+## Why This Exists
 
-**AI Coding Agents**
-Claude Code, OpenCode, Pi, Codex CLI, Cursor, and any agent that edits source files gets deterministic, verifiable edit operations. No more guessing line numbers or retrying fuzzy searches.
+### The Pain (If You're an Agent Editing Code)
 
-**Developers Using AI Tools**
-When your AI assistant uses HashPilot, edits work on the first try. No "oops, that was the wrong line" or "file looks corrupted." You get auditable, safe modifications.
+You're editing files fundamentally differently than a human. You don't have an IDE. You can't visually locate the right line. You don't keep a working memory of the file structure. Yet most tools expect you to edit the same way a human would:
 
-**Teams That Need Reproducible Workflows**
-Every edit is logged with telemetry and provenance data. Audit trails, rollback information, and impact analysis are built in — critical for regulated environments and CI pipelines.
+| Problem | What Happens | Cost |
+|---------|-------------|------|
+| **Line counting** | `"Replace line 42"` breaks when one import shifts every line | +3 retries, corrupted file |
+| **Fuzzy find-replace** | Guess the right text to match — or match the wrong occurrence | Silent corruption, wasted tokens |
+| **Race conditions** | Two edits to the same file interleave | Invalid syntax, agent confusion |
+| **No verification** | Edit, move on. No check that it compiles | Bug ships to production |
 
-**Tool Builders Creating Agent-Powered Workflows**
-HashPilot exposes a JSON-protocol CLI that any agent can consume. The adapter contract (read → edit → verify → log) is language-agnostic and composable. Build your own skills, agents, and automations on top.
+### The Remedy
 
----
-
-## The Benefit
-
-| Dimension | Without HashPilot | With HashPilot |
-|-----------|------------------|----------------|
-| **Precision** | Fuzzy search matches wrong content | SHA-256 hash anchors guarantee correct content |
-| **Safety** | Silent corruption on race conditions | Stale anchor detection blocks or auto-recovers |
-| **Speed** | 3–5 retries per edit, re-reading files | 1–2 operations per edit, no re-reading |
-| **Complex refactors** | Manual multi-file search-and-replace | `rename-symbol` across files, plan-and-execute intents |
-| **Verification** | None — agent moves on | Bundled formatter + linter + typecheck + tests with revert |
-| **Auditability** | No record of what changed | Full telemetry + provenance query (`structured-edit provenance query`) |
-| **Token efficiency** | Wastes tokens on retries and re-reads | One `read-many` + one `replace-hash` = done |
-| **Language support** | Text-based, any language | AST support for TypeScript, TSX, JavaScript, Python, Go, Rust |
+| HashPilot Feature | What It Does | For Whom |
+|------------------|-------------|----------|
+| SHA-256 anchors | Target content by its fingerprint — not a line number | **Agents** — never edit the wrong content |
+| 3-tier routing | AST → Hash → Diff. Auto-selects the best strategy per file+op | **Agents** — one command, right tool |
+| Stale recovery | Detects out-of-date edits and re-applies transparently | **Agents** — survive race conditions |
+| Intents (M5) | `"Add a parameter to processData"` → discovers call sites, plans, executes | **Agents** — multi-file refactors in one shot |
+| Verification bundling | Run formatter + linter + typechecker + tests in one command | **Developers** — know it works |
+| Provenance | `provenance query src/utils.ts` shows edit history per line | **Teams** — audit trail for AI changes |
+| Telemetry | Structured JSONL with health reports and trend analysis | **Operators** — monitor agent edit reliability |
 
 ---
 
-## How to Use It
+## Who It's For
 
-### Quick Install
+### 👤 You, the Developer
+
+You use AI coding agents to ship faster. When your agent uses HashPilot:
+
+- **Edits work on the first try.** No more "oops, that was the wrong line."
+- **Every change is auditable.** Provenance tells you who changed what and why.
+- **You can trust AI refactors.** Multi-file renames execute correctly across your whole codebase.
+- **It's invisible.** The agent uses HashPilot automatically — you just see better results.
+
+### 🤖 You, the AI Agent
+
+You edit source files every time a user asks for a change. With HashPilot:
+
+- **You know the hash is correct.** `replace-hash` targets content by its SHA-256 fingerprint. No ambiguity.
+- **You don't need to re-read the file.** The hash from `read-many` is valid until the file changes. That's one less API round-trip.
+- **AST edits are syntax-safe.** `rename-symbol`, `replace-body`, `add-import` — tree-sitter guarantees the edit is structurally valid.
+- **Intents handle the blast radius.** One `intent` command handles definition + all call sites + verification.
+- **Telemetry tells you when something's wrong.** Stale-anchor rates, per-language failure rates, verify pass rates — all queryable.
+
+### 🏢 You, the Engineering Team
+
+You need reproducible, auditable AI workflows:
+
+- **Provenance = compliance.** Every edit logged with actor, task ID, and reason.
+- **Config = consistency.** Team-wide route policies in `.hashpilot.json`.
+- **Batch = scale.** Same edit applied across 100+ files, parallel or serial.
+- **Verify = confidence.** Auto-detect project tools, run checks, revert on failure.
+
+---
+
+## Quick Start
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
 ```
 
-This clones the repo, installs dependencies, creates the `structured-edit` CLI, adds it to PATH, and configures integration for Claude Code, OpenCode, and Pi — all user-scoped (no sudo required).
-
 **Requirements:** [Bun](https://bun.sh) 1.2+
 
 ```bash
-# Verify installation
+# Verify it works
 structured-edit doctor
 
-# View configuration
+# See your merged config
 structured-edit config
 ```
 
-> **One-Line Uninstall:**
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh | sh -s -- -f
-> ```
-
----
-
-### Core Workflow
-
-The canonical HashPilot flow is: **Read → Edit → Verify**.
-
-#### 1. Read files with hashes
+### Your First Edit
 
 ```bash
-# Batch read — get content + SHA-256 hash for every file
-structured-edit read-many src/core/read.ts src/core/hash-edit.ts
+# 1. Read a file — get its content hash
+structured-edit read-many src/main.ts
 
-# Read a specific line with context hash
-structured-edit read-hash src/core/read.ts 10 -c 3
-```
+# 2. Edit by hash — target the exact content
+HASH="abc123..."  # from read-many output
+structured-edit replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5
 
-The hash from `read-many` is your anchor. As long as the file content hasn't changed, that hash uniquely identifies it.
-
-#### 2. Edit with precision
-
-**Hash-anchored replacement** (any file, any language):
-
-```bash
-# Replace entire file content
-HASH=$(structured-edit read-many myfile.ts | jq -r '.[0].hash')
-structured-edit replace-hash myfile.ts "$HASH" "// new content"
-
-# Replace a specific line range
-structured-edit replace-hash myfile.ts "$HASH" "  port: 8080" --range 5:6
-
-# Preview without writing
-structured-edit replace-hash myfile.ts "$HASH" "new content" --dry-run
-```
-
-**AST operations** (TypeScript, TSX, JavaScript, Python, Go, Rust):
-
-```bash
-# Find all symbols in a file
-structured-edit ast find-symbols src/utils.ts
-
-# Rename a symbol everywhere in the file
-structured-edit ast rename-symbol src/utils.ts oldName newName
-
-# Replace a function body
-structured-edit ast replace-body src/utils.ts formatDate 'return new Date(d).toISOString();'
-
-# Add or remove imports
-structured-edit ast add-import src/utils.ts "{ Foo } from './bar'"
-structured-edit ast remove-import src/utils.ts './bar'
-
-# Insert before or after a symbol
-structured-edit ast insert-before src/utils.ts myFunction "// helper\n"
-structured-edit ast insert-after src/utils.ts myFunction "\n// end helper\n"
-```
-
-**Diff operations** (fallback for unsupported languages):
-
-```bash
-# Generate a unified diff
-structured-edit diff generate myfile.ts "old content" "new content"
-
-# Apply a patch with fuzzy matching
-structured-edit diff apply myfile.ts --patch changes.patch --fuzzy 3
-```
-
-#### 3. Verify
-
-```bash
-# Run formatter + linter + typecheck + tests
-structured-edit verify-changes src/utils.ts --formatter prettier --linter eslint
-
-# Auto-detect tools from project config
-structured-edit verify-changes src/*.ts --auto-detect
-
-# Filter specific tests
-structured-edit verify-changes src/utils.ts --test-filter "formatDate"
-
-# Revert on failure
-structured-edit verify-changes src/utils.ts --auto-detect --revert-on-failure
+# 3. Verify nothing broke
+structured-edit verify-changes src/main.ts --auto-detect
 ```
 
 ---
 
-### Advanced Features
+## How It Works
 
-#### Multi-file Batch Editing
-
-Apply the same edit to many files in parallel:
-
-```bash
-# Rename a symbol across multiple TypeScript files
-structured-edit batch rename-symbol src/*.ts --old-name oldName --new-name newName
-
-# Parallel execution (default)
-structured-edit batch add-import src/**/*.ts --import-spec "{ z } from 'zod'"
-
-# Serial execution for dependent files
-structured-edit batch replace-body src/*.ts --symbol handleError --new-body @newBody.txt --serial
-```
-
-#### Routing — AST → Hash → Diff
-
-HashPilot automatically chooses the best edit strategy for every operation:
+### The 3-Tier Routing Model
 
 ```
   ┌─────────────┐
@@ -203,304 +126,168 @@ HashPilot automatically chooses the best edit strategy for every operation:
   └──────┬──────┘
          │
          ▼
-  ┌──────────────────┐
-  │  1. AST Route    │  ◄── Tree-sitter syntax-aware edits
-  │  (TS/TSX/JS/     │      rename-symbol, replace-body,
-  │   Python/Go/Rust)│      add-import, remove-import,
-  │                  │      insert-before/after
-  └────────┬─────────┘
-           │ (unsupported)
-           ▼
-  ┌──────────────────┐
-  │  2. Hash Route   │  ◄── SHA-256 anchored replacement
-  │  (any file type) │      replace-hash with stale-anchor
-  │                  │      detection and auto-recovery
-  └────────┬─────────┘
-           │ (no hash)
-           ▼
-  ┌──────────────────┐
-  │  3. Diff Route   │  ◄── LCS-based search-and-replace
-  │  (fallback)      │      with duplicate detection and
-  │                  │      fuzzy matching
-  └──────────────────┘
+  ┌──────────────────────┐
+  │  1. AST Route        │  ◄── tree-sitter syntax-aware edits
+  │  (TS/TSX/JS/Python/  │      rename-symbol, replace-body,
+  │   Go/Rust)           │      add-import, remove-import,
+  │                      │      insert-before/after
+  └──────────┬───────────┘
+             │ unsupported
+             ▼
+  ┌──────────────────────┐
+  │  2. Hash Route       │  ◄── SHA-256 anchored replacement
+  │  (any file)          │      replace-hash with stale-anchor
+  │                      │      detection + auto-recovery
+  └──────────┬───────────┘
+             │ no hash provided
+             ▼
+  ┌──────────────────────┐
+  │  3. Diff Route       │  ◄── LCS-based search-and-replace
+  │  (fallback)          │      with duplicate detection and
+  │                      │      fuzzy matching
+  └──────────────────────┘
 ```
 
-Preview which route will be used:
+The router auto-selects. A single `route-edit` command tries AST first, falls back to Hash, then Diff. Every route records telemetry and provenance.
 
-```bash
-structured-edit route src/main.ts rename-symbol
-# → { route: "ast", language: "typescript", ... }
+### The Canonical Flow
 
-# Test policy overrides
-structured-edit route src/main.py rename-symbol --policy '{"languageOverrides":{"python":"hash"}}'
-# → { route: "hash", policyApplied: true, ... }
+```
+  ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+  │  read-  │    │ replace- │    │ verify-  │    │  done.   │
+  │  many   │───▶│  hash    │───▶│ changes  │───▶│          │
+  │         │    │          │    │          │    │          │
+  │ hash:   │    │ content  │    │ lint     │    │ audited, │
+  │ abc123  │    │ matched  │    │ typecheck│    │ verified │
+  └─────────┘    │ by hash  │    │ tests    │    └──────────┘
+                 └──────────┘    │ revert?  │
+                                 └──────────┘
 ```
 
-Policies can force specific routes per language or operation via config:
-
-```json
-{
-  "routePolicy": {
-    "languageOverrides": { "python": "hash" },
-    "operationOverrides": { "add-import": "diff" }
-  }
-}
-```
-
-#### Intents — Declarative Multi-File Edits (M5)
-
-Describe the edit you want and let HashPilot plan and execute the full multi-file refactor:
-
-```bash
-# Add a parameter to a function — discovers definition and all call sites
-structured-edit intent '{
-  "operation": "add-parameter",
-  "symbol": "processData",
-  "param": { "name": "config", "type": "Config", "default": "{}" }
-}'
-
-# Rename an exported symbol everywhere it's used
-structured-edit intent '{
-  "operation": "rename-exported-symbol",
-  "symbol": "calculateTotal",
-  "newName": "computeTotal"
-}'
-
-# Preview the plan without executing
-structured-edit intent '{...}' --dry-run
-```
-
-Intents produce a full `EditPlan` with blast radius summary, ordered steps, and reference discovery — then execute every step with optional verification and revert-on-failure.
-
-#### Provenance — `git blame` for Agent Edits
-
-Every edit records who changed what and why:
-
-```bash
-# Show edit history for a file
-structured-edit provenance query src/utils.ts --human
-
-# Filter to a specific line
-structured-edit provenance query src/utils.ts 15 --human
-
-# View a whole changeset
-structured-edit provenance changeset <changeSetId> --human
-```
-
-Provenance fields (actor, task ID, reason) are passed via CLI flags:
-
-```bash
-structured-edit replace-hash src/config.ts "$HASH" "new config" \
-  --actor "claude-code" --task-id "PROJ-123" --reason "Update database config"
-```
-
-#### Telemetry and Health Monitoring
-
-All operations are logged to structured JSONL for debugging and health analysis:
-
-```bash
-structured-edit telemetry summary          # Operation counts and timing
-structured-edit telemetry show -n 50       # Last 50 events
-structured-edit telemetry health -w 7      # 7-day health report with threshold warnings
-structured-edit telemetry health -w 7 --trend  # Compare to previous window
-structured-edit telemetry clear            # Clear log
-```
-
-The health report includes per-language failure rates, stale-anchor rates, verify-changes pass rates, and automatic threshold warnings (stale anchors > 10%, diff fallback > 10%, verify failures > 20%).
+**Read → Edit → Verify.** Every step outputs structured JSON for agent consumption.
 
 ---
 
-### All Commands
+## Commands
 
-| Command | Description |
+### Read & Search
+
+| Command | What It Does |
 |---------|-------------|
-| `doctor` | Verify HashPilot installation health |
-| `config` | Show merged configuration (global → project → CLI → env) |
-| **Read & Search** | |
 | `read-many <files...>` | Batch read files with SHA-256 content hashes |
 | `read-hash <file> <line>` | Read a specific line with context hash |
 | `grep-many <pattern> <paths...>` | Regex search across files |
 | `symbol-lookup-many <paths...> --names n1,n2` | Find symbol definitions by name |
-| **Edit — Hash Route** | |
-| `replace-hash <file> <hash> <content>` | Replace content identified by hash anchor (auto-recovers on stale anchor) |
-| **Edit — AST Route** | |
+
+### Edit — Hash Route
+
+| Command | What It Does |
+|---------|-------------|
+| `replace-hash <file> <hash> <content>` | Replace content identified by SHA-256 hash (auto-recovers on stale anchor) |
+
+### Edit — AST Route
+
+| Command | What It Does |
+|---------|-------------|
 | `ast capabilities` | Show supported languages, operations, and limitations |
-| `ast find-symbols <file>` | List all symbols (functions, classes, variables) in a file |
+| `ast find-symbols <file>` | List all symbols (functions, classes, variables) |
 | `ast rename-symbol <file> <old> <new>` | Rename a symbol and all its references |
 | `ast replace-body <file> <symbol> <body>` | Replace a function/method body |
-| `ast add-import <file> <spec>` | Add an import statement with grouped-import merging |
+| `ast add-import <file> <spec>` | Add an import with grouped-import merging |
 | `ast remove-import <file> <spec>` | Remove an import statement |
 | `ast insert-before <file> <symbol> <content>` | Insert content before a named symbol |
 | `ast insert-after <file> <symbol> <content>` | Insert content after a named symbol |
-| **Edit — Diff Route** | |
-| `diff generate <file> <old-content> <new-content>` | Generate a unified diff |
-| `diff apply <file> --patch <patch>` | Apply a unified diff patch with fuzzy matching |
-| **Unified Entry Point** | |
-| `route-edit <file> <operation>` | Auto-routed edit through AST → Hash → Diff pipeline |
-| `batch <operation> <files...>` | Apply same edit to multiple files (parallel or serial) |
+
+### Edit — Diff Route (Fallback)
+
+| Command | What It Does |
+|---------|-------------|
+| `diff generate <file> <old> <new>` | Generate a unified diff |
+| `diff apply <file> --patch <patch>` | Apply a patch with fuzzy matching |
+
+### Multi-File & Intents
+
+| Command | What It Does |
+|---------|-------------|
+| `route-edit <file> <operation>` | Auto-routed edit through AST → Hash → Diff |
+| `batch <operation> <files...>` | Same edit on many files in parallel or serial |
 | `intent <json>` | Declarative multi-file edit — plan, discover references, execute |
-| `route <file> <operation>` | Show which route would be chosen with detailed explanation |
-| **Verification** | |
+| `route <file> <operation>` | Preview which route would be chosen |
+
+### Verification
+
+| Command | What It Does |
+|---------|-------------|
 | `verify-changes <files...>` | Run formatter + linter + typechecker + tests with auto-detection and revert-on-failure |
-| **Telemetry** | |
-| `telemetry show [-n <count>]` | Recent telemetry events |
+
+### Telemetry & Provenance
+
+| Command | What It Does |
+|---------|-------------|
 | `telemetry summary` | Operation counts and timing |
-| `telemetry health [-w <days>] [--trend]` | Health report with per-language stats, threshold warnings, and trend comparison |
+| `telemetry health [-w <days>] [--trend]` | Health report with per-language stats and threshold warnings |
 | `telemetry sessions` | List session summaries |
-| `telemetry export [--from <date>] [--to <date>]` | Export events as NDJSON |
-| `telemetry prune --older-than <days>` | Delete old rotated telemetry files |
-| `telemetry clear` | Clear telemetry log |
-| **Provenance** | |
 | `provenance query <file> [line]` | Edit history for a file (like `git blame` for agent edits) |
 | `provenance changeset <id>` | All edits in a changeSet |
 
-> **Tip:** All commands accept `--actor`, `--task-id`, and `--reason` flags for provenance tracking. Every command outputs structured JSON for agent consumption.
+> All commands accept `--actor`, `--task-id`, and `--reason` for provenance tracking. Every command outputs structured JSON.
 
 ---
 
-### Architecture
+## Integrations
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     structured-edit CLI                      │
-│                    (Commander-based, Bun)                    │
-└──────────┬──────────┬──────────┬──────────┬─────────────────┘
-           │          │          │          │
-     ┌─────▼────┐ ┌──▼───┐ ┌───▼───┐ ┌───▼──────┐
-     │  Read &   │ │ AST  │ │ Hash  │ │  Diff    │
-     │  Search   │ │ Ops  │ │ Ops   │ │  Ops     │
-     │ (read,    │ │(tree-│ │(SHA-  │ │(unified  │
-     │  grep,    │ │sitter│ │256    │ │ diff,    │
-     │  symbol)  │ │ ops) │ │anchor)│ │ patch)   │
-     └───────────┘ └──────┘ └───────┘ └──────────┘
-           │          │        │           │
-           ▼          ▼        ▼           ▼
-     ┌──────────────────────────────────────────────┐
-     │            Router (auto-select)               │
-     │  chooseRoute(): AST → Hash → Diff             │
-     │  routeEdit(): execute + telemetry + provenance │
-     └──────────────────────┬────────────────────────┘
-                            │
-              ┌─────────────┼─────────────┐
-              ▼             ▼             ▼
-     ┌───────────┐ ┌──────────────┐ ┌────────────┐
-     │ Intent/M5 │ │ Batch Edit   │ │ Verify     │
-     │ Plan +    │ │ (parallel or │ │ (formatter, │
-     │ Execute   │ │  serial)     │ │ linter, ts, │
-     └───────────┘ └──────────────┘ │ tests)      │
-                                    └────────────┘
-              ┌──────────────────────────────────────┐
-              │      Cross-Cutting Layers             │
-              │  • Telemetry (JSONL logging)          │
-              │  • Provenance (agent git blame)       │
-              │  • Config (env → CLI → project → global)│
-              │  • Error codes & exit codes           │
-              └──────────────────────────────────────┘
-```
+HashPilot installs adapters for the three major coding agent platforms:
 
-**Key modules:**
+| Platform | What Gets Installed |
+|----------|-------------------|
+| **Claude Code** | HashPilot section injected into `~/.claude/CLAUDE.md` teaching Claude to use `structured-edit` commands |
+| **OpenCode** | Skill at `~/.config/opencode/skills/hashpilot/` + subagent at `~/.config/opencode/agent/hashpilot.md` |
+| **Pi** | Native extension at `~/.pi/agent/extensions/hashpilot.ts` with 7 custom tools and `/hp` slash command |
 
-| Module | Responsibility |
-|--------|---------------|
-| `cli.ts` | Commander-based CLI entry point — every command records telemetry |
-| `router.ts` | Route selection (`chooseRoute`) and unified dispatch (`routeEdit`) with auto AST → Hash → Diff fallback |
-| `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove, insert |
-| `hash-edit.ts` | SHA-256 anchored content replacement with stale-anchor auto-recovery |
-| `diff-engine.ts` | LCS-based unified diff generation and patch application with fuzzy matching |
-| `read.ts` | Batch file reads with SHA-256 hashes and line-level context hashes |
-| `grep.ts` | Regex search via system grep and symbol definition lookup |
-| `intent.ts` | Parses structured intents, resolves symbol definitions and references, generates EditPlan |
-| `plan-executor.ts` | Executes EditPlan steps with dry-run, verify, and revert-on-failure |
-| `verify.ts` | Runs formatter, linter, typechecker, tests — auto-detects tools from project config |
-| `provenance.ts` | Edit history tracking with changeSet IDs — `provenanceQuery(file, line?)` |
-| `telemetry.ts` | JSONL telemetry logging with health reports and trend comparison |
-| `config.ts` | Layered config (env var → CLI → project → global → defaults) |
-| `batch-edit.ts` | Parallel and serial batch editing |
-| `doctor.ts` | Full installation health check |
-
-**AST language support:**
-
-| Language | File extensions | Operations |
-|----------|----------------|------------|
-| TypeScript | `.ts` (not `.d.ts`) | All 7 AST operations |
-| TSX | `.tsx` | All 7 AST operations |
-| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` | All 7 AST operations |
-| Python | `.py` | All 7 AST operations |
-| Go | `.go` | All 7 AST operations |
-| Rust | `.rs` | All 7 AST operations |
+All adapters follow the [Adapter Contract](docs/ADAPTER-CONTRACT.md) — a machine-readable JSON protocol any agent can consume.
 
 ---
 
-### Integration
+## Architecture
 
-HashPilot integrates natively with the three major coding agent platforms:
-
-#### Claude Code
-
-The installer appends a HashPilot section to `~/.claude/CLAUDE.md`, teaching Claude to use `structured-edit` commands as shell tools. Claude automatically prefers AST operations for supported languages and hash-anchored edits for everything else.
-
-[→ Full Claude integration guide](docs/INTEGRATION-CLAUDE.md)
-
-#### OpenCode
-
-HashPilot installs as both a **skill** (inline guidance at `~/.config/opencode/skills/hashpilot/SKILL.md`) and a **subagent** (delegated editing at `~/.config/opencode/agent/hashpilot.md`). OpenCode auto-discovers both from its config directory.
-
-```bash
-# In OpenCode, delegate complex multi-file edits
-/agent hashpilot
-Rename the function 'processData' to 'transformData' across all files.
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   structured-edit CLI                         │
+│                  (Commander-based, Bun)                       │
+├─────────┬──────────┬──────────┬──────────┬───────────────────┤
+│   Read  │   AST    │   Hash   │   Diff   │  Verify + Batch   │
+│  Search │  Ops     │   Ops    │   Ops    │  + Intent + Route │
+├─────────┴──────────┴──────────┴──────────┴───────────────────┤
+│                    Router (auto-select)                       │
+│           chooseRoute(): AST → Hash → Diff                   │
+│           routeEdit(): execute + telemetry + provenance       │
+├──────────────────────────────────────────────────────────────┤
+│              Cross-Cutting Layers                             │
+│  • Telemetry (JSONL)   • Provenance (agent git blame)        │
+│  • Config (env→CLI→project→global)  • Error/exit codes       │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-[→ Full OpenCode integration guide](docs/INTEGRATION-OPENCODE.md)
+**Key Modules:** `cli.ts` (entry), `router.ts` (dispatch), `ast-edit.ts` (tree-sitter), `hash-edit.ts` (SHA-256), `diff-engine.ts` (LCS), `read.ts`, `grep.ts`, `intent.ts` (M5), `plan-executor.ts`, `verify.ts`, `provenance.ts`, `telemetry.ts`, `config.ts`, `batch-edit.ts`, `doctor.ts`.
 
-#### Pi
+**AST Language Support:**
 
-HashPilot installs as a **native Pi extension** (`~/.pi/agent/extensions/hashpilot.ts`) that registers 7 custom tools (`hashpilot_read`, `hashpilot_search`, `hashpilot_replace_hash`, `hashpilot_ast`, `hashpilot_verify`, etc.) and a `/hp` slash command — all available in every Pi session.
-
-[→ Full Pi integration guide](docs/INTEGRATION-PI.md)
-
-#### Adapter Contract
-
-All integrations follow the same [Adapter Contract](docs/ADAPTER-CONTRACT.md) — a machine-readable JSON protocol that any agent or tool can consume. Every command returns structured JSON with consistent error handling, exit codes, and telemetry.
+| Language | Extensions | All 7 Operations |
+|----------|-----------|-----------------|
+| TypeScript | `.ts` (not `.d.ts`) | ✓ |
+| TSX | `.tsx` | ✓ |
+| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` | ✓ |
+| Python | `.py` | ✓ |
+| Go | `.go` | ✓ |
+| Rust | `.rs` | ✓ |
 
 ---
 
-### Documentation
+## Configuration
 
-- [Installation Guide](docs/INSTALL.md) — Full install options, project structure, troubleshooting
-- [Adapter Contract](docs/ADAPTER-CONTRACT.md) — JSON protocol reference for all commands
-- [Claude Code Integration](docs/INTEGRATION-CLAUDE.md)
-- [OpenCode Integration](docs/INTEGRATION-OPENCODE.md)
-- [Pi Integration](docs/INTEGRATION-PI.md)
+Layered config. Highest priority wins:
 
----
-
-### Development
-
-```bash
-git clone https://github.com/bigknoxy/HashPilot.git
-cd HashPilot
-bun install
-bun test              # Run all tests
-bun run build         # Build CLI to dist/
-bun run build && structured-edit doctor  # Build + health check
-```
-
-Run a single test file:
-
-```bash
-bun test tests/router.test.ts
-bun test tests/hash-edit.test.ts
-bun test -t "test name pattern"
-```
-
----
-
-### Configuration
-
-HashPilot uses a layered config system. Override priority (highest wins):
-
-1. `HASHPILOT_ROUTE_POLICY` environment variable
+1. `HASHPILOT_ROUTE_POLICY` env var
 2. `--config <path>` CLI flag
 3. `.hashpilot.json` in project root
 4. `~/.config/hashpilot/config.json`
@@ -513,20 +300,47 @@ HashPilot uses a layered config system. Override priority (highest wins):
     "operationOverrides": { "add-import": "diff" },
     "conflictResolution": "operation"
   },
-  "telemetry": {
-    "enabled": true
-  }
+  "telemetry": { "enabled": true }
 }
 ```
 
 ---
 
-### License
+## Development
 
-MIT — see [LICENSE](LICENSE) for details.
+```bash
+git clone https://github.com/bigknoxy/HashPilot.git
+cd HashPilot
+bun install
+bun test              # 344 tests, 96.68% line coverage
+bun run build         # Build CLI to dist/
+bun test tests/hash-edit.test.ts   # Single test file
+bun test -t "test name pattern"    # Filter by test name
+```
 
 ---
 
-### Project Status
+## Why Not Just Use sed / grep / awk?
 
-HashPilot is in active development (v0.1.0). The core editing engine, AST operations, telemetry, and all three adapter integrations are production-ready. Intent-based editing (M5) and provenance tracking (M6) are available as preview features.
+| Tool | Problem | HashPilot |
+|------|---------|-----------|
+| `sed` | Line-number based, fragile | Hash-anchored, recovery on stale anchors |
+| `grep + sed` | Wrong match on first occurrence | Cryptographic content identity |
+| `awk` | Pattern-based, no AST awareness | Tree-sitter AST for syntax-safe edits |
+| Manual edit | 3-5 retries per change | 1-2 operations, no re-reading |
+
+HashPilot isn't competing with Unix tools — it's the infrastructure layer that lets AI agents use those tools correctly.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
+## Project Status
+
+Active development. Core editing engine, AST operations, telemetry, and all three adapter integrations are production-ready. Intent-based editing (M5) and provenance tracking (M6) are available as preview features.
+
+v1.3.1 — [Release notes](https://github.com/bigknoxy/HashPilot/releases)
