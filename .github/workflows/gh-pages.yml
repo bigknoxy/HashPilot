@@ -31,9 +31,16 @@ jobs:
           SITE_URL="https://bigknoxy.github.io/HashPilot/"
           agent-browser open "$SITE_URL"
           agent-browser wait --load networkidle
-          PAGE_TEXT=$(agent-browser text)
-          echo "$PAGE_TEXT" | head -20
-          if echo "$PAGE_TEXT" | grep -q "HashPilot"; then
+
+          # Check title
+          TITLE=$(agent-browser eval "document.title")
+          echo "Title: $TITLE"
+
+          # Check body text contains branding
+          HAS_PILOT=$(agent-browser eval "document.body.innerText.includes('HashPilot')")
+          echo "Has HashPilot in body: $HAS_PILOT"
+
+          if [ "$HAS_PILOT" = "true" ]; then
             echo "✓ Site loads correctly — HashPilot branding found"
           else
             echo "✗ Site verification failed — HashPilot branding missing"
