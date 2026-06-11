@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/bigknoxy/HashPilot/compare/v1.5.2...v1.5.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* responsive integrations grid, add emoji favicon ([af79903](https://github.com/bigknoxy/HashPilot/commit/af79903e19446f062d64151d5176880b62712d92))
+
 ## [1.5.2](https://github.com/bigknoxy/HashPilot/compare/v1.5.1...v1.5.2) (2026-06-11)
 
 
