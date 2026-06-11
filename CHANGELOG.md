@@ -1,3 +1,11 @@
+## [1.3.1](https://github.com/bigknoxy/HashPilot/compare/v1.3.0...v1.3.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* restore escapeRegex function name (broken from rename-symbol test) ([3570f30](https://github.com/bigknoxy/HashPilot/commit/3570f30d26ec204421ab646aaa832078fb253d34))
+* use GH_TOKEN (PAT) instead of GITHUB_TOKEN for protected branch pushes ([f576305](https://github.com/bigknoxy/HashPilot/commit/f576305d108b079b015e56e4f547f909ff464d75))
+
 # [1.3.0](https://github.com/bigknoxy/HashPilot/compare/v1.2.1...v1.3.0) (2026-05-05)
 
 ### Features
