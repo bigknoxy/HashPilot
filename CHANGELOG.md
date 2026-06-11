@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/bigknoxy/HashPilot/compare/v1.4.0...v1.5.0) (2026-06-11)
+
+
+### Features
+
+* add design doc link + docs policy to landing page index.html ([a379b9b](https://github.com/bigknoxy/HashPilot/commit/a379b9bf8716e3b7362d6870d922b83af90db57a))
+
 # [1.4.0](https://github.com/bigknoxy/HashPilot/compare/v1.3.1...v1.4.0) (2026-06-11)
 
 
