@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/bigknoxy/HashPilot/compare/v1.5.1...v1.5.2) (2026-06-11)
+
+
+### Bug Fixes
+
+* mobile polish for landing page (side-scrolling, typography, layout) ([69a5558](https://github.com/bigknoxy/HashPilot/commit/69a5558d06d3355cf5afbe066ba6705eff690e7a))
+
 ## [1.5.1](https://github.com/bigknoxy/HashPilot/compare/v1.5.0...v1.5.1) (2026-06-11)
 
 
