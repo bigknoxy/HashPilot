@@ -412,8 +412,10 @@ Every deploy to GitHub Pages **must** be verified with browser automation:
     SITE_URL="https://bigknoxy.github.io/HashPilot/"
     agent-browser open "$SITE_URL"
     agent-browser wait --load networkidle
-    if agent-browser text | grep -q "HashPilot"; then
-      echo "✓ Site verified"
+    TITLE=$(agent-browser eval "document.title")
+    HAS_PILOT=$(agent-browser eval "document.body.innerText.includes('HashPilot')")
+    if [ "$HAS_PILOT" = "true" ]; then
+      echo "✓ Site verified — $TITLE"
     else
       echo "✗ Verification failed"
       agent-browser screenshot /tmp/deploy-failed.png
