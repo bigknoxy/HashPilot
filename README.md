@@ -4,8 +4,11 @@
 [![Bun](https://img.shields.io/badge/runtime-Bun_1.2%2B-black)](https://bun.sh)
 [![Tree-sitter](https://img.shields.io/badge/ast-tree--sitter-green)](https://tree-sitter.github.io)
 [![Tests](https://img.shields.io/badge/tests-96%25_coverage-brightgreen)](tests/)
+[![Live Site](https://img.shields.io/badge/site-gh--pages-blue)](https://bigknoxy.github.io/HashPilot/)
 
 **AI agents edit code blind. HashPilot gives them cryptographic certainty.**
+
+Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
 
 Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzzy text match. If the hash matches, you're editing the right content. No guessing, no retries, no silent corruption.
 
