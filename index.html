@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HashPilot — Deterministic Structured Editing for AI Coding Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --border: #252525;
+  --text: #e8e8e8;
+  --text-dim: #888;
+  --accent: #00f0a0;
+  --accent-dim: #00b87a;
+  --hash: #ff6b6b;
+  --ast: #4ecdc4;
+  --diff: #ffe66d;
+  --code-bg: #1a1a1a;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+/* Hero */
+.hero {
+  padding: 100px 0 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0,240,160,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+
+.hero h1 .accent { color: var(--accent); }
+
+.hero .tagline {
+  font-family: 'DM Mono', monospace;
+  font-size: 1rem;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: inline-block;
+}
+
+.hero .sub {
+  font-size: 1.2rem;
+  color: var(--text-dim);
+  max-width: 680px;
+  line-height: 1.7;
+}
+
+.hero .sub strong { color: var(--text); }
+
+.badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.badges img { height: 22px; }
+
+.cta-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: var(--radius);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn-primary:hover {
+  background: var(--accent-dim);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Sections */
+section { padding: 80px 0; }
+
+section:nth-child(even) { background: var(--surface); }
+
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 12px;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 40px;
+  line-height: 1.3;
+}
+
+h2 em { color: var(--accent); font-style: normal; }
+
+/* Pain table */
+.pain-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 48px;
+}
+
+.pain-cell {
+  background: var(--bg);
+  padding: 24px;
+}
+
+.pain-cell h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.pain-cell p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; }
+
+/* Feature cards */
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.feature-card {
+  background: var(--bg);
+  padding: 28px;
+}
+
+.feature-card .icon {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.feature-card p {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.feature-card .for {
+  margin-top: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--accent-dim);
+}
+
+/* Audience */
+.audience-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.audience-card {
+  background: var(--bg);
+  padding: 28px;
+}
+
+.audience-card .emoji {
+  font-size: 2rem;
+  margin-bottom: 12px;
+}
+
+.audience-card h3 {
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.audience-card ul {
+  list-style: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.audience-card ul li::before {
+  content: '→ ';
+  color: var(--accent);
+}
+
+/* Code blocks */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  overflow-x: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+code {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85em;
+}
+
+pre code { font-size: 0.85rem; }
+
+/* Install box */
+.install-box {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.install-box .cmd {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.install-box .req {
+  margin-top: 16px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Architecture diagram */
+.diagram {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.diagram .hl { color: var(--accent); }
+.diagram .hl-ast { color: var(--ast); }
+.diagram .hl-hash { color: var(--hash); }
+.diagram .hl-diff { color: var(--diff); }
+
+/* Command table */
+.cmd-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 24px;
+}
+
+.cmd-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.cmd-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.cmd-table td:first-child {
+  font-family: 'DM Mono', monospace;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.cmd-table td:last-child { color: var(--text-dim); }
+
+.cmd-table tr:last-child td { border-bottom: none; }
+
+/* Divider */
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* Footer */
+footer {
+  padding: 60px 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 700px) {
+  .hero h1 { font-size: 2rem; }
+  .hero { padding: 60px 0 40px; }
+  section { padding: 40px 0; }
+  h2 { font-size: 1.5rem; margin-bottom: 24px; }
+  .pain-grid, .feature-grid, .audience-grid { grid-template-columns: 1fr; }
+  .cmd-table { font-size: 0.8rem; }
+  .cmd-table td, .cmd-table th { padding: 8px 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="container">
+    <div class="badges">
+      <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
+      <img src="https://img.shields.io/badge/runtime-Bun_1.2%2B-black" alt="Bun">
+      <img src="https://img.shields.io/badge/ast-tree--sitter-green" alt="Tree-sitter">
+      <img src="https://img.shields.io/badge/tests-96%25_coverage-brightgreen" alt="Tests">
+    </div>
+    <h1>HashPilot</h1>
+    <div class="tagline">structured-edit CLI · v1.3.1</div>
+    <p class="sub">
+      <strong>AI agents edit code blind.</strong> HashPilot gives them cryptographic certainty.
+      Every edit anchored by SHA-256 hash — not a line number or fuzzy text match.
+    </p>
+    <div class="cta-buttons">
+      <a href="#install" class="btn btn-primary">curl | sh Install</a>
+      <a href="#commands" class="btn btn-secondary">View Commands</a>
+      <a href="https://github.com/bigknoxy/HashPilot" class="btn btn-secondary">GitHub →</a>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<section id="problem">
+<div class="container">
+  <div class="section-label">The Problem</div>
+  <h2>AI agents edit code <em>blind</em></h2>
+  <p style="color: var(--text-dim); font-size: 1.05rem; margin-bottom: 32px; max-width: 700px;">
+    No IDE, no visual location, no working memory of file structure. Yet tools expect agents to edit like humans — counting lines and guessing text.
+  </p>
+  <div class="pain-grid">
+    <div class="pain-cell">
+      <h3>Line Counting</h3>
+      <p>"Replace line 42" breaks when one import shifts every line. +3 retries, corrupted file.</p>
+    </div>
+    <div class="pain-cell">
+      <h3>Fuzzy Find-Replace</h3>
+      <p>Guess the right text to match — or match the wrong occurrence. Silent corruption, wasted tokens.</p>
+    </div>
+    <div class="pain-cell">
+      <h3>Race Conditions</h3>
+      <p>Two edits interleave. Invalid syntax, agent confusion, no recovery.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr>
+
+<section>
+<div class="container">
+  <div class="section-label">The Solution</div>
+  <h2>Cryptographic <em>certainty</em> for every edit</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="icon">🔐</div>
+      <h3>SHA-256 Anchors</h3>
+      <p>Target content by its cryptographic fingerprint. If the hash matches, you're editing the right content. No ambiguity.</p>
+      <div class="for">For agents — never edit the wrong content</div>
+    </div>
+    <div class="feature-card">
+      <div class="icon">⚡</div>
+      <h3>3-Tier Routing</h3>
+      <p>AST → Hash → Diff. Auto-selects the best strategy per file + operation. One command, right tool every time.</p>
+      <div class="for">For agents — one shot, every time</div>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>Stale Recovery</h3>
+      <p>Detects out-of-date edits (file changed since read) and re-applies transparently. No silent corruption.</p>
+      <div class="for">For agents — survive race conditions</div>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🎯</div>
+      <h3>Intents (M5)</h3>
+      <p>"Add a parameter to processData" → discovers all call sites, plans the edit, executes every step.</p>
+      <div class="for">For agents — multi-file refactors in one shot</div>
+    </div>
+    <div class="feature-card">
+      <div class="icon">✅</div>
+      <h3>Verification Bundling</h3>
+      <p>Run formatter + linter + typechecker + tests in one command. Optional revert on failure.</p>
+      <div class="for">For developers — know it works</div>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📋</div>
+      <h3>Provenance</h3>
+      <p><code>provenance query src/utils.ts</code> shows edit history per line. Like <code>git blame</code> for agent edits.</p>
+      <div class="for">For teams — audit trail for AI changes</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr>
+
+<section>
+<div class="container">
+  <div class="section-label">Who It's For</div>
+  <h2>Three audiences, <em>one tool</em></h2>
+  <div class="audience-grid">
+    <div class="audience-card">
+      <div class="emoji">👤</div>
+      <h3>Developers</h3>
+      <ul>
+        <li>Edits work on the first try</li>
+        <li>Every change is auditable</li>
+        <li>Trust AI refactors completely</li>
+        <li>It's invisible — agent uses it automatically</li>
+      </ul>
+    </div>
+    <div class="audience-card">
+      <div class="emoji">🤖</div>
+      <h3>AI Agents</h3>
+      <ul>
+        <li>SHA-256 hash = no ambiguity</li>
+        <li>Less re-reading = fewer round-trips</li>
+        <li>AST edits are structurally valid</li>
+        <li>Intents handle the blast radius</li>
+        <li>Telemetry monitors reliability</li>
+      </ul>
+    </div>
+    <div class="audience-card">
+      <div class="emoji">🏢</div>
+      <h3>Engineering Teams</h3>
+      <ul>
+        <li>Provenance = compliance</li>
+        <li>Team-wide config policies</li>
+        <li>Batch edits at scale</li>
+        <li>Verify = confidence before merge</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<hr>
+
+<section id="install">
+<div class="container">
+  <div class="section-label">Quick Start</div>
+  <h2>Install in <em>one command</em></h2>
+  <div class="install-box">
+    <div class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh</div>
+    <div class="req">Requires <strong>Bun 1.2+</strong> — installs CLI, configures Claude Code, OpenCode, and Pi adapters automatically.</div>
+  </div>
+
+  <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 16px;">Your First Edit</h3>
+<pre><code># 1. Read a file — get its content hash
+<span style="color: var(--accent);">structured-edit read-many src/main.ts</span>
+
+# 2. Edit by hash — target the exact content
+HASH="abc123..."  <span style="color: var(--text-dim);"># from read-many output</span>
+<span style="color: var(--accent);">structured-edit replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5</span>
+
+# 3. Verify nothing broke
+<span style="color: var(--accent);">structured-edit verify-changes src/main.ts --auto-detect</span></code></pre>
+</div>
+</section>
+
+<hr>
+
+<section id="how-it-works">
+<div class="container">
+  <div class="section-label">Architecture</div>
+  <h2>The <em>3-tier</em> routing model</h2>
+  <div class="diagram">  ┌─────────────────┐
+  │   Your Edit      │
+  └────────┬────────┘
+           │
+           ▼
+  ┌──────────────────────────┐
+  │  <span class="hl-ast">1. AST Route</span>           │  ◄── tree-sitter syntax edits
+  │  TS/TSX/JS/Python/Go/Rust│      rename-symbol, replace-body
+  └────────────┬─────────────┘
+               │ unsupported
+               ▼
+  ┌──────────────────────────┐
+  │  <span class="hl-hash">2. Hash Route</span>          │  ◄── SHA-256 anchored replacement
+  │  (any file)              │      stale-anchor detection
+  └────────────┬─────────────┘
+               │ no hash
+               ▼
+  ┌──────────────────────────┐
+  │  <span class="hl-diff">3. Diff Route</span>          │  ◄── LCS-based search-and-replace
+  │  (fallback)              │      fuzzy matching
+  └──────────────────────────┘</div>
+  <p style="color: var(--text-dim); margin-top: 16px;">The router auto-selects. <strong>route-edit</strong> tries AST → Hash → Diff. Every route records telemetry and provenance.</p>
+</div>
+</section>
+
+<hr>
+
+<section id="commands">
+<div class="container">
+  <div class="section-label">Commands</div>
+  <h2>Everything at <em>your fingertips</em></h2>
+
+  <h3 style="font-size: 1rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 0;">Read &amp; Search</h3>
+  <table class="cmd-table">
+    <tr><th>Command</th><th>What It Does</th></tr>
+    <tr><td>read-many &lt;files&gt;</td><td>Batch read with SHA-256 content hashes</td></tr>
+    <tr><td>read-hash &lt;file&gt; &lt;line&gt;</td><td>Read a specific line with context hash</td></tr>
+    <tr><td>grep-many &lt;pattern&gt; &lt;paths&gt;</td><td>Regex search across files</td></tr>
+    <tr><td>symbol-lookup-many &lt;paths&gt;</td><td>Find symbol definitions by name</td></tr>
+  </table>
+
+  <h3 style="font-size: 1rem; color: var(--hash); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 32px;">Edit — Hash Route</h3>
+  <table class="cmd-table">
+    <tr><th>Command</th><th>What It Does</th></tr>
+    <tr><td>replace-hash &lt;file&gt; &lt;hash&gt; &lt;content&gt;</td><td>SHA-256 anchored replacement with stale recovery</td></tr>
+  </table>
+
+  <h3 style="font-size: 1rem; color: var(--ast); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 32px;">Edit — AST Route</h3>
+  <table class="cmd-table">
+    <tr><th>Command</th><th>What It Does</th></tr>
+    <tr><td>ast find-symbols &lt;file&gt;</td><td>List all symbols in a file</td></tr>
+    <tr><td>ast rename-symbol &lt;file&gt; &lt;old&gt; &lt;new&gt;</td><td>Rename symbol + all references</td></tr>
+    <tr><td>ast replace-body &lt;file&gt; &lt;symbol&gt; &lt;body&gt;</td><td>Replace a function/method body</td></tr>
+    <tr><td>ast add-import &lt;file&gt; &lt;spec&gt;</td><td>Add an import with grouped merging</td></tr>
+    <tr><td>ast remove-import &lt;file&gt; &lt;spec&gt;</td><td>Remove an import statement</td></tr>
+    <tr><td>ast insert-before/after</td><td>Insert content around a symbol</td></tr>
+  </table>
+
+  <h3 style="font-size: 1rem; color: var(--diff); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 32px;">Multi-File &amp; Verification</h3>
+  <table class="cmd-table">
+    <tr><th>Command</th><th>What It Does</th></tr>
+    <tr><td>route-edit &lt;file&gt; &lt;op&gt;</td><td>Auto-routed edit: AST → Hash → Diff</td></tr>
+    <tr><td>batch &lt;op&gt; &lt;files&gt;</td><td>Same edit on many files, parallel or serial</td></tr>
+    <tr><td>intent &lt;json&gt;</td><td>Declarative multi-file plan + execute</td></tr>
+    <tr><td>verify-changes &lt;files&gt;</td><td>Formatter + linter + typechecker + tests</td></tr>
+    <tr><td>provenance query &lt;file&gt;</td><td>Edit history (git blame for agents)</td></tr>
+    <tr><td>telemetry health</td><td>Health report with threshold warnings</td></tr>
+  </table>
+
+  <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 16px;">
+    All commands accept <code>--actor</code>, <code>--task-id</code>, <code>--reason</code> for provenance. Every command outputs structured JSON.
+  </p>
+</div>
+</section>
+
+<hr>
+
+<section>
+<div class="container">
+  <div class="section-label">Integrations</div>
+  <h2>Works with every <em>major agent</em></h2>
+  <div class="feature-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="feature-card">
+      <h3>Claude Code</h3>
+      <p>HashPilot section injected into <code style="font-size: 0.8rem;">~/.claude/CLAUDE.md</code>. Claude uses <code style="font-size: 0.8rem;">structured-edit</code> commands as shell tools.</p>
+    </div>
+    <div class="feature-card">
+      <h3>OpenCode</h3>
+      <p>Skill at <code style="font-size: 0.8rem;">~/.config/opencode/skills/hashpilot/</code> + subagent for delegated editing.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Pi</h3>
+      <p>Native extension with 7 custom tools + <code style="font-size: 0.8rem;">/hp</code> slash command.</p>
+    </div>
+  </div>
+  <p style="color: var(--text-dim); font-size: 0.9rem; text-align: center; margin-top: 24px;">
+    All adapters follow the <a href="docs/ADAPTER-CONTRACT.md" style="color: var(--accent);">Adapter Contract</a> — a machine-readable JSON protocol any agent can consume.
+  </p>
+</div>
+</section>
+
+<hr>
+
+<section>
+<div class="container">
+  <div class="section-label">Development</div>
+  <h2>Build from <em>source</em></h2>
+  <pre><code>git clone https://github.com/bigknoxy/HashPilot.git
+cd HashPilot
+bun install
+bun test              <span style="color: var(--text-dim);"># 344 tests, 96.68% line coverage</span>
+bun run build         <span style="color: var(--text-dim);"># Build CLI to dist/</span>
+bun test tests/hash-edit.test.ts   <span style="color: var(--text-dim);"># Single file</span>
+bun test -t "test name"            <span style="color: var(--text-dim);"># Filter by name</span></code></pre>
+  <p style="color: var(--text-dim); margin-top: 16px;">
+    Configuration: layered (env var → CLI flag → <code>.hashpilot.json</code> → global → defaults).
+    Route policies per language, per operation. Telemetry opt-out.
+  </p>
+</div>
+</section>
+
+<hr>
+
+<footer>
+  <div class="container">
+    <p>MIT License · <a href="https://github.com/bigknoxy/HashPilot">GitHub</a> ·
+    <a href="https://github.com/bigknoxy/HashPilot/releases">v1.3.1</a> ·
+    <a href="https://github.com/bigknoxy/HashPilot/issues">Issues</a></p>
+    <p style="margin-top: 12px; font-size: 0.8rem;">Designed for AI agents and the developers who love them.</p>
+  </div>
+</footer>
+
+</body>
+</html>
