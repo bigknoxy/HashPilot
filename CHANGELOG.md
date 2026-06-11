@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/bigknoxy/HashPilot/compare/v1.5.0...v1.5.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* use agent-browser eval instead of text command for deploy verification ([ec91da2](https://github.com/bigknoxy/HashPilot/commit/ec91da2b55505583bcab50df4bf36575aa11e3cf))
+
 # [1.5.0](https://github.com/bigknoxy/HashPilot/compare/v1.4.0...v1.5.0) (2026-06-11)
 
 
