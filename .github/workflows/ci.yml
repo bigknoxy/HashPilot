@@ -40,12 +40,36 @@ jobs:
       - name: Run doctor smoke test
         run: bun run src/cli.ts doctor
 
+  docs-verify:
+    name: Docs Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check docs are updated when source changes
+        run: |
+          if git diff --name-only HEAD~1...HEAD | grep -q '^src/'; then
+            if git diff --name-only HEAD~1...HEAD | grep -q -e '^README.md' -e '^docs/ARCHITECTURE.md'; then
+              echo "✓ Source changed — landing or design doc also updated"
+            else
+              echo "✗ FAIL: src/ files changed but README.md or docs/ARCHITECTURE.md was not updated."
+              echo "  These are living docs that must reflect code changes."
+              exit 1
+            fi
+          else
+            echo "No src/ changes — skipping docs-verify"
+          fi
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:

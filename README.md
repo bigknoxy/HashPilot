@@ -270,6 +270,8 @@ All adapters follow the [Adapter Contract](docs/ADAPTER-CONTRACT.md) — a machi
 
 **Key Modules:** `cli.ts` (entry), `router.ts` (dispatch), `ast-edit.ts` (tree-sitter), `hash-edit.ts` (SHA-256), `diff-engine.ts` (LCS), `read.ts`, `grep.ts`, `intent.ts` (M5), `plan-executor.ts`, `verify.ts`, `provenance.ts`, `telemetry.ts`, `config.ts`, `batch-edit.ts`, `doctor.ts`.
 
+For deep design rationale, module internals, data flow, and all architecture decisions, see the **[design doc](docs/ARCHITECTURE.md)**.
+
 **AST Language Support:**
 
 | Language | Extensions | All 7 Operations |
@@ -342,5 +344,7 @@ MIT — see [LICENSE](LICENSE).
 ## Project Status
 
 Active development. Core editing engine, AST operations, telemetry, and all three adapter integrations are production-ready. Intent-based editing (M5) and provenance tracking (M6) are available as preview features.
+
+**Docs policy:** The landing page (README.md) and [design doc](docs/ARCHITECTURE.md) are living documents. Every PR that touches `src/` must update one or both. Every deploy is verified with browser automation. See the CI check `docs-verify`.
 
 v1.3.1 — [Release notes](https://github.com/bigknoxy/HashPilot/releases)

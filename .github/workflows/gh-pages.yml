@@ -12,7 +12,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: peaceiris/actions-gh-pages@v3
+        id: deploy
         with:
           github_token: ${{ secrets.GH_TOKEN }}
           publish_dir: .
           publish_branch: gh-pages
+
+      - name: Wait for Pages build
+        run: sleep 15
+
+      - name: Install agent-browser
+        run: |
+          npm install -g agent-browser
+          agent-browser install
+
+      - name: Verify site with browser automation
+        run: |
+          SITE_URL="https://bigknoxy.github.io/HashPilot/"
+          agent-browser open "$SITE_URL"
+          agent-browser wait --load networkidle
+          PAGE_TEXT=$(agent-browser text)
+          echo "$PAGE_TEXT" | head -20
+          if echo "$PAGE_TEXT" | grep -q "HashPilot"; then
+            echo "✓ Site loads correctly — HashPilot branding found"
+          else
+            echo "✗ Site verification failed — HashPilot branding missing"
+            agent-browser screenshot /tmp/deploy-failed.png
+            exit 1
+          fi
+          agent-browser screenshot /tmp/deploy-verified.png
+          agent-browser close
