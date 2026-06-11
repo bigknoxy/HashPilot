@@ -39,6 +39,7 @@ body {
   padding: 100px 0 80px;
   position: relative;
   overflow: hidden;
+  /* clip the decorative blob to prevent side-scrolling */
 }
 
 .hero::before {
@@ -373,14 +374,40 @@ footer {
 
 footer a { color: var(--accent); text-decoration: none; }
 
+/* Prevent horizontal overflow from hero blob + wide elements */
+body { overflow-x: hidden; }
+
 @media (max-width: 700px) {
   .hero h1 { font-size: 2rem; }
   .hero { padding: 60px 0 40px; }
   section { padding: 40px 0; }
   h2 { font-size: 1.5rem; margin-bottom: 24px; }
   .pain-grid, .feature-grid, .audience-grid { grid-template-columns: 1fr; }
-  .cmd-table { font-size: 0.8rem; }
-  .cmd-table td, .cmd-table th { padding: 8px 10px; }
+  .container { padding: 0 16px; }
+  .cmd-table { font-size: 0.75rem; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cmd-table td, .cmd-table th { padding: 6px 8px; }
+  .cmd-table td:first-child { white-space: normal; word-break: break-all; }
+  .hero .tagline { font-size: 0.85rem; word-break: break-all; }
+  .hero .sub { font-size: 1rem; }
+  .cta-buttons { flex-direction: column; }
+  .cta-buttons .btn { justify-content: center; }
+  .badges { gap: 6px; }
+  .badges img { height: 18px; }
+  pre { font-size: 0.75rem; padding: 14px 16px; white-space: pre-wrap; word-break: break-word; }
+  .diagram { font-size: 0.65rem; padding: 16px; white-space: pre; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .install-box { padding: 16px; }
+  .install-box .cmd { font-size: 0.8rem; }
+  .feature-card, .audience-card { padding: 20px; }
+  .audience-card ul { font-size: 0.85rem; }
+  footer { padding: 40px 0; }
+}
+
+@media (max-width: 400px) {
+  .hero h1 { font-size: 1.6rem; }
+  .hero .tagline { font-size: 0.75rem; }
+  .btn { padding: 12px 20px; font-size: 0.8rem; }
+  .pain-cell { padding: 16px; }
+  .feature-card { padding: 16px; }
 }
 </style>
 </head>
