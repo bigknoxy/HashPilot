@@ -5,10 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build/Test/Lint
 
 ```bash
-bun install         # Install dependencies
-bun test            # Run all tests
-bun run build       # Build CLI to dist/
-bun run build && structured-edit doctor  # Build + health check
+bun install                 # Install dependencies (Bun 1.2+)
+bun test                    # Run all tests
+bun run build               # Bundle src/cli.ts to dist/
+bun run install-cli         # Symlink CLI into ~/.agentic-tools/bin/
+bun run src/cli.ts doctor   # Exercise the CLI directly without installing
+bash scripts/doctor.sh      # Check local installation environment
 ```
 
 There is no separate linter or formatter configured. Tests use Bun's built-in test runner (`bun test`). To run a single test file:
@@ -19,7 +21,11 @@ bun test tests/hash-edit.test.ts     # Single test file
 bun test -t "test name pattern"      # Filter by test name
 ```
 
-The smoke test (`tests/smoke.sh`) requires the CLI to be installed (`structured-edit` on PATH). CI uses semantic-release for automated versioning and publishing.
+The smoke test (`bash tests/smoke.sh`) requires the CLI to be installed (`structured-edit` on PATH); run it whenever CLI behavior changes. CI uses semantic-release for automated versioning and publishing, so commits must use Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) — the prefix drives the release.
+
+Style: strict TypeScript, ES modules, two-space indent; camelCase values, PascalCase types, kebab-case CLI subcommands.
+
+`AGENTS.md` covers the same ground for other agents — keep the two in sync when commands or conventions change.
 
 ## Architecture
 
@@ -35,9 +41,11 @@ Supported AST languages: TypeScript, TSX, JavaScript, Python, Go, Rust. `.d.ts` 
 
 ### Module map
 
+All core modules live in `src/core/` (paths below are relative to it).
+
 | Module | Responsibility |
 |--------|---------------|
-| `src/cli.ts` | Commander-based CLI entry point (~750 lines). Every command records a telemetry event. |
+| `src/cli.ts` | Commander-based CLI entry point. Every command records a telemetry event. |
 | `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove (with per-language configs for import formatting and grouped import handling). |
 | `hash-edit.ts` | SHA-256 anchored content replacement with stale-anchor auto-recovery. |
 | `diff-engine.ts` | LCS-based unified diff generation and patch application with fuzzy matching. |
@@ -56,9 +64,12 @@ Supported AST languages: TypeScript, TSX, JavaScript, Python, Go, Rust. `.d.ts` 
 
 ### Key patterns
 
+- **Route precedence** (`chooseRoute`, `src/core/router.ts:36`): policy override → AST (language supported *and* AST operation) → hash operation → diff fallback. First match wins.
 - **Telemetry everywhere**: Every CLI command wraps its action in `recordEvent({...})` with operation name, route, file, language, success, and elapsed_ms. The router also self-records events.
 - **Config merge priority**: Env var (`HASHPILOT_ROUTE_POLICY`) → CLI `--config` → project `.hashpilot.json` → global `~/.config/hashpilot/config.json` → built-in defaults.
 - **Error codes**: Defined as `ErrorCode` enum with `PARSE_ERROR`, `SYMBOL_NOT_FOUND`, `STALE_ANCHOR`, etc. Passed through telemetry for health monitoring.
+- **JSON output is a contract**: CLI output is machine-readable JSON consumed by agent adapters. Do not change output shapes without updating `docs/ADAPTER-CONTRACT.md` and affected tests.
+- **Barrel exports**: preserve the public exports in `src/core/index.ts`.
 - **Provenance tracking**: edit operations can accept `actor`, `taskId`, and `reason` params. These are recorded alongside telemetry events and queryable via `provenance query <file>`.
 
 ### Configuration
@@ -69,6 +80,11 @@ Supported AST languages: TypeScript, TSX, JavaScript, Python, Go, Rust. `.d.ts` 
 - Merge priority (highest wins): env var → CLI `--config` → project → global → defaults
 
 Route policies can override routing per language or per operation, with configurable conflict resolution (`"language"`, `"operation"`, or `"strictest"`).
+
+### Gotchas
+
+- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 344 pass / 0 fail.
+- **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`. The router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 
 ### Adapter integrations
 
