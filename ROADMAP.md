@@ -4,7 +4,8 @@ Single source of truth for what is being worked on and in what order.
 
 - **Source of the backlog:** [`AUDIT-2026-08.md`](AUDIT-2026-08.md) — full repo audit (Aug 2026), 49 scored items.
 - **Tracking:** every item is a GitHub issue labeled `audit-2026-08`, with a `P0`–`P3` label and a sprint milestone.
-- **Scoring:** `Score = (Impact × 5) + (Evidence × 2) − (Effort × 2)`. Tiers: **P0** ≥ 55 · **P1** 40–54 · **P2** 25–39 · **P3** < 25. Priority tier is the audit's final judgment, which occasionally promotes a low-score item (B7) for being a trivial companion to a P0.
+- **Scoring:** `Score = (Impact × 5) + (Evidence × 2) − (Effort × 2)`. The score ranks items *within* a sprint; it is not a tier threshold.
+- **Priority tier** reflects sprint assignment, not a score band: **P0**/**P1** = Sprints 1–2 (safety, then engine correctness) · **P2** = Sprints 3–4 · **P3** = Backlog. A high score does not by itself make an item P0 — sequencing risk does. B7 scores only 48 but ships in Sprint 1 as a one-line companion to B2; B33 scores 48 and waits for Sprint 3 because nothing depends on it.
 - **Evidence:** `verified` = reproduced live against the CLI. `reported-unverified` = read at `file:line` by a reviewer, not executed.
 
 Milestones: [Sprint 1 — Stop the Bleeding](../../milestone/1) · [Sprint 2 — Foundations](../../milestone/2) · [Sprint 3 — Parity](../../milestone/3) · [Sprint 4 — Differentiation](../../milestone/4) · [Backlog](../../milestone/5)
@@ -35,7 +36,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
-| [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage | 58 | P1 | verified | correctness |
+| [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage | 59 | P1 | verified | correctness |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo | 56 | P0 | reported | correctness · data-loss |
 | [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust | 52 | P1 | reported | correctness |
 | [#18](../../issues/18) | B15 — Uniform JSON envelope with `error.code` and `error.recovery` | 52 | P1 | verified | cli |
@@ -45,8 +46,8 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | reported | correctness |
 | [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis | 49 | P1 | reported | correctness |
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
+| [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
-| [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 45 | P1 | reported | correctness |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
 
 **Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR.
@@ -59,10 +60,10 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 |---|------|-------|-----|----------|------|
 | [#25](../../issues/25) | B21 — Ship an MCP server generated from a shared operation registry | 53 | P2 | verified | strategy |
 | [#28](../../issues/28) | B25 — Git-awareness, blast-radius gate, checkpointing | 50 | P2 | verified | security |
+| [#34](../../issues/34) | B33 — CI: single OS, no typecheck, no smoke/installer test, no coverage | 48 | P2 | reported | ops |
 | [#30](../../issues/30) | B27 — Encoding fidelity: trailing newline stripped, CRLF destroyed, BOM folded | 47 | P2 | verified | correctness |
 | [#33](../../issues/33) | B30 — Fuzzy match window far wider than the `fuzzy` parameter implies | 47 | P2 | reported | correctness |
 | [#35](../../issues/35) | B34 — Not installable without Bun; `dist/` is not published | 47 | P2 | verified | ops |
-| [#34](../../issues/34) | B33 — CI: single OS, no typecheck, no smoke/installer test, no coverage | 48 | P2 | reported | ops |
 | [#26](../../issues/26) | B22 — Publish benchmark numbers; there are none | 46 | P2 | reported | strategy |
 | [#27](../../issues/27) | B24 — Interactive mode as a rendering layer over the existing flags | 46 | P2 | verified | cli |
 | [#29](../../issues/29) | B26 — `--yes` and `--dry-run` on destructive operations | 46 | P2 | verified | cli |
@@ -85,10 +86,10 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 |---|------|-------|-----|------|
 | [#37](../../issues/37) | B35 — Installer hygiene: template injection, unpinned clone, rc clobber, `rsync --delete` | 45 | P3 | security |
 | [#44](../../issues/44) | B42 — Shell completions, help examples, `intent --schema`, `explain` | 44 | P3 | cli |
-| [#48](../../issues/48) | B46 — Deduplicate `cli.ts` (9× provenance flags, 2× edit flags, 2× `resolveContent`) | 41 | P3 | cli |
 | [#38](../../issues/38) | B36 — `insert-before/after` can splice a statement into a parameter list | 42 | P3 | correctness |
 | [#41](../../issues/41) | B39 — Unnormalized path comparison; provenance silently returns no results | 42 | P3 | correctness |
 | [#42](../../issues/42) | B40 — Pin tree-sitter deps, add Dependabot and vulnerability scanning | 42 | P3 | security |
+| [#48](../../issues/48) | B46 — Deduplicate `cli.ts` (9× provenance flags, 2× edit flags, 2× `resolveContent`) | 41 | P3 | cli |
 | [#40](../../issues/40) | B38 — Empty-string `newContent` unroutable; hash-tier deletion impossible | 39 | P3 | correctness |
 | [#46](../../issues/46) | B44 — `doctor` inverts stdout/stderr and always exits 0 | 39 | P3 | cli |
 | [#49](../../issues/49) | B47 — `gh-pages` publishes the entire repository | 39 | P3 | ops |

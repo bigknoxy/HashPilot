@@ -4,6 +4,8 @@ A living document capturing the architecture, design decisions, and data flow of
 
 **Landing page:** https://bigknoxy.github.io/HashPilot/ — problem statement, audience, quick start.
 
+**Roadmap & backlog:** [../ROADMAP.md](../ROADMAP.md) — sprint-ordered work queue derived from [../AUDIT-2026-08.md](../AUDIT-2026-08.md). Several known defects described there contradict behavior documented on this page; the roadmap is authoritative on what is broken today.
+
 ---
 
 ## Why This Document Exists
