@@ -9,6 +9,7 @@
 **AI agents edit code blind. HashPilot gives them cryptographic certainty.**
 
 Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
+Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
 
 Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzzy text match. If the hash matches, you're editing the right content. No guessing, no retries, no silent corruption.
 
