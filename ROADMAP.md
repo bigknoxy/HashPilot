@@ -36,6 +36,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
+| [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage | 59 | P1 | verified | correctness |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo | 56 | P0 | reported | correctness · data-loss |
 | [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust | 52 | P1 | reported | correctness |
@@ -48,9 +49,8 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
-| [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
-| [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB | 60 | P1 | verified | correctness |
 | [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects | 44 | P2 | verified | cli |
+| [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
 
 **Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR. [#56](../../issues/56) (B51) must land *inside* B15 rather than before it, so consumers absorb one breaking output change instead of two. [#55](../../issues/55) (B50) and [#13](../../issues/13) (B8) touch the same tree-sitter call sites — sequence them together.
 
