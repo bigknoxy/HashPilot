@@ -474,4 +474,4 @@ The CI check `docs-verify` enforces rule 5 — if `src/` files change but neithe
 
 ---
 
-_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation)._
+_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint)._

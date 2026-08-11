@@ -9,7 +9,7 @@
 **AI agents edit code blind. HashPilot gives them cryptographic certainty.**
 
 Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
-Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
+Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · CLI reference: **[docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
 
 Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzzy text match. If the hash matches, you're editing the right content. No guessing, no retries, no silent corruption.
 
@@ -437,6 +437,8 @@ MIT — see [LICENSE](LICENSE).
 Active development. Core editing engine, AST operations, telemetry, and all three adapter integrations are production-ready. Intent-based editing (M5) and provenance tracking (M6) are available as preview features.
 
 **Docs policy:** The landing page (README.md) and [design doc](docs/ARCHITECTURE.md) are living documents. Every PR that touches `src/` must update one or both. Every deploy is verified with browser automation. See the CI check `docs-verify`.
+
+**Agent quick reference:** [docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md) is the one page an agent should read before invoking the CLI — every command, flag, output shape, exit code, and the gotchas that otherwise cost a guess-and-retry loop. Its command reference is generated from the CLI's own `--help`, and `bun run lint:docs` (run in CI and by `bun test`) fails if the doc drifts from the binary or if `ROADMAP.md` grows a duplicate or out-of-order row.
 
 v1.3.1 — [Release notes](https://github.com/bigknoxy/HashPilot/releases)
 

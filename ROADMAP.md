@@ -95,12 +95,12 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#40](../../issues/40) | B38 — Empty-string `newContent` unroutable; hash-tier deletion impossible | 39 | P3 | correctness |
 | [#46](../../issues/46) | B44 — `doctor` inverts stdout/stderr and always exits 0 | 39 | P3 | cli |
 | [#49](../../issues/49) | B47 — `gh-pages` publishes the entire repository | 39 | P3 | ops |
+| [#57](../../issues/57) | B52 — `grep-many` args are positional but read as flags; Commander errors escape the JSON envelope | 38 | P3 | cli |
 | [#39](../../issues/39) | B37 — Symbol search silently truncates at depth 10 | 37 | P3 | correctness |
 | [#45](../../issues/45) | B43 — Publish a config JSON Schema; add `config validate` and `init` | 37 | P3 | cli |
 | [#50](../../issues/50) | B48 — Telemetry retention never enforced; backup to a fixed `/tmp` path | 37 | P3 | ops · security |
 | [#43](../../issues/43) | B41 — `intent` parses every repo file twice, serially, per invocation | 36 | P3 | performance |
 | [#47](../../issues/47) | B45 — Add `--quiet`/`--verbose`/`--no-color`; respect `NO_COLOR` | 36 | P3 | cli |
-| [#57](../../issues/57) | B52 — `grep-many` args are positional but read as flags; Commander errors escape the JSON envelope | 38 | P3 | cli |
 | [#51](../../issues/51) | B49 — Long tail: seven small correctness and hygiene defects | 30 | P3 | correctness |
 
 ---

@@ -43,11 +43,21 @@ jobs:
   docs-verify:
     name: Docs Verify
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      # Structural checks: the CLI quickref must match the CLI's own --help, and
+      # ROADMAP.md must have no duplicate or out-of-order issue rows.
+      - name: Lint generated and hand-maintained docs
+        run: bun run lint:docs
       - name: Check docs are updated when source changes
         run: |
           if git diff --name-only HEAD~1...HEAD | grep -q '^src/'; then
