@@ -489,3 +489,17 @@ describe("a broken log is not an empty log", () => {
     expect(lastReadSkipped()).toBe(3);
   });
 });
+
+// ── Regression test for issue #51, defect #3 ──────────────────────────
+describe("replace-hash elapsed_ms regression", () => {
+  test("cli.ts does not hardcode elapsed_ms: 0 for replace-hash", async () => {
+    const cliSource = await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text();
+
+    // The replace-hash command must measure elapsed time, not hardcode zero
+    expect(cliSource).not.toContain("operation: \"replace-hash\",\n      route: \"hash\",\n      file,\n      language: detectLanguage(file) || undefined,\n      success: result.success,\n      fallback_reason: result.stale ? \"stale-anchor\" : undefined,\n      retries: result.retries ?? 0,\n      elapsed_ms: 0,");
+
+    // It must use Date.now() - start pattern
+    expect(cliSource).toMatch(/const start = Date\.now\(\)/);
+    expect(cliSource).toMatch(/elapsed_ms: Date\.now\(\) - start/);
+  });
+});
