@@ -8,12 +8,24 @@ export interface ReadResult {
   error?: string;
 }
 
+/** Hash width, shared by every anchor. See `computeLineHash`. */
+const HASH_WIDTH = 12;
+
 export function computeHash(content: string): string {
-  return createHash("sha256").update(content).digest("hex").slice(0, 12);
+  return createHash("sha256").update(content).digest("hex").slice(0, HASH_WIDTH);
 }
 
+/**
+ * A single line's anchor hash. Identical to `computeHash` — it exists to name
+ * the intent, not to compute something different.
+ *
+ * It used to truncate to 8 characters while `computeHash` used 12, so the
+ * `lineHash` from `read-hash` never matched what `replace-hash` computed: the
+ * read → write round-trip always failed with `STALE_ANCHOR`, which is
+ * documented as retryable, so an agent retried it forever.
+ */
 export function computeLineHash(line: string): string {
-  return createHash("sha256").update(line).digest("hex").slice(0, 8);
+  return computeHash(line);
 }
 
 export async function readMany(files: string[]): Promise<ReadResult[]> {
