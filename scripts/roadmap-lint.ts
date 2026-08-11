@@ -29,6 +29,8 @@ export interface Row {
 }
 
 const PRIORITIES = new Set(["P0", "P1", "P2", "P3"]);
+/** Accepted spellings of the priority column header, lowercased. */
+const PRIORITY_HEADERS = new Set(["pri", "priority"]);
 /** `| [#12](../../issues/12) | …` — display number and link target must agree. */
 const ISSUE_CELL = /^\[#(\d+)\]\((?:\.\.\/)*(?:\.\.\/)?issues\/(\d+)\)$/;
 
@@ -76,6 +78,17 @@ export function parseTables(text: string): { rows: Row[]; issues: LintIssue[] } 
       const scored = c.some((h) => h.toLowerCase() === "score");
       table = scored ? heading : null;
       columns = c;
+      // Every per-row rule below is keyed off a header name, so a renamed or
+      // dropped header turns its rule into a silent no-op — the table still
+      // lints clean while nothing about it is actually checked. Require the
+      // headers the rules depend on.
+      if (scored && !columns.some((h) => PRIORITY_HEADERS.has(h.toLowerCase()))) {
+        issues.push({
+          line: i + 1,
+          rule: "missing-column",
+          message: `scored table '${heading}' has no priority column (expected one of: ${[...PRIORITY_HEADERS].join(", ")}) — priority validation would be skipped`,
+        });
+      }
       continue;
     }
     if (table === null) continue;
@@ -105,7 +118,7 @@ export function parseTables(text: string): { rows: Row[]; issues: LintIssue[] } 
     }
 
     const scoreIdx = columns.findIndex((h) => h.toLowerCase() === "score");
-    const priIdx = columns.findIndex((h) => h.toLowerCase() === "pri");
+    const priIdx = columns.findIndex((h) => PRIORITY_HEADERS.has(h.toLowerCase()));
     const raw = c[scoreIdx] ?? "";
     const score = Number(raw);
     if (!/^\d+$/.test(raw)) {

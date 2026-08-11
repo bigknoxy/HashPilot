@@ -46,6 +46,13 @@ describe("documented invocation shapes", () => {
     expect(run(["telemetry", "show", "-n", "1"]).code).toBe(0);
     expect(run(["telemetry", "recent"]).code).toBe(1);
   });
+
+  test("`telemetry show -n 0` returns no events, not the whole log", () => {
+    // `slice(-0)` is `slice(0)`: asking for zero used to dump everything.
+    const res = run(["telemetry", "show", "-n", "0"]);
+    expect(res.code).toBe(0);
+    expect(JSON.parse(res.stdout)).toEqual([]);
+  });
 });
 
 describe("documented output shapes", () => {
@@ -132,6 +139,15 @@ describe("docs/CLI-QUICKREF.md", () => {
     expect(commands.length).toBeGreaterThan(10);
     for (const cmd of commands) {
       expect(doc).toContain(`structured-edit ${cmd}`);
+    }
+  });
+
+  test("documents the global flags, including the write-boundary ones", () => {
+    // An agent that has to guess `--allowed-root` guesses wrong, and the flags
+    // it guesses at are the ones governing where the tool may write.
+    const doc = readFileSync(QUICKREF, "utf8");
+    for (const flag of ["--allowed-root", "--allow-outside-root", "--no-telemetry", "--version"]) {
+      expect(doc).toContain(flag);
     }
   });
 

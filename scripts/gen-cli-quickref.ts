@@ -32,13 +32,24 @@ export interface CommandDoc {
 }
 
 function help(path: string[]): string {
+  const label = path.join(" ") || "(root)";
   const res = spawnSync("bun", ["run", CLI, ...path, "--help"], {
     encoding: "utf8",
     cwd: ROOT,
     env: { ...process.env, HASHPILOT_TELEMETRY: "0" },
+    timeout: 30_000,
+    maxBuffer: 8 * 1024 * 1024,
   });
-  if (res.status !== 0 && !res.stdout) {
-    throw new Error(`help failed for '${path.join(" ")}': ${res.stderr}`);
+  // Anything short of a clean exit means the captured stdout may be a partial
+  // help page, and a partial page generates plausible-looking but wrong docs
+  // that still satisfy `--check`. Refuse rather than publish it.
+  if (res.error) throw new Error(`help failed for '${label}': ${res.error.message}`);
+  if (res.signal) throw new Error(`help for '${label}' was killed by ${res.signal}`);
+  if (res.status !== 0) {
+    throw new Error(`help for '${label}' exited ${res.status}: ${res.stderr?.trim()}`);
+  }
+  if (!res.stdout.includes("Usage:")) {
+    throw new Error(`help for '${label}' produced no Usage: line (truncated output?)`);
   }
   return res.stdout;
 }
@@ -112,7 +123,10 @@ export function walk(path: string[] = []): CommandDoc[] {
     children,
   };
 
-  const results: CommandDoc[] = path.length ? [doc] : [];
+  // The root document carries the global flags (`--allowed-root`,
+  // `--allow-outside-root`, `--no-telemetry`, `--version`), so it is kept, not
+  // dropped — those are exactly the flags an agent must not have to guess at.
+  const results: CommandDoc[] = [doc];
   // The root's own description lives above `Usage:`; subcommand descriptions
   // come from the parent's Commands table, so backfill them during recursion.
   for (const child of children) {
@@ -132,12 +146,27 @@ function cell(text: string): string {
 }
 
 export function render(docs: CommandDoc[]): string {
-  const leaves = docs.filter((d) => d.children.length === 0);
-  const groups = docs.filter((d) => d.children.length > 0);
+  const root = docs.find((d) => d.path.length === 0);
+  const leaves = docs.filter((d) => d.path.length > 0 && d.children.length === 0);
+  const groups = docs.filter((d) => d.path.length > 0 && d.children.length > 0);
 
   const out: string[] = [];
   out.push(`_${leaves.length} commands, generated from \`--help\`. Do not edit by hand — run \`bun run gen:cli-quickref\`._`);
   out.push("");
+  if (root) {
+    out.push("### Global options");
+    out.push("");
+    out.push("Accepted before the subcommand, e.g. `structured-edit --allowed-root /srv/app read-many f.ts`.");
+    out.push("");
+    out.push("```");
+    out.push(root.usage);
+    out.push("```");
+    out.push("");
+    out.push("| Flag | Meaning |");
+    out.push("|------|---------|");
+    for (const o of root.options) out.push(`| \`${cell(o.flags)}\` | ${cell(o.description)} |`);
+    out.push("");
+  }
   out.push("### Command groups");
   out.push("");
   out.push("| Group | Subcommands |");

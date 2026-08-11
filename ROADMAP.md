@@ -71,6 +71,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#29](../../issues/29) | B26 — `--yes` and `--dry-run` on destructive operations | 46 | P2 | verified | cli |
 | [#31](../../issues/31) | B28 — Property test: `apply(diff(A,B)) === B` | 45 | P2 | reported | testing |
 | [#32](../../issues/32) | B29 — Deleted line starting with `--` breaks unified-diff parsing | 42 | P2 | reported | correctness |
+| [#59](../../issues/59) | B47 — Telemetry reads report corruption and I/O failure as an empty log | 38 | P2 | verified | ops |
 
 **Sequencing:** B21's operation registry subsumes [#48](../../issues/48) (B46, `cli.ts` duplication) — do not fix the duplication separately. B34 must be resolved before flipping `npmPublish` in B20's fix.
 

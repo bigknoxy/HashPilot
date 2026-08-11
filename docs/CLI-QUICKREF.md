@@ -89,6 +89,21 @@ looks unrelated to AST. Green baseline is `bun test` fully passing.
 
 _31 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
+### Global options
+
+Accepted before the subcommand, e.g. `structured-edit --allowed-root /srv/app read-many f.ts`.
+
+```
+structured-edit [options] [command]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-V, --version` | output the version number |
+| `--allow-outside-root` | Permit writes outside the project root (credentials and system paths stay blocked) |
+| `--allowed-root <dir...>` | Additional directory writes may target |
+| `--no-telemetry` | Disable telemetry logging for this invocation |
+
 ### Command groups
 
 | Group | Subcommands |

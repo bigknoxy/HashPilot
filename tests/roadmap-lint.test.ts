@@ -135,6 +135,40 @@ describe("lintRoadmap", () => {
   });
 });
 
+describe("rules cannot be silently disabled", () => {
+  // Every per-row rule is keyed off a header name, so renaming a header used to
+  // turn its rule into a no-op while the file still linted clean.
+  test("a scored table with no priority column is an error, not a skipped check", () => {
+    const doc = roadmap(
+      ["| [#3](../../issues/3) | B1 — a thing | 64 | nonsense | verified | correctness |"],
+      "| # | Item | Score | Whatever | Evidence | Area |",
+    );
+    const found = lintRoadmap(doc);
+    expect(found.map((i) => i.rule)).toContain("missing-column");
+  });
+
+  test("`Priority` is accepted as a spelling of `Pri` and still validates values", () => {
+    const header = "| # | Item | Score | Priority | Evidence | Area |";
+    expect(
+      lintRoadmap(
+        roadmap(["| [#3](../../issues/3) | B1 — a thing | 64 | P0 | verified | cli |"], header),
+      ),
+    ).toEqual([]);
+    expect(
+      lintRoadmap(
+        roadmap(["| [#3](../../issues/3) | B1 — a thing | 64 | P9 | verified | cli |"], header),
+      ).map((i) => i.rule),
+    ).toContain("priority");
+  });
+
+  test("renaming every real ROADMAP.md priority header does not lint clean", () => {
+    const real = readFileSync(join(ROOT, "ROADMAP.md"), "utf8");
+    const mutated = real.replaceAll("| Pri |", "| Nope |");
+    expect(mutated).not.toBe(real);
+    expect(lintRoadmap(mutated).length).toBeGreaterThan(0);
+  });
+});
+
 describe("ROADMAP.md", () => {
   test("is clean", () => {
     expect(lintRoadmap(readFileSync(join(ROOT, "ROADMAP.md"), "utf8"))).toEqual([]);
