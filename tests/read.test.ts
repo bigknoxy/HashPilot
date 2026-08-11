@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { computeHash, computeLineHash, readMany, readHash } from "../src/core/read";
-import { writeFileSync, mkdirSync, rmSync } from "fs";
+import { replaceHash } from "../src/core/hash-edit";
+import { writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_test_read__");
@@ -38,9 +39,10 @@ describe("computeLineHash", () => {
     expect(hash1).toBe(hash2);
   });
 
-  test("returns an 8-character hex string", () => {
+  test("is the same width as computeHash, so a read anchor is a valid write anchor", () => {
     const hash = computeLineHash("anything");
-    expect(hash).toMatch(/^[0-9a-f]{8}$/);
+    expect(hash).toMatch(/^[0-9a-f]{12}$/);
+    expect(hash).toBe(computeHash("anything"));
   });
 });
 
@@ -151,7 +153,7 @@ describe("readHash", () => {
     expect(result.path).toBe(filePath);
     expect(result.line).toBe(5);
     expect(result.content).toBe("line 5");
-    expect(result.lineHash).toMatch(/^[0-9a-f]{8}$/);
+    expect(result.lineHash).toMatch(/^[0-9a-f]{12}$/);
     expect(result.contextHash).toBeTruthy();
     expect(result.contextBefore).toEqual(["line 3", "line 4"]);
     expect(result.contextAfter).toEqual(["line 6", "line 7"]);
@@ -186,5 +188,32 @@ describe("readHash", () => {
     expect(result.content).toBe("delta");
     expect(result.contextBefore).toEqual(["beta", "charlie"]);
     expect(result.contextAfter).toEqual([]);
+  });
+});
+
+describe("read-hash → replace-hash round-trip", () => {
+  beforeEach(() => {
+    rmSync(TMP_DIR, { recursive: true, force: true });
+    mkdirSync(TMP_DIR, { recursive: true });
+  });
+  afterEach(() => rmSync(TMP_DIR, { recursive: true, force: true }));
+
+  test("a lineHash from an unmodified file is a valid anchor", async () => {
+    // The whole point of read-hash: read a line, write it back by its hash.
+    // A width mismatch made every such write fail with STALE_ANCHOR, which is
+    // documented as retryable — so an agent retried a read that never changed.
+    const filePath = join(TMP_DIR, "roundtrip.ts");
+    writeFileSync(filePath, "const a = 1;\nconst b = 2;\nconst c = 3;\n");
+
+    const read = await readHash(filePath, 2, 0);
+    expect(read.error).toBeUndefined();
+
+    const write = await replaceHash(filePath, read.lineHash, "const b = 22;", {
+      range: { start: 2, end: 2 },
+    });
+    expect(write.error).toBeUndefined();
+    expect(write.success).toBe(true);
+    expect(write.stale).not.toBe(true);
+    expect(readFileSync(filePath, "utf-8")).toBe("const a = 1;\nconst b = 22;\nconst c = 3;\n");
   });
 });

@@ -46,10 +46,10 @@ describe("computeHash", () => {
 });
 
 describe("computeLineHash", () => {
-  test("produces 8-char hex hash", () => {
+  test("produces a 12-char hex hash, the same width replaceHash compares against", () => {
     const h = computeLineHash("  const x = 1;");
-    expect(h.length).toBe(8);
-    expect(h).toMatch(/^[0-9a-f]{8}$/);
+    expect(h.length).toBe(12);
+    expect(h).toMatch(/^[0-9a-f]{12}$/);
   });
 });
 

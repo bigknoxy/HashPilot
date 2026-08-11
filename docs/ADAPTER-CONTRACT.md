@@ -96,7 +96,7 @@ structured-edit read-hash <file> <line-number> [-c <context-lines>]
   "path": "/abs/path/to/file.ts",
   "line": 10,
   "content": "  const x = foo();",
-  "lineHash": "8-char-hash",
+  "lineHash": "12-char-hash",
   "contextHash": "12-char-hash",
   "contextBefore": ["line 7", "line 8", "line 9"],
   "contextAfter": ["line 11", "line 12", "line 13"],
@@ -105,6 +105,11 @@ structured-edit read-hash <file> <line-number> [-c <context-lines>]
 ```
 
 **Use case:** Verify exact line content before editing. Use `contextHash` to anchor edits precisely.
+
+Both hashes are 12 hex characters — the same width `replace-hash` computes, so a
+hash returned by `read-hash` can be passed straight back as an anchor. (Through
+v1.5.3 `lineHash` was 8 characters and every such round-trip failed with
+`STALE_ANCHOR` — [#60](../../issues/60).)
 
 ---
 
