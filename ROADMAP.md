@@ -2,7 +2,7 @@
 
 Single source of truth for what is being worked on and in what order.
 
-- **Source of the backlog:** [`AUDIT-2026-08.md`](AUDIT-2026-08.md) — full repo audit (Aug 2026), 49 scored items.
+- **Source of the backlog:** [`AUDIT-2026-08.md`](AUDIT-2026-08.md) — full repo audit (Aug 2026), 49 scored items. Items B50+ were found later, during review of the sprint work itself.
 - **Tracking:** every item is a GitHub issue labeled `audit-2026-08`, with a `P0`–`P3` label and a sprint milestone.
 - **Scoring:** `Score = (Impact × 5) + (Evidence × 2) − (Effort × 2)`. The score ranks items *within* a sprint; it is not a tier threshold.
 - **Priority tier** reflects sprint assignment, not a score band: **P0**/**P1** = Sprints 1–2 (safety, then engine correctness) · **P2** = Sprints 3–4 · **P3** = Backlog. A high score does not by itself make an item P0 — sequencing risk does. B7 scores only 48 but ships in Sprint 1 as a one-line companion to B2; B33 scores 48 and waits for Sprint 3 because nothing depends on it.
@@ -49,8 +49,10 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
+| [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB | 60 | P1 | verified | correctness |
+| [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects | 44 | P2 | verified | cli |
 
-**Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR.
+**Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR. [#56](../../issues/56) (B51) must land *inside* B15 rather than before it, so consumers absorb one breaking output change instead of two. [#55](../../issues/55) (B50) and [#13](../../issues/13) (B8) touch the same tree-sitter call sites — sequence them together.
 
 ## Sprint 3 — Parity
 
@@ -98,6 +100,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#50](../../issues/50) | B48 — Telemetry retention never enforced; backup to a fixed `/tmp` path | 37 | P3 | ops · security |
 | [#43](../../issues/43) | B41 — `intent` parses every repo file twice, serially, per invocation | 36 | P3 | performance |
 | [#47](../../issues/47) | B45 — Add `--quiet`/`--verbose`/`--no-color`; respect `NO_COLOR` | 36 | P3 | cli |
+| [#57](../../issues/57) | B52 — `grep-many` args are positional but read as flags; Commander errors escape the JSON envelope | 38 | P3 | cli |
 | [#51](../../issues/51) | B49 — Long tail: seven small correctness and hygiene defects | 30 | P3 | correctness |
 
 ---
