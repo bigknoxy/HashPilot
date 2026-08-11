@@ -197,6 +197,9 @@ export function readEvents(limit: number = 100): TelemetryEvent[] {
     if (!existsSync(LOG_FILE)) return [];
     const content = readFileSync(LOG_FILE, "utf-8");
     const lines = content.trim().split("\n").filter(Boolean);
+    // `slice(-0)` is `slice(0)` — a request for zero events would return the
+    // entire log. Asking for none means none.
+    if (limit <= 0) return [];
     return lines.slice(-limit).map((l) => JSON.parse(l));
   } catch {
     return [];

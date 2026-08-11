@@ -474,4 +474,4 @@ The CI check `docs-verify` enforces rule 5 — if `src/` files change but neithe
 
 ---
 
-_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation)._
+_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint). Telemetry queries are reads: they exit 0 on success regardless of the `success` field of the events they return, and `readEvents(0)` returns nothing rather than the whole log. Surfacing a corrupt or unreadable log as an error rather than an empty one is tracked in [#59](../../issues/59)._

@@ -11,7 +11,15 @@ bun run build               # Bundle src/cli.ts to dist/
 bun run install-cli         # Symlink CLI into ~/.agentic-tools/bin/
 bun run src/cli.ts doctor   # Exercise the CLI directly without installing
 bash scripts/doctor.sh      # Check local installation environment
+bun run lint:docs           # CLI quickref matches --help + ROADMAP.md is consistent
+bun run gen:cli-quickref    # Regenerate the command reference after a CLI change
 ```
+
+`docs/CLI-QUICKREF.md` is the agent-facing invocation reference: every command, flag,
+output shape, and exit code, plus the gotchas that cause guess-and-retry. Its command
+reference block is generated from the CLI's own `--help`, so any CLI change requires
+`bun run gen:cli-quickref` — otherwise `bun run lint:docs` (CI `Docs Verify`, and
+`tests/cli-contract.test.ts`) fails.
 
 There is no separate linter or formatter configured. Tests use Bun's built-in test runner (`bun test`). To run a single test file:
 

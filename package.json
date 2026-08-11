@@ -10,7 +10,11 @@
     "test": "bun test",
     "build": "bun build src/cli.ts --outdir dist --target bun",
     "install-cli": "ln -sf $(pwd)/src/cli.ts ~/.agentic-tools/bin/structured-edit",
-    "semantic-release": "semantic-release"
+    "semantic-release": "semantic-release",
+    "gen:cli-quickref": "bun run scripts/gen-cli-quickref.ts",
+    "gen:cli-quickref:check": "bun run scripts/gen-cli-quickref.ts --check",
+    "lint:roadmap": "bun run scripts/roadmap-lint.ts",
+    "lint:docs": "bun run gen:cli-quickref:check && bun run lint:roadmap"
   },
   "files": [
     "src/",

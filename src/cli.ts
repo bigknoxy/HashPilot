@@ -742,14 +742,18 @@ telCmd
     const limit = parseIntFlag(opts.limit, "--limit", 20);
     if (typeof limit === "object") return usageError(limit.error);
     const events = readEvents(limit);
-    finish(events);
+    // A telemetry event's `success` field describes the operation it recorded,
+    // not this query. Letting `finish` infer the code turns "your log contains a
+    // failure" into "the query failed" (exit 2). Reads that complete are exit 0.
+    finish(events, ExitCode.OK);
   });
 
 telCmd
   .command("summary")
   .description("Show telemetry summary")
   .action(() => {
-    finish(summary());
+    // Read-only query: see the note on `telemetry show`.
+    finish(summary(), ExitCode.OK);
   });
 
 telCmd
@@ -760,7 +764,8 @@ telCmd
   .action((opts) => {
     const window = parseIntFlag(opts.window, "--window", 7);
     if (typeof window === "object") return usageError(window.error);
-    finish(opts.trend ? healthTrend(window) : health(window));
+    // Read-only query: see the note on `telemetry show`.
+    finish(opts.trend ? healthTrend(window) : health(window), ExitCode.OK);
   });
 
 telCmd
@@ -776,7 +781,8 @@ telCmd
   .description("List session summaries")
   .action(() => {
     const sessions = listSessions();
-    finish(sessions);
+    // Read-only query: see the note on `telemetry show`.
+    finish(sessions, ExitCode.OK);
   });
 
 telCmd

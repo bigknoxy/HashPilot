@@ -15,6 +15,10 @@ HashPilot is a Bun/TypeScript CLI. The entry point is `src/cli.ts`; reusable edi
 - `bun run install-cli` — symlink the CLI into `~/.agentic-tools/bin/`.
 - `bash scripts/doctor.sh` — check the local installation environment.
 - `bash tests/smoke.sh` — run end-to-end checks against the installed CLI.
+- `bun run lint:docs` — verify the CLI quickref matches `--help` and `ROADMAP.md` is consistent.
+- `bun run gen:cli-quickref` — regenerate the quickref command reference after a CLI change.
+
+`docs/CLI-QUICKREF.md` is the agent-facing invocation reference: every command, flag, output shape, and exit code, plus the gotchas that cause guess-and-retry loops. Read it before invoking the CLI. Its command-reference block is generated from the CLI's own `--help`, so any CLI change requires `bun run gen:cli-quickref`; otherwise `bun run lint:docs` fails in CI (`Docs Verify`) and in `tests/cli-contract.test.ts`. Backlog changes (new issue, closed issue, re-prioritized row) must keep the GitHub issue and the `ROADMAP.md` row in step — `bun run lint:roadmap` is the gate.
 
 Use Bun 1.2 or newer. There is no separate formatter or linter configured; keep changes consistent with nearby code and run tests before submitting.
 
