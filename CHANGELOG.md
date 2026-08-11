@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/bigknoxy/HashPilot/compare/v2.0.0...v2.1.0) (2026-08-11)
+
+
+### Features
+
+* generated CLI quickref and roadmap consistency lint ([#58](https://github.com/bigknoxy/HashPilot/issues/58)) ([ffce3a1](https://github.com/bigknoxy/HashPilot/commit/ffce3a14fd4d95dc45aa9d9b2b0110a361a3ba53)), closes [#59](https://github.com/bigknoxy/HashPilot/issues/59)
+
 # [2.0.0](https://github.com/bigknoxy/HashPilot/compare/v1.5.3...v2.0.0) (2026-08-11)
 
 
