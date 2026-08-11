@@ -41,6 +41,15 @@ Do not assume `.results` or `.success` on every command. The uniform envelope is
 [#18 (B15)](../../issues/18); until it lands, shapes are per-command and the tables
 below plus `ADAPTER-CONTRACT.md` are the source of truth.
 
+### `telemetry show -n 0` means zero, and reads always exit 0
+
+A telemetry query reports on *past* operations. Its exit code describes the query,
+not the events: a log full of failures still exits 0. Do not infer health from the
+exit code — read `telemetry health`.
+
+`-n 0` returns `[]`. (It used to return the entire log, because `slice(-0)` is
+`slice(0)`.)
+
 ### The telemetry subcommand is `show`, not `recent`
 
 `structured-edit telemetry show -n 50`. Siblings: `summary`, `health`, `clear`,

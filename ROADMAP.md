@@ -36,6 +36,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
+| [#60](../../issues/60) | B53 — `read-hash` emits an 8-char `lineHash` that `replace-hash` rejects as stale | 61 | P1 | verified | correctness |
 | [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage | 59 | P1 | verified | correctness |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo | 56 | P0 | reported | correctness · data-loss |
@@ -52,7 +53,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects | 44 | P2 | verified | cli |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
 
-**Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR. [#56](../../issues/56) (B51) must land *inside* B15 rather than before it, so consumers absorb one breaking output change instead of two. [#55](../../issues/55) (B50) and [#13](../../issues/13) (B8) touch the same tree-sitter call sites — sequence them together.
+**Sequencing:** [#60](../../issues/60) (B53) is first — it is a one-line width mismatch that currently makes the read → write round-trip unusable, and the `STALE_ANCHOR` it produces is documented as retryable, so an agent loops on it forever. B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR. [#56](../../issues/56) (B51) must land *inside* B15 rather than before it, so consumers absorb one breaking output change instead of two. [#55](../../issues/55) (B50) and [#13](../../issues/13) (B8) touch the same tree-sitter call sites — sequence them together.
 
 ## Sprint 3 — Parity
 
@@ -71,7 +72,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#29](../../issues/29) | B26 — `--yes` and `--dry-run` on destructive operations | 46 | P2 | verified | cli |
 | [#31](../../issues/31) | B28 — Property test: `apply(diff(A,B)) === B` | 45 | P2 | reported | testing |
 | [#32](../../issues/32) | B29 — Deleted line starting with `--` breaks unified-diff parsing | 42 | P2 | reported | correctness |
-| [#59](../../issues/59) | B47 — Telemetry reads report corruption and I/O failure as an empty log | 38 | P2 | verified | ops |
+| [#59](../../issues/59) | B52 — Telemetry reads report corruption and I/O failure as an empty log | 38 | P2 | verified | ops |
 
 **Sequencing:** B21's operation registry subsumes [#48](../../issues/48) (B46, `cli.ts` duplication) — do not fix the duplication separately. B34 must be resolved before flipping `npmPublish` in B20's fix.
 
