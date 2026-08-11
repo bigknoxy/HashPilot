@@ -53,6 +53,8 @@ export enum ErrorCode {
   VERIFY_FAILED = "VERIFY_FAILED",
   /** The anchor could not be relocated unambiguously (multiple candidate matches). */
   AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR",
+  /** A file exists but could not be read (permissions, device error). Distinct from FILE_NOT_FOUND. */
+  READ_FAILED = "READ_FAILED",
 }
 
 export interface TelemetryEvent {
@@ -192,43 +194,79 @@ export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId
   } catch {}
 }
 
-export function readEvents(limit: number = 100): TelemetryEvent[] {
-  try {
-    if (!existsSync(LOG_FILE)) return [];
-    const content = readFileSync(LOG_FILE, "utf-8");
-    const lines = content.trim().split("\n").filter(Boolean);
-    // `slice(-0)` is `slice(0)` — a request for zero events would return the
-    // entire log. Asking for none means none.
-    if (limit <= 0) return [];
-    return lines.slice(-limit).map((l) => JSON.parse(l));
-  } catch {
-    return [];
+/**
+ * A log file exists but could not be read (permissions, a directory in its
+ * place, a device error). Distinct from "no telemetry has been recorded yet",
+ * which is an empty result, not an error.
+ */
+export class TelemetryReadError extends Error {
+  readonly file: string;
+  constructor(file: string, cause: unknown) {
+    super(`cannot read telemetry log ${file}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = "TelemetryReadError";
+    this.file = file;
   }
 }
 
+/**
+ * Malformed lines skipped by the most recent read. Corruption must not be
+ * silently indistinguishable from a short log, but the query payloads are a
+ * published contract, so the count is reported alongside them rather than
+ * inside them (see `docs/ADAPTER-CONTRACT.md`).
+ */
+let lastSkipped = 0;
+export function lastReadSkipped(): number {
+  return lastSkipped;
+}
+
+/** Reads one JSONL file, counting unparseable lines instead of dropping them. */
+function parseLog(file: string): { events: TelemetryEvent[]; skipped: number } {
+  let content: string;
+  try {
+    content = readFileSync(file, "utf-8");
+  } catch (err) {
+    throw new TelemetryReadError(file, err);
+  }
+  const events: TelemetryEvent[] = [];
+  let skipped = 0;
+  for (const line of content.trim().split("\n")) {
+    if (!line) continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch {
+      skipped++;
+    }
+  }
+  return { events, skipped };
+}
+
+/**
+ * Most recent `limit` events from the active log.
+ *
+ * Throws `TelemetryReadError` if the log exists but cannot be read — returning
+ * `[]` there reports a broken log as a clean one.
+ */
+export function readEvents(limit: number = 100): TelemetryEvent[] {
+  lastSkipped = 0;
+  if (!existsSync(LOG_FILE)) return [];
+  // `slice(-0)` is `slice(0)` — a request for zero events would return the
+  // entire log. Asking for none means none.
+  if (limit <= 0) return [];
+  const { events, skipped } = parseLog(LOG_FILE);
+  lastSkipped = skipped;
+  return events.slice(-limit);
+}
+
 function readAllEvents(): TelemetryEvent[] {
+  lastSkipped = 0;
   const events: TelemetryEvent[] = [];
 
-  // Read current file first
-  try {
-    if (existsSync(LOG_FILE)) {
-      const content = readFileSync(LOG_FILE, "utf-8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      for (const l of lines) {
-        try { events.push(JSON.parse(l)); } catch {}
-      }
-    }
-  } catch {}
-
-  // Read all rotated files
-  for (const f of rotatedFiles()) {
-    try {
-      const content = readFileSync(f, "utf-8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      for (const l of lines) {
-        try { events.push(JSON.parse(l)); } catch {}
-      }
-    } catch {}
+  // Current file first, then every rotated file.
+  const files = existsSync(LOG_FILE) ? [LOG_FILE, ...rotatedFiles()] : rotatedFiles();
+  for (const f of files) {
+    const parsed = parseLog(f);
+    events.push(...parsed.events);
+    lastSkipped += parsed.skipped;
   }
 
   return events;

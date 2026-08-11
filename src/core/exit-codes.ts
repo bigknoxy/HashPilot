@@ -26,6 +26,7 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   [ErrorCode.HASH_MISMATCH]: ExitCode.PRECONDITION,
   [ErrorCode.FILE_NOT_FOUND]: ExitCode.IO,
   [ErrorCode.WRITE_FAILED]: ExitCode.IO,
+  [ErrorCode.READ_FAILED]: ExitCode.IO,
   [ErrorCode.PATH_DENIED]: ExitCode.USAGE,
   [ErrorCode.INVALID_ARGUMENT]: ExitCode.USAGE,
   [ErrorCode.UNSUPPORTED_OPERATION]: ExitCode.USAGE,

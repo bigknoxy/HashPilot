@@ -25,6 +25,8 @@ export type { VerifyResult, VerifyOptions } from "./verify";
 export {
   recordEvent,
   readEvents,
+  lastReadSkipped,
+  TelemetryReadError,
   clearEvents,
   summary,
   health,

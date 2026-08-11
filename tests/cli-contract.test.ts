@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { render, spliceGenerated, walk } from "../scripts/gen-cli-quickref";
@@ -15,12 +15,12 @@ const ROOT = join(import.meta.dir, "..");
 const CLI = join(ROOT, "src", "cli.ts");
 const QUICKREF = join(ROOT, "docs", "CLI-QUICKREF.md");
 
-function run(args: string[], cwd = ROOT) {
+function run(args: string[], cwd = ROOT, env: Record<string, string> = {}) {
   const res = spawnSync("bun", ["run", CLI, ...args], {
     encoding: "utf8",
     cwd,
     // Keep contract runs out of the developer's real telemetry log.
-    env: { ...process.env, HASHPILOT_TELEMETRY: "0" },
+    env: { ...process.env, HASHPILOT_TELEMETRY: "0", ...env },
   });
   return { code: res.status ?? -1, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
@@ -101,6 +101,22 @@ describe("documented exit codes", () => {
       expect(readFileSync(file, "utf8")).toBe("export const a = 1;\n");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an unreadable telemetry log is 5, not a clean empty read", () => {
+    // An empty array on exit 0 tells an agent (and a dashboard) that nothing has
+    // gone wrong, which is the opposite of what a broken log means.
+    const home = mkdtempSync(join(tmpdir(), "hashpilot-home-"));
+    try {
+      // A directory where the log file belongs — EISDIR on every platform, and
+      // it does not depend on the test user lacking root.
+      mkdirSync(join(home, ".agentic-tools", "logs", "telemetry.jsonl"), { recursive: true });
+      const res = run(["telemetry", "show"], ROOT, { HOME: home });
+      expect(res.code).toBe(5);
+      expect(JSON.parse(res.stdout).errorCode).toBe("READ_FAILED");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
     }
   });
 
