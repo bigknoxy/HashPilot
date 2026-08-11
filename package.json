@@ -1,7 +1,7 @@
 {
   "name": "hashpilot",
-  "version": "1.5.3",
-  "description": "HashPilot \u2014 Global Tool-Agnostic Structured Editing Core for Coding Agents",
+  "version": "2.0.0",
+  "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "bin": {
     "structured-edit": "./src/cli.ts"

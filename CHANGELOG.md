@@ -1,3 +1,19 @@
+# [2.0.0](https://github.com/bigknoxy/HashPilot/compare/v1.5.3...v2.0.0) (2026-08-11)
+
+
+* fix!: Sprint 1 — stop data loss, silent failures, and unbounded writes ([#54](https://github.com/bigknoxy/HashPilot/issues/54)) ([92a70c6](https://github.com/bigknoxy/HashPilot/commit/92a70c649a9806373612e2e1b1dd56ddb578945b)), closes [#10](https://github.com/bigknoxy/HashPilot/issues/10) [#3](https://github.com/bigknoxy/HashPilot/issues/3) [#6](https://github.com/bigknoxy/HashPilot/issues/6) [#5](https://github.com/bigknoxy/HashPilot/issues/5) [#4](https://github.com/bigknoxy/HashPilot/issues/4) [#8](https://github.com/bigknoxy/HashPilot/issues/8) [#9](https://github.com/bigknoxy/HashPilot/issues/9) [#11](https://github.com/bigknoxy/HashPilot/issues/11) [#7](https://github.com/bigknoxy/HashPilot/issues/7) [#3](https://github.com/bigknoxy/HashPilot/issues/3) [#4](https://github.com/bigknoxy/HashPilot/issues/4) [#5](https://github.com/bigknoxy/HashPilot/issues/5) [#6](https://github.com/bigknoxy/HashPilot/issues/6) [#7](https://github.com/bigknoxy/HashPilot/issues/7) [#8](https://github.com/bigknoxy/HashPilot/issues/8) [#9](https://github.com/bigknoxy/HashPilot/issues/9) [#11](https://github.com/bigknoxy/HashPilot/issues/11) [#4](https://github.com/bigknoxy/HashPilot/issues/4) [#55](https://github.com/bigknoxy/HashPilot/issues/55) [#56](https://github.com/bigknoxy/HashPilot/issues/56) [#57](https://github.com/bigknoxy/HashPilot/issues/57)
+
+
+### BREAKING CHANGES
+
+* replace-hash no longer auto-recovers a stale whole-file
+anchor by overwriting the file, and commands now exit non-zero on failure.
+Agents should treat exit code 3 as "re-read the file and retry".
+docs/ADAPTER-CONTRACT.md is updated accordingly.
+
+Docs synced: ADAPTER-CONTRACT, ARCHITECTURE, README, CLAUDE.md, AGENTS.md,
+ROADMAP.md.
+
 ## [1.5.3](https://github.com/bigknoxy/HashPilot/compare/v1.5.2...v1.5.3) (2026-06-11)
 
 
