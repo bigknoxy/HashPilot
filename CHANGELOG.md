@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/bigknoxy/HashPilot/compare/v2.1.1...v2.1.2) (2026-08-11)
+
+
+### Bug Fixes
+
+* **read:** unify lineHash width with computeHash so anchors round-trip ([#62](https://github.com/bigknoxy/HashPilot/issues/62)) ([3cb996e](https://github.com/bigknoxy/HashPilot/commit/3cb996e0b15b1252bd4765938a29912d7a11b7d1)), closes [#60](https://github.com/bigknoxy/HashPilot/issues/60)
+
 ## [2.1.1](https://github.com/bigknoxy/HashPilot/compare/v2.1.0...v2.1.1) (2026-08-11)
 
 
