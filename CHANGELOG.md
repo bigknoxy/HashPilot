@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/bigknoxy/HashPilot/compare/v2.1.0...v2.1.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* **telemetry:** surface unreadable and corrupt logs instead of returning [] ([#61](https://github.com/bigknoxy/HashPilot/issues/61)) ([1893e17](https://github.com/bigknoxy/HashPilot/commit/1893e171f8be7e487b9f6cc09267029f1a58b6d0)), closes [#18](https://github.com/bigknoxy/HashPilot/issues/18) [#59](https://github.com/bigknoxy/HashPilot/issues/59)
+
 # [2.1.0](https://github.com/bigknoxy/HashPilot/compare/v2.0.0...v2.1.0) (2026-08-11)
 
 
