@@ -147,26 +147,26 @@ describe("replaceHash", () => {
     expect(after).toBe(original);
   });
 
-  test("auto-recovers from stale hash when file changed externally", async () => {
+  test("refuses a whole-file anchor that went stale", async () => {
     const fp = join(TMP_DIR, "sample.ts");
     const content = await Bun.file(fp).text();
     const oldHash = computeHash(content);
 
-    // Modify the file externally (simulates AST operation modifying the file)
+    // Modify the file externally (simulates an AST operation touching the file).
     await Bun.write(fp, "// added by AST\n" + content);
 
-    // replace-hash with the OLD hash should auto-recover:
-    // newContent replaces the entire file (no range), so the external modification is replaced too
+    // With no range the anchor *is* the whole file. The old behavior called
+    // this "auto-recovery" and overwrote everything, silently discarding the
+    // external edit. There is nothing to relocate here, so it must fail.
     const newContent = content.replace(/hello/g, "world");
     const result = await replaceHash(fp, oldHash, newContent);
-    expect(result.success).toBe(true);
-    expect(result.retries).toBe(1);
-    expect(result.message).toContain("auto-recovered");
+    expect(result.success).toBe(false);
+    expect(result.stale).toBe(true);
+    expect(result.errorCode).toBe("STALE_ANCHOR");
 
     const updated = await Bun.file(fp).text();
-    expect(updated).toBe(newContent);  // Full file replaced via auto-recovery
-    expect(updated).toContain("world");
-    expect(updated).not.toContain("hello");
+    expect(updated).toContain("// added by AST");
+    expect(updated).toContain("hello");
   });
 
   test("noRecovery option returns stale error instead of auto-recovering", async () => {

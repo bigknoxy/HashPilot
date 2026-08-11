@@ -1,7 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-HASHPILOT_VERSION="0.1.0"
+# Read the version from package.json so the installer can never drift from the
+# released version. Falls back to "unknown" rather than a stale literal.
+HASHPILOT_VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$(dirname "$0")/../package.json" 2>/dev/null | head -1)"
+HASHPILOT_VERSION="${HASHPILOT_VERSION:-unknown}"
 # shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'

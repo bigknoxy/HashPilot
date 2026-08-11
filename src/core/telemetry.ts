@@ -1,6 +1,7 @@
-import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync } from "fs";
+import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync, chmodSync } from "fs";
 import { join } from "path";
 import type { TelemetryConfig } from "./config";
+import { redactEvent } from "./redact";
 
 const LOG_DIR = join(process.env.HOME || "/root", ".agentic-tools", "logs");
 const LOG_FILE = join(LOG_DIR, "telemetry.jsonl");
@@ -11,10 +12,26 @@ export let MAX_FILE_SIZE = 10 * 1024 * 1024;
 export let MAX_ROTATED_FILES = 10;
 export let RETENTION_DAYS = 30;
 
-export function configureTelemetry(cfg: TelemetryConfig): void {
+export function configureTelemetry(cfg: TelemetryConfig | undefined): void {
+  if (!cfg) return;
   if (cfg.maxFileSize !== undefined) MAX_FILE_SIZE = cfg.maxFileSize;
   if (cfg.maxRotatedFiles !== undefined) MAX_ROTATED_FILES = cfg.maxRotatedFiles;
   if (cfg.retentionDays !== undefined) RETENTION_DAYS = cfg.retentionDays;
+  // `enabled` used to be parsed and then ignored, so opting out via config did
+  // nothing. It is the lowest-priority switch: env and CLI still override it.
+  if (cfg.enabled !== undefined) sessionEnabled = cfg.enabled;
+}
+
+/**
+ * Resolve the telemetry kill switch. Precedence, highest first:
+ *   CLI `--no-telemetry` > `HASHPILOT_TELEMETRY=0` > config `telemetry.enabled` > on.
+ */
+export function resolveTelemetryEnabled(cfg: TelemetryConfig | undefined, cliDisabled: boolean): boolean {
+  if (cliDisabled) return false;
+  const env = process.env.HASHPILOT_TELEMETRY;
+  if (env !== undefined && ["0", "false", "off", "no"].includes(env.trim().toLowerCase())) return false;
+  if (cfg?.enabled !== undefined) return cfg.enabled;
+  return true;
 }
 
 export enum ErrorCode {
@@ -26,6 +43,16 @@ export enum ErrorCode {
   UNSUPPORTED_LANGUAGE = "UNSUPPORTED_LANGUAGE",
   HASH_MISMATCH = "HASH_MISMATCH",
   WRITE_FAILED = "WRITE_FAILED",
+  /** Write target is outside the project root or on the hard-deny list. */
+  PATH_DENIED = "PATH_DENIED",
+  /** A flag or argument was malformed (bad --range, non-numeric value). */
+  INVALID_ARGUMENT = "INVALID_ARGUMENT",
+  /** The requested operation exists in the CLI surface but is not implemented for this input. */
+  UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION",
+  /** The edit applied but format/lint/test verification failed. */
+  VERIFY_FAILED = "VERIFY_FAILED",
+  /** The anchor could not be relocated unambiguously (multiple candidate matches). */
+  AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR",
 }
 
 export interface TelemetryEvent {
@@ -95,7 +122,21 @@ export function getSessionId(): string {
 // --- File helpers ---
 
 function ensureLogDir(): void {
-  if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+  // 0700/0600: the log can contain file paths, edit reasons, and (when
+  // provenance.captureDiffs is on) source lines. Other users on the box have
+  // no business reading it.
+  if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
+}
+
+/**
+ * Narrow permissions on a log dir/file created by an older version, which used
+ * the process umask. The `mode` options above only apply at creation time.
+ */
+function tightenLogPermissions(): void {
+  try {
+    if ((statSync(LOG_DIR).mode & 0o077) !== 0) chmodSync(LOG_DIR, 0o700);
+    if (existsSync(LOG_FILE) && (statSync(LOG_FILE).mode & 0o077) !== 0) chmodSync(LOG_FILE, 0o600);
+  } catch {}
 }
 
 function rotatedFiles(): string[] {
@@ -140,13 +181,14 @@ export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId
   if (!sessionEnabled) return;
   try {
     ensureLogDir();
+    tightenLogPermissions();
     maybeRotate();
-    const entry: TelemetryEvent = {
+    const entry: TelemetryEvent = redactEvent({
       ...event,
       timestamp: new Date().toISOString(),
       sessionId,
-    };
-    appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n");
+    });
+    appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n", { mode: 0o600 });
   } catch {}
 }
 

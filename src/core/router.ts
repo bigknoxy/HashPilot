@@ -1,3 +1,4 @@
+import { safeWrite } from "./paths";
 import {
   isLanguageSupported,
   detectLanguage,
@@ -201,7 +202,7 @@ export async function routeEdit(params: {
       }
       // Write result to file if successful
       if (result.success && (result as any).newSource && !dryRun) {
-        await Bun.write(filePath, (result as any).newSource);
+        await safeWrite(filePath, (result as any).newSource);
         editResult = (result as any).newSource;
       }
       break;
@@ -226,7 +227,7 @@ export async function routeEdit(params: {
       }
       result = applyTextReplace(source, filePath, oldContent, newContent);
       if (result.success && (result as any).newSource && !dryRun) {
-        await Bun.write(filePath, (result as any).newSource);
+        await safeWrite(filePath, (result as any).newSource);
         editResult = (result as any).newSource;
       }
       break;

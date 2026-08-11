@@ -2,7 +2,7 @@
 
 Single source of truth for what is being worked on and in what order.
 
-- **Source of the backlog:** [`AUDIT-2026-08.md`](AUDIT-2026-08.md) — full repo audit (Aug 2026), 49 scored items.
+- **Source of the backlog:** [`AUDIT-2026-08.md`](AUDIT-2026-08.md) — full repo audit (Aug 2026), 49 scored items. Items B50+ were found later, during review of the sprint work itself.
 - **Tracking:** every item is a GitHub issue labeled `audit-2026-08`, with a `P0`–`P3` label and a sprint milestone.
 - **Scoring:** `Score = (Impact × 5) + (Evidence × 2) − (Effort × 2)`. The score ranks items *within* a sprint; it is not a tier threshold.
 - **Priority tier** reflects sprint assignment, not a score band: **P0**/**P1** = Sprints 1–2 (safety, then engine correctness) · **P2** = Sprints 3–4 · **P3** = Backlog. A high score does not by itself make an item P0 — sequencing risk does. B7 scores only 48 but ships in Sprint 1 as a one-line companion to B2; B33 scores 48 and waits for Sprint 3 because nothing depends on it.
@@ -16,19 +16,19 @@ Milestones: [Sprint 1 — Stop the Bleeding](../../milestone/1) · [Sprint 2 —
 
 Data-loss and silent-failure defects. **Nothing else ships until these land.** Three of these destroy user files today and report `success: true`.
 
-| # | Item | Score | Pri | Evidence | Area |
-|---|------|-------|-----|----------|------|
-| [#3](../../issues/3) | B1 — Stale anchor overwrites the entire file instead of refusing | 64 | P0 | verified | correctness · data-loss |
-| [#6](../../issues/6) | B5 — `--range` with no colon (NaN) silently duplicates the file | 63 | P0 | verified | correctness · data-loss |
-| [#5](../../issues/5) | B3 — No write boundary; paths can escape the project root | 62 | P0 | verified | security · data-loss |
-| [#4](../../issues/4) | B2 — Every command exits 0, including on failure | 61 | P0 | verified | cli |
-| [#8](../../issues/8) | B6 — Telemetry opt-out is a dead switch; logs contain source + secrets | 59 | P0 | verified | security |
-| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | reported | correctness |
-| [#9](../../issues/9) | B11 — `remove-parameter` is structurally non-functional but advertised | 56 | P1 | verified | correctness |
-| [#11](../../issues/11) | B20 — Version drift 0.1.0 vs v1.5.3; nothing publishes | 51 | P1 | verified | ops |
-| [#7](../../issues/7) | B7 — `diff apply` without `--patch` crashes and exits 0 | 48 | P0 | verified | cli |
+| # | Item | Score | Pri | Evidence | Area | Status |
+|---|------|-------|-----|----------|------|--------|
+| [#3](../../issues/3) | B1 — Stale anchor overwrites the entire file instead of refusing | 64 | P0 | verified | correctness · data-loss | ✅ done |
+| [#6](../../issues/6) | B5 — `--range` with no colon (NaN) silently duplicates the file | 63 | P0 | verified | correctness · data-loss | ✅ done |
+| [#5](../../issues/5) | B3 — No write boundary; paths can escape the project root | 62 | P0 | verified | security · data-loss | ✅ done |
+| [#4](../../issues/4) | B2 — Every command exits 0, including on failure | 61 | P0 | verified | cli | ✅ done |
+| [#8](../../issues/8) | B6 — Telemetry opt-out is a dead switch; logs contain source + secrets | 59 | P0 | verified | security | ✅ done |
+| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | reported | correctness | ⏭ deferred to Sprint 2 |
+| [#9](../../issues/9) | B11 — `remove-parameter` is structurally non-functional but advertised | 56 | P1 | verified | correctness | ✅ done |
+| [#11](../../issues/11) | B20 — Version drift 0.1.0 vs v1.5.3; nothing publishes | 51 | P1 | verified | ops | ✅ done |
+| [#7](../../issues/7) | B7 — `diff apply` without `--patch` crashes and exits 0 | 48 | P0 | verified | cli | ✅ done |
 
-**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure.
+**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure. It is therefore deferred into Sprint 2 alongside #24; the other eight items landed.
 
 ## Sprint 2 — Foundations
 
@@ -36,6 +36,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
+| [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage | 59 | P1 | verified | correctness |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo | 56 | P0 | reported | correctness · data-loss |
 | [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust | 52 | P1 | reported | correctness |
@@ -48,9 +49,10 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
+| [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects | 44 | P2 | verified | cli |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
 
-**Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR.
+**Sequencing:** B15's envelope is the contract for the CLI work in Sprint 3 and for the MCP server ([#25](../../issues/25)); land it before either. Changing output shapes requires updating [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) and the affected tests in the same PR. [#56](../../issues/56) (B51) must land *inside* B15 rather than before it, so consumers absorb one breaking output change instead of two. [#55](../../issues/55) (B50) and [#13](../../issues/13) (B8) touch the same tree-sitter call sites — sequence them together.
 
 ## Sprint 3 — Parity
 
@@ -98,6 +100,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#50](../../issues/50) | B48 — Telemetry retention never enforced; backup to a fixed `/tmp` path | 37 | P3 | ops · security |
 | [#43](../../issues/43) | B41 — `intent` parses every repo file twice, serially, per invocation | 36 | P3 | performance |
 | [#47](../../issues/47) | B45 — Add `--quiet`/`--verbose`/`--no-color`; respect `NO_COLOR` | 36 | P3 | cli |
+| [#57](../../issues/57) | B52 — `grep-many` args are positional but read as flags; Commander errors escape the JSON envelope | 38 | P3 | cli |
 | [#51](../../issues/51) | B49 — Long tail: seven small correctness and hygiene defects | 30 | P3 | correctness |
 
 ---

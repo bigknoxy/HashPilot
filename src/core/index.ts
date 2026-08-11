@@ -34,6 +34,8 @@ export {
   exportEvents,
   pruneEvents,
   configureTelemetry,
+  enableTelemetry,
+  resolveTelemetryEnabled,
   getSessionId,
   MAX_FILE_SIZE,
   MAX_ROTATED_FILES,
@@ -67,3 +69,18 @@ export type { ProvenanceInput, ProvenanceEntry, ChangeSetResult } from "./proven
 export { doctor } from "./doctor";
 export type { DoctorReport, DoctorCheck } from "./doctor";
 export { escapeRegex } from "./utils";
+export {
+  assertWritable,
+  assertAllWritable,
+  safeWrite,
+  findProjectRoot,
+  configureWriteBoundary,
+  resetWriteBoundary,
+  PathDeniedError,
+} from "./paths";
+export type { AssertWritableOptions } from "./paths";
+export { ExitCode, exitCodeFor, finish, usageError } from "./exit-codes";
+export type { ResultLike } from "./exit-codes";
+export type { RecoveryMode } from "./hash-edit";
+export { UnsupportedIntentError } from "./intent";
+export { redactSecrets, redactEvent, isSensitiveFile } from "./redact";

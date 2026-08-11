@@ -1,4 +1,5 @@
 import { EditPlan, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
+import { safeWrite } from "./paths";
 import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
 import { computeHash } from "./read";
@@ -131,7 +132,7 @@ export async function executePlan(
       stepNewSource = result.newSource;
 
       if (stepSuccess && stepNewSource && !dryRun) {
-        await Bun.write(step.file, stepNewSource);
+        await safeWrite(step.file, stepNewSource);
       }
     } catch (err: any) {
       stepSuccess = false;
@@ -194,7 +195,7 @@ export async function executePlan(
   let reverted = false;
   if (!allPassed && doRevert && !dryRun && originals.size > 0) {
     for (const [file, original] of originals) {
-      try { await Bun.write(file, original); } catch {}
+      try { await safeWrite(file, original); } catch {}
     }
     reverted = true;
   }

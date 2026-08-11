@@ -1,11 +1,28 @@
 import { computeHash } from "./read";
+import { ErrorCode } from "./telemetry";
+import { assertWritable, PathDeniedError, type AssertWritableOptions } from "./paths";
+
+/**
+ * What to do when the anchor hash no longer matches the content at the given range.
+ *
+ * - `relocate` (default): search the file for a window whose hash equals `oldHash`.
+ *   Exactly one match relocates the edit; zero or several is a hard failure.
+ * - `off`: any mismatch fails immediately.
+ *
+ * Neither mode ever applies the edit to content the caller did not anchor to.
+ */
+export type RecoveryMode = "relocate" | "off";
 
 export interface ReplaceHashOptions {
   range?: { start: number; end: number };
   dryRun?: boolean;
   contextLines?: number;
-  /** Skip auto-recovery when stale anchor is detected */
+  /** Stale-anchor policy. Defaults to `"relocate"`. */
+  recovery?: RecoveryMode;
+  /** @deprecated Use `recovery: "off"`. Retained for source compatibility. */
   noRecovery?: boolean;
+  /** Write-boundary overrides forwarded to `assertWritable`. */
+  pathOptions?: AssertWritableOptions;
 }
 
 export interface ReplaceHashResult {
@@ -19,6 +36,29 @@ export interface ReplaceHashResult {
   diff?: string;
   /** Number of auto-retries performed (1 if recovered from stale anchor, 0 otherwise) */
   retries?: number;
+  /** Machine-readable failure cause. Absent on success. */
+  errorCode?: ErrorCode;
+  /** What the caller should do next when `success` is false. */
+  recovery?: string;
+  /** Range the anchor was relocated to, when relocation succeeded. */
+  relocatedTo?: { start: number; end: number };
+}
+
+/**
+ * Slide a window of `windowSize` lines across the file, collecting every start
+ * index whose content hashes to `oldHash`. Stops after two hits — one is enough
+ * to relocate, two is enough to know it is ambiguous.
+ */
+function findAnchorCandidates(lines: string[], windowSize: number, oldHash: string): number[] {
+  const hits: number[] = [];
+  if (windowSize <= 0 || windowSize > lines.length) return hits;
+  for (let start = 0; start + windowSize <= lines.length; start++) {
+    if (computeHash(lines.slice(start, start + windowSize).join("\n")) === oldHash) {
+      hits.push(start);
+      if (hits.length > 1) break;
+    }
+  }
+  return hits;
 }
 
 export async function replaceHash(
@@ -27,24 +67,77 @@ export async function replaceHash(
   newContent: string,
   options: ReplaceHashOptions = {}
 ): Promise<ReplaceHashResult> {
-  const { range, dryRun = false, noRecovery = false } = options;
+  const { range, dryRun = false } = options;
+  // `noRecovery: true` is the legacy spelling of `recovery: "off"`.
+  const recoveryMode: RecoveryMode = options.recovery ?? (options.noRecovery ? "off" : "relocate");
+
+  const fail = (
+    message: string,
+    errorCode: ErrorCode,
+    recovery: string,
+    extra: Partial<ReplaceHashResult> = {},
+  ): ReplaceHashResult => ({
+    path: filePath,
+    success: false,
+    oldHash,
+    newHash: "",
+    linesChanged: 0,
+    stale: false,
+    retries: 0,
+    message,
+    errorCode,
+    recovery,
+    ...extra,
+  });
+
   let content: string;
   try {
     content = await Bun.file(filePath).text();
   } catch (e: any) {
-    return {
-      path: filePath,
-      success: false,
-      oldHash,
-      newHash: "",
-      linesChanged: 0,
-      stale: false,
-      message: `Failed to read file: ${e.message}`,
-      retries: 0,
-    };
+    return fail(
+      `Failed to read file: ${e.message}`,
+      ErrorCode.FILE_NOT_FOUND,
+      "Check that the path exists and is readable.",
+    );
   }
 
   const lines = content.split("\n");
+
+  // Defensive range validation. The CLI validates too, but replaceHash is a
+  // public API: a NaN or inverted range must never reach the slice arithmetic,
+  // where `slice(x, NaN)` yields an empty window and `slice(NaN)` re-appends
+  // the whole file.
+  if (range) {
+    const { start, end } = range;
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      return fail(
+        `Invalid range: start and end must be integers (got ${start}:${end}).`,
+        ErrorCode.INVALID_ARGUMENT,
+        "Pass --range as N or N:M with positive integers.",
+      );
+    }
+    if (start < 1 || end < 1) {
+      return fail(
+        `Invalid range ${start}:${end}: line numbers are 1-indexed.`,
+        ErrorCode.INVALID_ARGUMENT,
+        "Use a start and end of 1 or greater.",
+      );
+    }
+    if (start > end) {
+      return fail(
+        `Invalid range ${start}:${end}: start is after end.`,
+        ErrorCode.INVALID_ARGUMENT,
+        "Swap the bounds so start <= end.",
+      );
+    }
+    if (end > lines.length) {
+      return fail(
+        `Invalid range ${start}:${end}: file has only ${lines.length} lines.`,
+        ErrorCode.INVALID_ARGUMENT,
+        `Use an end of at most ${lines.length}.`,
+      );
+    }
+  }
 
   let targetStart: number;
   let targetEnd: number;
@@ -57,31 +150,77 @@ export async function replaceHash(
     targetEnd = lines.length;
   }
 
-  const targetLines = lines.slice(targetStart, targetEnd);
-  const targetText = targetLines.join("\n");
+  let targetLines = lines.slice(targetStart, targetEnd);
+  let targetText = targetLines.join("\n");
   const currentHash = computeHash(targetText);
+  let stale = false;
+  let retries = 0;
+  let messageSuffix = "";
+  let relocatedTo: { start: number; end: number } | undefined;
 
   if (currentHash !== oldHash) {
-    if (!noRecovery) {
-      // Auto-recovery: the file has changed since the hash was computed.
-      // Apply the edit to the current file content instead of failing.
-      return applyReplacement(filePath, lines, targetStart, targetEnd, targetLines, targetText, newContent, oldHash, dryRun, true, 1, " (auto-recovered from stale anchor)");
+    // A whole-file anchor has nothing to relocate to — the anchor *is* the
+    // file, so a mismatch means the caller's view of the file is stale. There
+    // is no safe interpretation; refuse.
+    const relocatable = recoveryMode === "relocate" && range !== undefined;
+
+    if (!relocatable) {
+      return fail(
+        buildStaleMessage(oldHash, currentHash, targetStart + 1, targetEnd),
+        ErrorCode.STALE_ANCHOR,
+        "Re-read the file to obtain a current hash, then retry.",
+        { newHash: currentHash, stale: true },
+      );
     }
 
-    const staleMsg = buildStaleMessage(oldHash, currentHash, targetStart + 1, targetEnd);
-    return {
-      path: filePath,
-      success: false,
-      oldHash,
-      newHash: currentHash,
-      linesChanged: 0,
-      stale: true,
-      retries: 0,
-      message: staleMsg,
-    };
+    const candidates = findAnchorCandidates(lines, targetEnd - targetStart, oldHash);
+
+    if (candidates.length === 0) {
+      return fail(
+        buildStaleMessage(oldHash, currentHash, targetStart + 1, targetEnd) +
+          `\n  The anchored content was not found anywhere else in the file.`,
+        ErrorCode.STALE_ANCHOR,
+        "Re-read the file to obtain a current hash, then retry.",
+        { newHash: currentHash, stale: true },
+      );
+    }
+    if (candidates.length > 1) {
+      return fail(
+        `AMBIGUOUS ANCHOR: content matching hash ${oldHash} appears at more than one location in ${filePath}.`,
+        ErrorCode.AMBIGUOUS_ANCHOR,
+        "Widen the range so the anchored content is unique, then retry.",
+        { newHash: currentHash, stale: true },
+      );
+    }
+
+    // Exactly one match: the content moved. Re-anchor onto it.
+    const windowSize = targetEnd - targetStart;
+    targetStart = candidates[0]!;
+    targetEnd = targetStart + windowSize;
+    targetLines = lines.slice(targetStart, targetEnd);
+    targetText = targetLines.join("\n");
+    stale = true;
+    retries = 1;
+    relocatedTo = { start: targetStart + 1, end: targetEnd };
+    messageSuffix = ` (anchor relocated to lines ${relocatedTo.start}-${relocatedTo.end})`;
   }
 
-  return applyReplacement(filePath, lines, targetStart, targetEnd, targetLines, targetText, newContent, oldHash, dryRun, false, 0);
+  let writePath: string | undefined;
+  if (!dryRun) {
+    try {
+      writePath = assertWritable(filePath, options.pathOptions);
+    } catch (e) {
+      if (e instanceof PathDeniedError) {
+        return fail(e.message, ErrorCode.PATH_DENIED, "Pass --allow-outside-root or choose a path inside the project root.");
+      }
+      throw e;
+    }
+  }
+
+  return applyReplacement(
+    filePath, lines, targetStart, targetEnd, targetLines, targetText,
+    newContent, oldHash, dryRun, stale, retries, messageSuffix, relocatedTo, writePath,
+  );
 }
 
 async function applyReplacement(
@@ -96,7 +235,10 @@ async function applyReplacement(
   dryRun: boolean,
   stale: boolean,
   retries: number,
-  messageSuffix: string = ""
+  messageSuffix: string = "",
+  relocatedTo?: { start: number; end: number },
+  /** Symlink-resolved destination returned by assertWritable. Falls back to filePath on dry runs. */
+  writePath?: string
 ): Promise<ReplaceHashResult> {
   const newContentLines = newContent.split("\n");
   if (newContentLines[newContentLines.length - 1] === "" && !targetText.endsWith("\n")) {
@@ -115,7 +257,7 @@ async function applyReplacement(
   const rangeLabel = `range ${targetStart + 1}-${targetEnd}`;
 
   if (!dryRun) {
-    await Bun.write(filePath, newFullContent);
+    await Bun.write(writePath ?? filePath, newFullContent);
   }
 
   const action = dryRun ? "Dry run: would replace" : "Replaced";
@@ -127,6 +269,7 @@ async function applyReplacement(
     linesChanged,
     stale,
     retries,
+    relocatedTo,
     message: dryRun
       ? `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix}`
       : `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix} (${rangeLabel})`,

@@ -1,7 +1,7 @@
 {
   "name": "hashpilot",
-  "version": "0.1.0",
-  "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
+  "version": "1.5.3",
+  "description": "HashPilot \u2014 Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "bin": {
     "structured-edit": "./src/cli.ts"
@@ -59,6 +59,7 @@
     "@semantic-release/release-notes-generator": "^14.0.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
-    "conventional-changelog-conventionalcommits": "^8.0.0"
+    "conventional-changelog-conventionalcommits": "^8.0.0",
+    "@semantic-release/npm": "^12.0.1"
   }
 }

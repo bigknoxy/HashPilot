@@ -1,4 +1,5 @@
 import { computeHash } from "./read";
+import { safeWrite } from "./paths";
 import { recordEvent } from "./telemetry";
 
 export interface VerifyResult {
@@ -329,7 +330,7 @@ export async function verifyChanges(
   if (overall === "fail" && options.revertOnFailure && originals.size > 0) {
     const reverted: string[] = [];
     for (const [f, original] of originals) {
-      try { await Bun.write(f, original); reverted.push(f); } catch {}
+      try { await safeWrite(f, original); reverted.push(f); } catch {}
     }
     result.revertedFiles = reverted;
   }

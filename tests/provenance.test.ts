@@ -8,7 +8,36 @@ import {
   formatProvenanceHuman,
 } from "../src/core/provenance";
 import type { ProvenanceEntry } from "../src/core/provenance";
+import { clearConfigCache } from "../src/core/provenance";
 import { computeHash } from "../src/core/read";
+
+// Diff capture is opt-in (it writes source lines to the telemetry log), so the
+// tests below that assert on `diff` have to turn it on explicitly.
+beforeEach(() => clearConfigCache({ provenance: { captureDiffs: true } }));
+afterEach(() => clearConfigCache());
+
+describe("captureDiffs default", () => {
+  test("no diff is recorded unless captureDiffs is enabled", () => {
+    clearConfigCache({});
+    const fields = buildProvenanceFields({
+      source: "const a = 1;",
+      newSource: "const a = 2;",
+      filePath: "a.ts",
+    });
+    expect(fields.afterHash).toBe(computeHash("const a = 2;"));
+    expect(fields.diff).toBeUndefined();
+  });
+
+  test("a sensitive file is never diffed even with captureDiffs on", () => {
+    clearConfigCache({ provenance: { captureDiffs: true } });
+    const fields = buildProvenanceFields({
+      source: "TOKEN=old",
+      newSource: "TOKEN=new",
+      filePath: "/repo/.env",
+    });
+    expect(fields.diff).toBeUndefined();
+  });
+});
 
 describe("createChangeSet", () => {
   test("returns valid UUID string", () => {
