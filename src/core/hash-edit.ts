@@ -1,5 +1,6 @@
 import { computeHash } from "./read";
 import { ErrorCode } from "./telemetry";
+import { addWarning } from "./envelope";
 import { assertWritable, PathDeniedError, type AssertWritableOptions } from "./paths";
 
 /**
@@ -203,6 +204,12 @@ export async function replaceHash(
     retries = 1;
     relocatedTo = { start: targetStart + 1, end: targetEnd };
     messageSuffix = ` (anchor relocated to lines ${relocatedTo.start}-${relocatedTo.end})`;
+    // The edit succeeds, but it did not land where the caller pointed. Say so.
+    addWarning({
+      code: "ANCHOR_RELOCATED",
+      message: `Anchor content moved; edit applied at lines ${relocatedTo.start}-${relocatedTo.end}.`,
+      relocatedTo,
+    });
   }
 
   let writePath: string | undefined;

@@ -29,7 +29,7 @@ describe("documented invocation shapes", () => {
   test("grep-many takes pattern and paths positionally", () => {
     const ok = run(["grep-many", "hashpilot", "package.json"]);
     expect(ok.code).toBe(0);
-    expect(JSON.parse(ok.stdout).results.length).toBeGreaterThan(0);
+    expect(JSON.parse(ok.stdout).data.results.length).toBeGreaterThan(0);
   });
 
   test("grep-many rejects the --pattern/--paths flags an agent might guess", () => {
@@ -51,30 +51,32 @@ describe("documented invocation shapes", () => {
     // `slice(-0)` is `slice(0)`: asking for zero used to dump everything.
     const res = run(["telemetry", "show", "-n", "0"]);
     expect(res.code).toBe(0);
-    expect(JSON.parse(res.stdout)).toEqual([]);
+    expect(JSON.parse(res.stdout).data).toEqual([]);
   });
 });
 
 describe("documented output shapes", () => {
-  test("read-many returns a bare top-level array", () => {
+  test("read-many puts its array under data, never at the top level", () => {
+    // The top level is always the envelope. A bare array here is what forced
+    // consumers to branch per command (#56).
     const res = run(["read-many", "package.json"]);
     expect(res.code).toBe(0);
     const parsed = JSON.parse(res.stdout);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed[0]).toHaveProperty("hash");
-    expect(parsed[0]).toHaveProperty("content");
-  });
-
-  test("grep-many returns an object keyed by pattern and results", () => {
-    const parsed = JSON.parse(run(["grep-many", "hashpilot", "package.json"]).stdout);
     expect(Array.isArray(parsed)).toBe(false);
-    expect(parsed).toHaveProperty("pattern");
-    expect(Array.isArray(parsed.results)).toBe(true);
+    expect(Array.isArray(parsed.data)).toBe(true);
+    expect(parsed.data[0]).toHaveProperty("hash");
+    expect(parsed.data[0]).toHaveProperty("content");
   });
 
-  test("doctor returns an object with a checks array", () => {
+  test("grep-many returns an object keyed by pattern and results under data", () => {
+    const parsed = JSON.parse(run(["grep-many", "hashpilot", "package.json"]).stdout);
+    expect(parsed.data).toHaveProperty("pattern");
+    expect(Array.isArray(parsed.data.results)).toBe(true);
+  });
+
+  test("doctor returns an object with a checks array under data", () => {
     const parsed = JSON.parse(run(["doctor"]).stdout);
-    expect(Array.isArray(parsed.checks)).toBe(true);
+    expect(Array.isArray(parsed.data.checks)).toBe(true);
   });
 });
 
@@ -114,7 +116,7 @@ describe("documented exit codes", () => {
       mkdirSync(join(home, ".agentic-tools", "logs", "telemetry.jsonl"), { recursive: true });
       const res = run(["telemetry", "show"], ROOT, { HOME: home });
       expect(res.code).toBe(5);
-      expect(JSON.parse(res.stdout).errorCode).toBe("READ_FAILED");
+      expect(JSON.parse(res.stdout).error.code).toBe("READ_FAILED");
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

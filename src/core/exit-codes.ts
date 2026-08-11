@@ -1,4 +1,5 @@
 import { ErrorCode } from "./telemetry";
+import { wrap } from "./envelope";
 
 /**
  * Process exit codes. Agents branch on these, so the numbers are a contract —
@@ -62,6 +63,13 @@ export function exitCodeFor(result: ResultLike | ResultLike[] | undefined): Exit
     }, ExitCode.OK);
   }
 
+  // Wrapper results (route-edit, batch, plan steps) carry the real outcome in
+  // `result`. Ignoring it made a failed edit exit 0.
+  if (result.success === undefined && result.passed === undefined && result.error === undefined
+      && result.result && typeof result.result === "object") {
+    return exitCodeFor(result.result as ResultLike);
+  }
+
   const explicit = result.errorCode ?? (typeof result.error === "object" ? result.error?.code : undefined);
   if (explicit && ERROR_CODE_EXITS[explicit]) return ERROR_CODE_EXITS[explicit];
 
@@ -81,8 +89,11 @@ export function exitCodeFor(result: ResultLike | ResultLike[] | undefined): Exit
  * stdout writes and telemetry flushes are not truncated.
  */
 export function finish(payload: unknown, code?: ExitCode): void {
-  console.log(JSON.stringify(payload, null, 2));
-  process.exitCode = code ?? exitCodeFor(payload as ResultLike);
+  const exit = code ?? exitCodeFor(payload as ResultLike);
+  // Wrapped, not raw: every command emits the same envelope so an adapter has
+  // one parse path. See src/core/envelope.ts.
+  console.log(JSON.stringify(wrap(payload, exit), null, 2));
+  process.exitCode = exit;
 }
 
 /** Emit a usage error and exit 1. For malformed flags and missing required options. */

@@ -44,7 +44,8 @@ Check routing: `structured-edit route <file> <operation>`
 structured-edit read-many <file1> [file2] ...
 ```
 
-Returns JSON array with `path`, `content`, `hash`, `lines`. Store `hash` for subsequent `replace-hash` calls.
+Returns the standard envelope; `data` is an array of `{ path, content, hash, lines }`.
+Store `hash` for subsequent `replace-hash` calls.
 
 **Usage pattern**: Read all relevant files at once, use hashes for editing.
 
@@ -52,7 +53,7 @@ Returns JSON array with `path`, `content`, `hash`, `lines`. Store `hash` for sub
 # Read multiple files
 result=$(structured-edit read-many src/api.ts src/utils.ts src/config.ts)
 # Extract hash for later editing
-hash=$(echo "$result" | jq -r '.[] | select(.path | contains("api.ts")) | .hash')
+hash=$(echo "$result" | jq -r '.data[] | select(.path | contains("api.ts")) | .hash')
 ```
 
 ### read-hash — Read line with context hash

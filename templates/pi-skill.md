@@ -54,7 +54,10 @@ hashpilot_search pattern="function\\s+\\w+" paths=["src/"]
 
 ## Stale Anchor Recovery
 
-When `hashpilot_replace_hash` returns `"stale": true`:
+Every command returns the envelope `{ apiVersion, ok, command, data, error, warnings }` —
+read the payload from `data` and branch on `error.code`, never on `error.message`.
+
+When `hashpilot_replace_hash` returns `"stale": true` (`error.code: "STALE_ANCHOR"`):
 1. The file changed since you read it — your hash is outdated
 2. Re-read the file: `hashpilot_read files=["target.ts"]`
 3. Retry the edit with the new hash

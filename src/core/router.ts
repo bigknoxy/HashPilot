@@ -15,6 +15,7 @@ import { readMany, readHash, computeHash } from "./read";
 import { recordEvent, ErrorCode } from "./telemetry";
 import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
+import { addWarning } from "./envelope";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -140,6 +141,16 @@ export async function routeEdit(params: {
     const decision = chooseRoute(filePath, operation, resolvedPolicy);
     route = decision.route;
     explanation = decision.explanation;
+    // A downgrade to the diff route is a real degradation of edit safety, and it
+    // used to be visible only in prose inside `routeReason`. Surface it.
+    if (route === "diff" && explanation.reasons.some((r) => r.startsWith("Falling back"))) {
+      addWarning({
+        code: "ROUTE_FALLBACK",
+        message: explanation.reasons.join("; "),
+        from: "ast",
+        to: "diff",
+      });
+    }
   }
 
   let result: any;
@@ -151,6 +162,9 @@ export async function routeEdit(params: {
       result = { success: false, message: `Cannot force AST route: ${filePath} is not a supported language file` };
     } else {
       fallback = "AST unsupported for this file type";
+      // A silent downgrade looks identical to a successful AST edit, which is
+      // exactly the debugging problem the envelope's `warnings` exists for.
+      addWarning({ code: "ROUTE_FALLBACK", message: fallback, from: "ast", to: "hash" });
       route = "hash";
     }
   }
@@ -159,6 +173,7 @@ export async function routeEdit(params: {
     if (!oldHash || !newContent) {
       route = "diff";
       fallback = "Hash edit requires oldHash and newContent";
+      addWarning({ code: "ROUTE_FALLBACK", message: fallback, from: "hash", to: "diff" });
     }
   }
 

@@ -82,6 +82,8 @@ export {
 } from "./paths";
 export type { AssertWritableOptions } from "./paths";
 export { ExitCode, exitCodeFor, finish, usageError } from "./exit-codes";
+export { wrap, wrapResult, addWarning, takeWarnings, setCommand, currentCommandName, API_VERSION } from "./envelope";
+export type { Envelope, EnvelopeError, EnvelopeWarning } from "./envelope";
 export type { ResultLike } from "./exit-codes";
 export type { RecoveryMode } from "./hash-edit";
 export { UnsupportedIntentError } from "./intent";

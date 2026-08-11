@@ -52,6 +52,8 @@ import {
   configureWriteBoundary,
   finish,
   usageError,
+  setCommand,
+  addWarning,
   ExitCode,
   exitCodeFor,
   configureTelemetry,
@@ -100,7 +102,12 @@ program
   .option("--allow-outside-root", "Permit writes outside the project root (credentials and system paths stay blocked)")
   .option("--allowed-root <dir...>", "Additional directory writes may target")
   .option("--no-telemetry", "Disable telemetry logging for this invocation")
-  .hook("preAction", (thisCommand) => {
+  .hook("preAction", (thisCommand, actionCommand) => {
+    // Name the running subcommand so the envelope can report it. Walk up so
+    // nested commands read as "telemetry show", not "show".
+    const path: string[] = [];
+    for (let c: typeof actionCommand | null = actionCommand; c && c.parent; c = c.parent) path.unshift(c.name());
+    setCommand(path.join(" "));
     const globals = thisCommand.opts();
     const config = loadConfig();
     configureWriteBoundary({
@@ -630,6 +637,7 @@ diffCmd
   .argument("<old-content>", "Old content (or @file)")
   .argument("<new-content>", "New content (or @file)")
   .option("-c, --context <n>", "Context lines", "3")
+  .option("--raw", "Print the diff text alone, without the JSON envelope")
   .action(async (file: string, oldContent: string, newContent: string, opts) => {
     const start = Date.now();
     let oldSrc = oldContent;
@@ -644,11 +652,13 @@ diffCmd
       success: true,
       elapsed_ms: Date.now() - start,
     });
-    if (diff) {
-      console.log(diff);
-    } else {
-      console.log("(no changes)");
+    // The diff itself is the payload; it rides the envelope like every other
+    // command so a consumer has one parse path (`--raw` prints it bare).
+    if (opts.raw) {
+      console.log(diff || "(no changes)");
+      return;
     }
+    finish({ path: file, changed: diff.length > 0, diff }, ExitCode.OK);
   });
 
 diffCmd
@@ -733,14 +743,15 @@ program
   });
 
 /**
- * Corruption must be visible. The query payloads are a published contract
- * (docs/ADAPTER-CONTRACT.md), so the count of unparseable lines goes to stderr
- * rather than into the JSON an agent parses off stdout.
+ * Corruption must be visible. It rides the envelope's `warnings` array (so a
+ * machine consumer sees it) and stderr (so a human running the command does).
  */
 function warnSkipped(): void {
   const skipped = lastReadSkipped();
   if (skipped > 0) {
-    console.error(`warning: skipped ${skipped} malformed telemetry line(s) — the log is corrupt`);
+    const message = `skipped ${skipped} malformed telemetry line(s) — the log is corrupt`;
+    addWarning({ code: "TELEMETRY_LOG_CORRUPT", message, skipped });
+    console.error(`warning: ${message}`);
   }
 }
 
@@ -792,7 +803,7 @@ telCmd
   .description("Clear telemetry log")
   .action(() => {
     clearEvents();
-    console.log("Telemetry cleared.");
+    finish({ success: true, message: "Telemetry cleared." }, ExitCode.OK);
   });
 
 telCmd
@@ -811,6 +822,7 @@ telCmd
   .option("--from <date>", "Start date (ISO format)")
   .option("--to <date>", "End date (ISO format)")
   .option("--session <id>", "Session ID filter")
+  .option("--ndjson", "Stream one compact event per line instead of the JSON envelope")
   .action((opts) => {
     const events = exportEvents({
       from: opts.from ? new Date(opts.from) : undefined,
@@ -818,11 +830,13 @@ telCmd
       sessionId: opts.session,
     });
     warnSkipped();
-    // NDJSON: one compact object per line, so `finish` (which pretty-prints a
-    // single payload and sets the exit code) is not the right tool here.
-    for (const e of events) {
-      console.log(JSON.stringify(e));
+    // Default to the envelope like every other command; `--ndjson` keeps the
+    // streamable one-object-per-line form for pipes into jq and friends.
+    if (opts.ndjson) {
+      for (const e of events) console.log(JSON.stringify(e));
+      return;
     }
+    finish(events, ExitCode.OK);
   });
 
 telCmd
@@ -831,7 +845,7 @@ telCmd
   .option("-d, --older-than <days>", "Days threshold", "30")
   .action((opts) => {
     const deleted = pruneEvents(parseInt(opts.olderThan));
-    console.log(`Pruned ${deleted} telemetry file(s).`);
+    finish({ success: true, deleted, message: `Pruned ${deleted} telemetry file(s).` }, ExitCode.OK);
   });
 
 const provCmd = program
@@ -853,9 +867,10 @@ provCmd
     if (opts.limit) results = results.slice(0, parseInt(opts.limit));
     if (opts.human) {
       console.log(formatProvenanceHuman(results));
-    } else {
-      console.log(JSON.stringify(results, null, 2));
+      return;
     }
+    // A file with no recorded edits is an empty history, not a failure.
+    finish(results, ExitCode.OK);
   });
 
 provCmd
@@ -866,9 +881,16 @@ provCmd
   .action((changeSetId, opts) => {
     const result = changeSetQuery(changeSetId);
     if (!result) {
-      console.log(`No edits found for changeSet: ${changeSetId}`);
-      process.exitCode = 1;
-      return;
+      return finish(
+        {
+          success: false,
+          errorCode: ErrorCode.FILE_NOT_FOUND,
+          changeSetId,
+          message: `No edits found for changeSet: ${changeSetId}`,
+          recovery: "structured-edit telemetry sessions",
+        },
+        ExitCode.USAGE,
+      );
     }
     if (opts.human) {
       console.log(`ChangeSet: ${result.changeSetId}`);

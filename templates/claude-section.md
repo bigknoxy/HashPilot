@@ -17,6 +17,12 @@ Route introspection and config:
 - `structured-edit route <file> <op> [--policy <json>]` — detailed route explanation with policy testing
 - `structured-edit config` — show current merged configuration
 
+Output shape (all commands, apiVersion 1):
+`{ apiVersion, ok, command, data, error, warnings }` — the per-command payload is under
+`data`, failures carry `error.code` (+ `error.recovery` where a next command exists), and
+`ok` always agrees with the exit code. `warnings` reports route fallbacks, relocated
+anchors, and corrupt telemetry lines. See `docs/ADAPTER-CONTRACT.md`.
+
 Status and control:
 - `/hashpilot-status` — check adapter status
 - `HASHPILOT_DISABLE=1` — bypass HashPilot entirely (env var)

@@ -124,10 +124,12 @@ export default function (pi: ExtensionAPI) {
       if (params.range) args.push("--range", params.range)
       if (params.dryRun) args.push("--dry-run")
       const { exitCode, output } = await runSE(args, pi, signal, ctx.cwd)
-      const result = JSON.parse(output || "{}")
-      const isStale = result.stale === true
+      // Envelope (apiVersion 1): the command payload lives under `data`.
+      const envelope = JSON.parse(output || "{}")
+      const result = envelope.data ?? {}
+      const isStale = result.stale === true || envelope.error?.code === "STALE_ANCHOR"
       return {
-        isError: exitCode !== 0 || !result.success,
+        isError: exitCode !== 0 || envelope.ok === false,
         content: [{ type: "text", text: output || "(no output)" }],
         details: { exitCode, stale: isStale, fallbackReason: isStale ? "stale-anchor" : undefined },
       }

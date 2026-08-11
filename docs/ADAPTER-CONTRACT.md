@@ -2,6 +2,41 @@
 
 This document defines the machine-readable contract that coding agents use to interact with HashPilot. All commands are invoked via the `structured-edit` CLI and return JSON on stdout.
 
+## Response envelope (apiVersion 1)
+
+Every command writes the same top-level shape. Schema: [`schema/hashpilot-envelope.schema.json`](../schema/hashpilot-envelope.schema.json).
+
+```json
+{
+  "apiVersion": "1",
+  "ok": true,
+  "command": "telemetry show",
+  "data": { "...": "the per-command payload documented below" },
+  "error": null,
+  "warnings": []
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `apiVersion` | Envelope version. `"1"` today; bumped only if the envelope's own shape breaks. |
+| `ok` | True exactly when the exit code is 0. `ok` and `$?` never disagree — check either, not both. |
+| `command` | Space-separated subcommand path, e.g. `"telemetry show"`. |
+| `data` | The per-command payload. **Every example below shows what goes here, not the top level.** |
+| `error` | `null` when `ok`; otherwise `{ code, message, recovery?, details? }`. `code` is an `ErrorCode` — branch on it, never on `message`. |
+| `warnings` | Non-fatal notices, each `{ code, message, ... }`. Codes: `ROUTE_FALLBACK` (the edit was downgraded to a less safe route), `ANCHOR_RELOCATED` (the anchor moved; the edit landed elsewhere), `TELEMETRY_LOG_CORRUPT` (malformed log lines were skipped). |
+
+**Breaking change in v3.0.0 (#18, #56).** Through v2.x each command returned its own
+shape at the top level — some a bare array, some an object — so an adapter had to
+special-case the command it had just run and had no field to detect a contract change
+with. Migration is mechanical: read `.data` where you used to read the root, and `.error.code`
+where you used to read `.errorCode`.
+
+Two commands keep a raw, unwrapped mode for piping into other tools:
+`diff generate --raw` (the diff text alone) and `telemetry export --ndjson` (one compact
+event per line). `--human` output on `provenance query` and `telemetry` is text, not JSON,
+and is unaffected.
+
 ## Command Reference
 
 ### Configuration
