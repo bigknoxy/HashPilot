@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bigknoxy/HashPilot/schema/hashpilot-envelope.schema.json",
+  "title": "HashPilot CLI envelope",
+  "description": "The single JSON shape every structured-edit command writes to stdout.",
+  "type": "object",
+  "required": ["apiVersion", "ok", "command", "data", "error", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "description": "Envelope version. Bumped only on a breaking change to the envelope itself.",
+      "const": "1"
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "True exactly when the process exit code is 0."
+    },
+    "command": {
+      "type": "string",
+      "description": "Space-separated subcommand path, e.g. \"telemetry show\"."
+    },
+    "data": {
+      "description": "Per-command payload. Null on failure paths that produced no result."
+    },
+    "error": {
+      "description": "Null when ok is true; otherwise the failure, coded for branching.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "A member of the ErrorCode enum.",
+              "enum": [
+                "STALE_ANCHOR",
+                "SYMBOL_NOT_FOUND",
+                "PARSE_ERROR",
+                "FILE_NOT_FOUND",
+                "DUPLICATE_MATCH",
+                "UNSUPPORTED_LANGUAGE",
+                "HASH_MISMATCH",
+                "WRITE_FAILED",
+                "PATH_DENIED",
+                "INVALID_ARGUMENT",
+                "UNSUPPORTED_OPERATION",
+                "VERIFY_FAILED",
+                "AMBIGUOUS_ANCHOR",
+                "READ_FAILED",
+                "UNKNOWN"
+              ]
+            },
+            "message": { "type": "string" },
+            "recovery": {
+              "type": "string",
+              "description": "What to do next — a runnable command where one exists."
+            },
+            "details": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal notices: route fallbacks, anchor relocation, corrupt telemetry lines.",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["ROUTE_FALLBACK", "ANCHOR_RELOCATED", "TELEMETRY_LOG_CORRUPT"]
+          },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

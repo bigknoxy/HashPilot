@@ -483,6 +483,7 @@ structured-edit diff generate [options] <file> <old-content> <new-content>
 | Flag | Meaning |
 |------|---------|
 | `-c, --context <n>` | Context lines (default: "3") |
+| `--raw` | Print the diff text alone, without the JSON envelope |
 
 #### `diff apply`
 
@@ -595,6 +596,7 @@ structured-edit telemetry export [options]
 | `--from <date>` | Start date (ISO format) |
 | `--to <date>` | End date (ISO format) |
 | `--session <id>` | Session ID filter |
+| `--ndjson` | Stream one compact event per line instead of the JSON envelope |
 
 #### `telemetry prune`
 

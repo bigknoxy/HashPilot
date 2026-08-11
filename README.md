@@ -238,6 +238,36 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 
 ---
 
+## Output Envelope
+
+Every command writes the same JSON shape to stdout, so an adapter has one parse path:
+
+```json
+{
+  "apiVersion": "1",
+  "ok": true,
+  "command": "read-many",
+  "data": [{ "path": "src/api.ts", "hash": "a1b2c3d4e5f6", "content": "...", "lines": 42 }],
+  "error": null,
+  "warnings": []
+}
+```
+
+- `data` — the per-command payload (what used to sit at the top level).
+- `error` — `null` when `ok`, else `{ code, message, recovery? }`. Branch on `code`, never on `message`.
+- `warnings` — non-fatal notices: `ROUTE_FALLBACK` (the edit was downgraded to a less safe
+  route), `ANCHOR_RELOCATED` (the anchor moved and the edit landed elsewhere),
+  `TELEMETRY_LOG_CORRUPT`.
+- `ok` is derived from the exit code below, so the two never disagree.
+
+Schema: [`schema/hashpilot-envelope.schema.json`](schema/hashpilot-envelope.schema.json).
+Raw modes for piping: `diff generate --raw`, `telemetry export --ndjson`.
+
+**Breaking in v3.0.0** (from v2.x, which returned a different shape per command) — see
+[`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) for migration.
+
+---
+
 ## Exit Codes
 
 Every command exits with a stable code so agents and CI can branch on the result
