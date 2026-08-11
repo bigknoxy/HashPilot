@@ -5,6 +5,15 @@ import { escapeRegex } from "./utils";
 
 // ── Intent types ──────────────────────────────────────────────────────
 
+/** Thrown for an intent operation the planner cannot perform. Maps to exit code 1. */
+export class UnsupportedIntentError extends Error {
+  readonly errorCode = "UNSUPPORTED_OPERATION";
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedIntentError";
+  }
+}
+
 export type IntentOperation =
   | "add-parameter"
   | "remove-parameter"
@@ -101,13 +110,14 @@ export function parseIntent(raw: string): StructuredIntent {
       };
     }
     case "remove-parameter": {
-      if (!obj.paramName) throw new Error("remove-parameter requires 'paramName'");
-      return {
-        operation: "remove-parameter",
-        symbol: obj.symbol,
-        paramName: obj.paramName,
-        file: obj.file,
-      };
+      // Never implemented. The plan it used to generate emitted a no-op
+      // `remove-import` for the signature and a literal
+      // `/* TODO: remove arg for X */` string as the search text at every call
+      // site — which never matches, so the plan reported steps it could not
+      // perform. Refusing is strictly safer than advertising it.
+      throw new UnsupportedIntentError(
+        "remove-parameter is not implemented. Use rename-exported-symbol, or edit the signature with `ast replace-body` and each call site with `diff apply`.",
+      );
     }
     case "rename-exported-symbol": {
       if (!obj.newName) throw new Error("rename-exported-symbol requires 'newName'");
@@ -119,7 +129,7 @@ export function parseIntent(raw: string): StructuredIntent {
       };
     }
     default:
-      throw new Error(`Unknown intent operation: ${obj.operation}. Supported: add-parameter, remove-parameter, rename-exported-symbol`);
+      throw new Error(`Unknown intent operation: ${obj.operation}. Supported: add-parameter, rename-exported-symbol`);
   }
 }
 
@@ -265,28 +275,7 @@ export function generatePlan(
     }
 
     case "remove-parameter": {
-      steps.push({
-        order: 0,
-        file: definition.file,
-        operation: "remove-import",
-        description: `Remove parameter '${intent.paramName}' from '${intent.symbol}' — requires manual signature edit`,
-        params: {},
-      });
-
-      const refFiles = [...new Set(references.map((r) => r.file))];
-      refFiles.forEach((file, i) => {
-        steps.push({
-          order: i + 1,
-          file,
-          operation: "diff",
-          description: `Remove argument '${intent.paramName}' from call sites in ${shortPath(file)}`,
-          params: {
-            oldContent: `/* TODO: remove arg for ${intent.paramName} */`,
-            newContent: "",
-          },
-        });
-      });
-      break;
+      throw new UnsupportedIntentError("remove-parameter is not implemented.");
     }
 
     case "rename-exported-symbol": {

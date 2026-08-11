@@ -173,7 +173,27 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 - `--range` is 1-indexed, inclusive start and exclusive end
 - Provenance options: `--actor`, `--task-id`, `--reason`
 
-**Auto-recovery:** If the file was modified since the hash was computed (stale anchor), the tool auto-recovers by default, applying the edit to the current file content. Returns `retries: 1` on recovery. For full-file replaces (no `--range`), this is always safe. For range-based replaces, the edit applies to the current range content. To disable auto-recovery and force stale-anchor failure, pass `--no-recovery` (internal API only).
+**Stale-anchor recovery (relocation only).** If the anchor hash no longer matches
+the requested range, the tool tries to *relocate* the anchor: it slides a window
+the same height as the range over the file and looks for content whose hash
+equals `<old-hash>`.
+
+- Exactly one match → the edit applies there. `stale: true`, `retries: 1`, and
+  `relocatedTo: {start, end}` reports where it landed.
+- More than one match → `AMBIGUOUS_ANCHOR`. The file is not touched.
+- No match → `STALE_ANCHOR`. The file is not touched.
+
+**Breaking change:** recovery no longer applies to a whole-file anchor (no
+`--range`). Previously a mismatch there caused `<new-content>` to replace the
+entire file, silently discarding whatever changed since the read. That path now
+fails with `STALE_ANCHOR` — re-read the file and retry with the fresh hash.
+
+Recovery can be disabled with `--no-recovery` (or `recovery: "off"` in the API),
+which turns any mismatch into an immediate `STALE_ANCHOR`.
+
+**Range validation:** `--range` bounds must be integers, `1 <= start <= end`, and
+`end` no greater than the file's last line. Anything else is `INVALID_ARGUMENT`
+with no write attempted.
 
 **Output (success):**
 ```json
@@ -190,7 +210,7 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 }
 ```
 
-**Output (auto-recovered):**
+**Output (relocated):**
 ```json
 {
   "path": "/abs/path/file.ts",
@@ -198,12 +218,28 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
   "oldHash": "abc123def456",
   "newHash": "789ghi012jkl",
   "linesChanged": 3,
-  "stale": false,
+  "stale": true,
   "retries": 1,
-  "message": "Replaced 5 lines with 3 lines (auto-recovered from stale anchor, range 10-15)",
-  "diff": "- 10 | old line\n+ 10 | new line\n  11 | unchanged"
+  "relocatedTo": { "start": 12, "end": 17 },
+  "message": "Replaced 5 lines with 3 lines (anchor relocated to 12-17)",
+  "diff": "- 12 | old line\n+ 12 | new line\n  13 | unchanged"
 }
 ```
+
+**Output (anchor could not be relocated):**
+```json
+{
+  "path": "/abs/path/file.ts",
+  "success": false,
+  "stale": true,
+  "retries": 0,
+  "errorCode": "STALE_ANCHOR",
+  "message": "Anchor abc123def456 no longer matches and could not be relocated. Re-read the file and retry."
+}
+```
+
+An agent seeing `STALE_ANCHOR` or `AMBIGUOUS_ANCHOR` (exit code `3`) should
+re-read the file and retry rather than give up.
 
 ---
 
@@ -480,7 +516,13 @@ structured-edit intent '<json>' [--project-root <dir>] [--dry-run] [--no-verify]
 {"operation":"add-parameter","symbol":"myFunction","param":{"name":"x","type":"string","default":"\"hello\""}}
 ```
 
-**Supported operations:** `add-parameter`, `remove-parameter`, `rename-exported-symbol`
+**Supported operations:** `add-parameter`, `rename-exported-symbol`
+
+`remove-parameter` is **not implemented** and is rejected with
+`UNSUPPORTED_OPERATION` (exit code `1`). It was previously accepted but produced
+a plan whose call-site steps searched for a literal `/* TODO: remove arg */`
+string that never matches. Remove a parameter with `ast replace-body` on the
+signature plus `diff apply` at each call site.
 
 **Output:**
 ```json
@@ -777,10 +819,27 @@ Compare the current window against the previous window of the same length.
 All commands return JSON with:
 - `success: false` on operation failure
 - `error` field on file-level failures
-- `stale: true` on hash mismatch (auto-recovered by default, `"retries": 1` on recovery)
+- `errorCode` — a stable machine-readable code (see below)
+- `stale: true` on hash mismatch; `relocatedTo` when the anchor was relocated
 - `message` with human-readable description
+
+**Error codes:** `PARSE_ERROR`, `SYMBOL_NOT_FOUND`, `STALE_ANCHOR`,
+`AMBIGUOUS_ANCHOR`, `HASH_MISMATCH`, `INVALID_ARGUMENT`, `PATH_DENIED`,
+`UNSUPPORTED_OPERATION`, `FILE_NOT_FOUND`, `WRITE_FAILED`, `VERIFY_FAILED`.
 
 ## Exit Codes
 
-- `0`: Success
-- `1`: General error (file not found, parse error, stale anchor, etc.)
+Branch on the exit code, not on stderr text.
+
+| Code | Meaning | What an agent should do |
+|------|---------|-------------------------|
+| `0` | Success | Continue |
+| `1` | Usage error — bad arguments, denied path, unsupported operation | Fix the invocation; do not retry as-is |
+| `2` | Edit failed — the operation ran but could not be applied | Try another route or report |
+| `3` | Stale anchor / precondition failed | **Retryable:** re-read the file and reissue with the fresh hash |
+| `4` | Verification failed — the edit applied but format/lint/test did not pass | Inspect the verify output; the edit may have been reverted |
+| `5` | I/O error — file not found, write failed | Check the path and permissions |
+| `70` | Internal error | Report a bug |
+
+Batch commands return the worst code across all items; an all-success batch
+returns `0`.

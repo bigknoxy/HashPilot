@@ -16,19 +16,19 @@ Milestones: [Sprint 1 — Stop the Bleeding](../../milestone/1) · [Sprint 2 —
 
 Data-loss and silent-failure defects. **Nothing else ships until these land.** Three of these destroy user files today and report `success: true`.
 
-| # | Item | Score | Pri | Evidence | Area |
-|---|------|-------|-----|----------|------|
-| [#3](../../issues/3) | B1 — Stale anchor overwrites the entire file instead of refusing | 64 | P0 | verified | correctness · data-loss |
-| [#6](../../issues/6) | B5 — `--range` with no colon (NaN) silently duplicates the file | 63 | P0 | verified | correctness · data-loss |
-| [#5](../../issues/5) | B3 — No write boundary; paths can escape the project root | 62 | P0 | verified | security · data-loss |
-| [#4](../../issues/4) | B2 — Every command exits 0, including on failure | 61 | P0 | verified | cli |
-| [#8](../../issues/8) | B6 — Telemetry opt-out is a dead switch; logs contain source + secrets | 59 | P0 | verified | security |
-| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | reported | correctness |
-| [#9](../../issues/9) | B11 — `remove-parameter` is structurally non-functional but advertised | 56 | P1 | verified | correctness |
-| [#11](../../issues/11) | B20 — Version drift 0.1.0 vs v1.5.3; nothing publishes | 51 | P1 | verified | ops |
-| [#7](../../issues/7) | B7 — `diff apply` without `--patch` crashes and exits 0 | 48 | P0 | verified | cli |
+| # | Item | Score | Pri | Evidence | Area | Status |
+|---|------|-------|-----|----------|------|--------|
+| [#3](../../issues/3) | B1 — Stale anchor overwrites the entire file instead of refusing | 64 | P0 | verified | correctness · data-loss | ✅ done |
+| [#6](../../issues/6) | B5 — `--range` with no colon (NaN) silently duplicates the file | 63 | P0 | verified | correctness · data-loss | ✅ done |
+| [#5](../../issues/5) | B3 — No write boundary; paths can escape the project root | 62 | P0 | verified | security · data-loss | ✅ done |
+| [#4](../../issues/4) | B2 — Every command exits 0, including on failure | 61 | P0 | verified | cli | ✅ done |
+| [#8](../../issues/8) | B6 — Telemetry opt-out is a dead switch; logs contain source + secrets | 59 | P0 | verified | security | ✅ done |
+| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | reported | correctness | ⏭ deferred to Sprint 2 |
+| [#9](../../issues/9) | B11 — `remove-parameter` is structurally non-functional but advertised | 56 | P1 | verified | correctness | ✅ done |
+| [#11](../../issues/11) | B20 — Version drift 0.1.0 vs v1.5.3; nothing publishes | 51 | P1 | verified | ops | ✅ done |
+| [#7](../../issues/7) | B7 — `diff apply` without `--patch` crashes and exits 0 | 48 | P0 | verified | cli | ✅ done |
 
-**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure.
+**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure. It is therefore deferred into Sprint 2 alongside #24; the other eight items landed.
 
 ## Sprint 2 — Foundations
 

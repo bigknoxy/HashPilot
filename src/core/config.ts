@@ -23,12 +23,20 @@ export interface ProvenanceConfig {
   defaultActor?: string;
   /** Max length of stored context field (prevents log bloat), default 500 */
   maxContextLength?: number;
+  /**
+   * Record a unified diff of every edit in the telemetry log. Off by default:
+   * a diff puts real source lines on disk in plaintext, which is a leak for
+   * private repos and anything holding credentials. Turn on deliberately.
+   */
+  captureDiffs?: boolean;
 }
 
 export interface HashPilotConfig {
   routePolicy?: RoutePolicy;
   telemetry?: TelemetryConfig;
   provenance?: ProvenanceConfig;
+  /** Extra directories writes may target, beyond the project root. Relative entries resolve against cwd. */
+  allowedRoots?: string[];
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
@@ -118,5 +126,8 @@ function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>):
   }
   if (override.provenance) {
     base.provenance = { ...base.provenance, ...override.provenance };
+  }
+  if (override.allowedRoots) {
+    base.allowedRoots = [...(base.allowedRoots || []), ...override.allowedRoots];
   }
 }

@@ -1,5 +1,8 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+// Single source of truth for the version. Bun inlines this JSON import at build
+// time, so dist/ carries the real version instead of a hardcoded literal.
+import pkg from "../package.json" with { type: "json" };
 import {
   readMany,
   readHash,
@@ -41,14 +44,72 @@ import {
   provenanceQuery,
   changeSetQuery,
   formatProvenanceHuman,
+  safeWrite,
+  assertWritable,
+  PathDeniedError,
+  configureWriteBoundary,
+  finish,
+  usageError,
+  ExitCode,
+  exitCodeFor,
+  configureTelemetry,
+  enableTelemetry,
+  resolveTelemetryEnabled,
 } from "./core/index";
+import type { TelemetryEvent } from "./core/telemetry";
+
+const VERSION: string = pkg.version;
 
 const program = new Command();
+
+/**
+ * Parse `--range`. Accepts `N` (meaning `N:N`) or `N:M`, both 1-indexed and
+ * inclusive. Returns an error string rather than throwing so the caller can
+ * emit it through `usageError`.
+ *
+ * The old implementation was `opts.range.split(":").map(Number)`, which turned
+ * `--range 5` into `{start: 5, end: NaN}` and silently duplicated the file.
+ */
+function parseRange(raw: string): { range: { start: number; end: number } } | { error: string } {
+  const match = /^(\d+)(?::(\d+))?$/.exec(raw.trim());
+  if (!match) {
+    return { error: `Invalid --range "${raw}": expected N or N:M with positive integers.` };
+  }
+  const start = Number(match[1]);
+  const end = match[2] === undefined ? start : Number(match[2]);
+  if (start < 1) return { error: `Invalid --range "${raw}": line numbers are 1-indexed.` };
+  if (start > end) return { error: `Invalid --range "${raw}": start is after end.` };
+  return { range: { start, end } };
+}
+
+/** Parse a numeric flag, rejecting the NaN that bare `parseInt` yields on garbage. */
+function parseIntFlag(raw: string | undefined, name: string, fallback: number): number | { error: string } {
+  if (raw === undefined) return fallback;
+  if (!/^\d+$/.test(String(raw).trim())) {
+    return { error: `Invalid ${name} "${raw}": expected a non-negative integer.` };
+  }
+  return Number(raw);
+}
 
 program
   .name("structured-edit")
   .description("HashPilot — Structured Editing Core for Coding Agents")
-  .version("0.1.0");
+  .version(VERSION)
+  .option("--allow-outside-root", "Permit writes outside the project root (credentials and system paths stay blocked)")
+  .option("--allowed-root <dir...>", "Additional directory writes may target")
+  .option("--no-telemetry", "Disable telemetry logging for this invocation")
+  .hook("preAction", (thisCommand) => {
+    const globals = thisCommand.opts();
+    const config = loadConfig();
+    configureWriteBoundary({
+      allowOutsideRoot: Boolean(globals.allowOutsideRoot),
+      allowedRoots: [...(config.allowedRoots || []), ...(globals.allowedRoot || [])],
+    });
+    // Apply sizing/retention from config, then the kill switch, so the CLI flag
+    // and env var win over `telemetry.enabled`.
+    configureTelemetry(config.telemetry);
+    enableTelemetry(resolveTelemetryEnabled(config.telemetry, globals.telemetry === false));
+  });
 
 program
   .command("read-many")
@@ -65,7 +126,7 @@ program
       success: !results.some((r) => r.error),
       elapsed_ms: Date.now() - start,
     });
-    console.log(JSON.stringify(results, null, 2));
+    finish(results);
   });
 
 program
@@ -77,7 +138,9 @@ program
   .option("--json", "Output as JSON", true)
   .action(async (file: string, line: number, opts) => {
     const start = Date.now();
-    const result = await readHash(file, line, parseInt(opts.context));
+    const context = parseIntFlag(opts.context, "--context", 3);
+    if (typeof context === "object") return usageError(context.error, { path: file });
+    const result = await readHash(file, line, context);
     recordEvent({
       operation: "read-hash",
       route: "hash",
@@ -86,7 +149,7 @@ program
       lines_read: 1 + (result.contextBefore?.length || 0) + (result.contextAfter?.length || 0),
       elapsed_ms: Date.now() - start,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -111,7 +174,7 @@ program
       success: !result.error,
       elapsed_ms: result.elapsed_ms,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -123,7 +186,7 @@ program
   .action(async (paths: string[], opts) => {
     const names = (opts.names || "").split(",").filter(Boolean);
     const results = await symbolLookupMany(names, paths);
-    console.log(JSON.stringify(results, null, 2));
+    finish(results);
   });
 
 program
@@ -132,7 +195,8 @@ program
   .argument("<file>", "File path")
   .argument("<old-hash>", "Hash of content to replace")
   .argument("<new-content>", "New content (or @file to read from file)")
-  .option("--range <start:end>", "Line range (1-indexed)")
+  .option("--range <start:end>", "Line range (1-indexed). N or N:M")
+  .option("--no-recover", "Fail immediately on a stale anchor instead of attempting relocation")
   .option("--dry-run", "Preview without writing")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
@@ -145,12 +209,15 @@ program
     }
     let range: { start: number; end: number } | undefined;
     if (opts.range) {
-      const [s, e] = opts.range.split(":").map(Number);
-      range = { start: s, end: e };
+      const parsed = parseRange(opts.range);
+      if ("error" in parsed) return usageError(parsed.error, { path: file });
+      range = parsed.range;
     }
     const result = await replaceHash(file, oldHash, content, {
       range,
       dryRun: opts.dryRun,
+      // Commander maps --no-recover to opts.recover === false.
+      recovery: opts.recover === false ? "off" : "relocate",
     });
     const provFields = buildProvenanceFields({
       actor: opts.actor,
@@ -169,7 +236,7 @@ program
       elapsed_ms: 0,
       ...provFields,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 const astCmd = program
@@ -180,7 +247,7 @@ astCmd
   .command("capabilities")
   .description("Show supported AST languages, operations, and limitations")
   .action(() => {
-    console.log(JSON.stringify(astCapabilities(), null, 2));
+    finish(astCapabilities());
   });
 
 astCmd
@@ -190,7 +257,7 @@ astCmd
   .action(async (file: string) => {
     const content = await Bun.file(file).text();
     const symbols = findSymbols(content, file);
-    console.log(JSON.stringify(symbols, null, 2));
+    finish(symbols);
   });
 
 function recordProvenanceEvent(opts: {
@@ -225,7 +292,7 @@ astCmd
     const content = await Bun.file(file).text();
     const result = renameSymbol(content, file, oldName, newName);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "rename-symbol", route: "ast", file,
@@ -235,7 +302,7 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 astCmd
@@ -256,7 +323,7 @@ astCmd
     const content = await Bun.file(file).text();
     const result = replaceBody(content, file, symbol, body);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "replace-body", route: "ast", file,
@@ -266,7 +333,7 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 astCmd
@@ -284,7 +351,7 @@ astCmd
     const content = await Bun.file(file).text();
     const result = addImport(content, file, importSpec);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "add-import", route: "ast", file,
@@ -294,7 +361,7 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 astCmd
@@ -312,7 +379,7 @@ astCmd
     const content = await Bun.file(file).text();
     const result = removeImport(content, file, importSpec);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "remove-import", route: "ast", file,
@@ -322,7 +389,7 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 astCmd
@@ -343,7 +410,7 @@ astCmd
     const src = await Bun.file(file).text();
     const result = insertBeforeSymbol(src, file, symbol, c);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "insert-before", route: "ast", file,
@@ -353,7 +420,7 @@ astCmd
       source: src, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 astCmd
@@ -374,7 +441,7 @@ astCmd
     const src = await Bun.file(file).text();
     const result = insertAfterSymbol(src, file, symbol, c);
     if (result.success && result.newSource && !opts.dryRun) {
-      await Bun.write(file, result.newSource);
+      await safeWrite(file, result.newSource);
     }
     recordProvenanceEvent({
       operation: "insert-after", route: "ast", file,
@@ -384,7 +451,7 @@ astCmd
       source: src, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -437,7 +504,7 @@ program
       reason: opts.reason,
     });
 
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -495,7 +562,7 @@ program
       ? await editManySerial(batchParams)
       : await editMany(batchParams);
 
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -532,7 +599,7 @@ program
       });
 
       if (opts.json) {
-        console.log(JSON.stringify(result, null, 2));
+        finish(result);
       } else {
         console.log(`Intent: ${result.plan.intent.operation} on '${result.plan.definition.name}'`);
         console.log(`Impact: ${result.plan.impactSummary}`);
@@ -603,12 +670,14 @@ diffCmd
     } else if (opts.patch) {
       patchText = await Bun.file(opts.patch).text();
     } else {
-      console.log(JSON.stringify({ success: false, message: "--patch is required" }));
-      process.exitCode = 1;
+      // Must return: without it, patchText is unassigned and applyPatch throws.
+      return usageError("--patch is required", { path: file });
     }
+    const fuzzy = parseIntFlag(opts.fuzzy, "--fuzzy", 3);
+    if (typeof fuzzy === "object") return usageError(fuzzy.error, { path: file });
     const result = await applyPatch(file, patchText, {
       dryRun: opts.dryRun,
-      fuzzyMatch: parseInt(opts.fuzzy),
+      fuzzyMatch: fuzzy,
     });
     const provFields = buildProvenanceFields({
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason, filePath: file,
@@ -622,7 +691,7 @@ diffCmd
       elapsed_ms: Date.now() - start,
       ...provFields,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 program
@@ -655,7 +724,7 @@ program
       revertOnFailure: opts.revertOnFailure,
       timeout: opts.timeout,
     });
-    console.log(JSON.stringify(result, null, 2));
+    finish(result);
   });
 
 const telCmd = program
@@ -668,14 +737,14 @@ telCmd
   .option("-n, --limit <n>", "Number of events", "20")
   .action(async (opts) => {
     const events = readEvents(parseInt(opts.limit));
-    console.log(JSON.stringify(events, null, 2));
+    finish(events);
   });
 
 telCmd
   .command("summary")
   .description("Show telemetry summary")
   .action(() => {
-    console.log(JSON.stringify(summary(), null, 2));
+    finish(summary());
   });
 
 telCmd
@@ -686,10 +755,10 @@ telCmd
   .action((opts) => {
     if (opts.trend) {
       const report = healthTrend(parseInt(opts.window));
-      console.log(JSON.stringify(report, null, 2));
+      finish(report);
     } else {
       const report = health(parseInt(opts.window));
-      console.log(JSON.stringify(report, null, 2));
+      finish(report);
     }
   });
 
@@ -706,7 +775,7 @@ telCmd
   .description("List session summaries")
   .action(() => {
     const sessions = listSessions();
-    console.log(JSON.stringify(sessions, null, 2));
+    finish(sessions);
   });
 
 telCmd
@@ -721,6 +790,8 @@ telCmd
       to: opts.to ? new Date(opts.to) : undefined,
       sessionId: opts.session,
     });
+    // NDJSON: one compact object per line, so `finish` (which pretty-prints a
+    // single payload and sets the exit code) is not the right tool here.
     for (const e of events) {
       console.log(JSON.stringify(e));
     }
@@ -780,7 +851,7 @@ provCmd
       console.log(`Time: ${result.timeRange.first} -- ${result.timeRange.last}\n`);
       console.log(formatProvenanceHuman(result.entries));
     } else {
-      console.log(JSON.stringify(result, null, 2));
+      finish(result);
     }
   });
 
@@ -800,7 +871,7 @@ program
       const icon = check.status === "pass" ? "✓" : check.status === "fail" ? "✗" : check.status === "warn" ? "!" : "·";
       summaryParts.push(`  ${icon} ${check.name}: ${check.message}`);
     }
-    console.log(JSON.stringify(report, null, 2));
+    finish(report);
     console.error(summaryParts.join("\n"));
   });
 
@@ -818,13 +889,13 @@ program
       policy = loadConfig().routePolicy;
     }
     const { route, explanation } = chooseRoute(file, operation, policy);
-    console.log(JSON.stringify({
+    finish({
       file,
       operation,
       language: lang,
       route,
       explanation,
-    }, null, 2));
+    });
   });
 
 program
@@ -833,7 +904,37 @@ program
   .option("--config <path>", "Config file path override")
   .action((opts) => {
     const config = loadConfig(opts.config);
-    console.log(JSON.stringify(config, null, 2));
+    finish(config);
   });
 
-program.parse();
+/**
+ * Nothing below a command action should ever surface a raw stack trace to an
+ * agent parsing stdout. Uncaught failures exit 70 with the same JSON envelope
+ * shape as every other error.
+ */
+function reportInternalError(err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof PathDeniedError) {
+    finish({ success: false, errorCode: err.errorCode, path: err.path, message }, ExitCode.USAGE);
+    return;
+  }
+  finish(
+    {
+      success: false,
+      errorCode: "INTERNAL_ERROR",
+      message,
+      detail: err instanceof Error ? err.stack : undefined,
+      recovery: "This is a bug in HashPilot. Please report it with the command that triggered it.",
+    },
+    ExitCode.INTERNAL,
+  );
+}
+
+process.on("uncaughtException", reportInternalError);
+process.on("unhandledRejection", reportInternalError);
+
+try {
+  program.parse();
+} catch (err) {
+  reportInternalError(err);
+}

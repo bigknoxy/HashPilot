@@ -238,6 +238,88 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 
 ---
 
+## Exit Codes
+
+Every command exits with a stable code so agents and CI can branch on the result
+without parsing text.
+
+| Code | Meaning | What to do |
+|------|---------|-----------|
+| `0` | Success | Continue |
+| `1` | Usage error — bad arguments, denied path, unsupported operation | Fix the invocation |
+| `2` | Edit failed | Try another route or report |
+| `3` | Stale anchor / precondition failed | **Retryable:** re-read and retry with the fresh hash |
+| `4` | Verification failed (format/lint/test) | Inspect the verify output |
+| `5` | I/O error | Check the path and permissions |
+| `70` | Internal error | File a bug |
+
+Batch commands return the worst code across all items.
+
+---
+
+## Where HashPilot Will Write
+
+By default HashPilot only writes inside the project root (the nearest ancestor
+containing `.git`). Anything else fails with `PATH_DENIED` and exit code `1`.
+
+```bash
+structured-edit --allowed-root /srv/generated ast rename-symbol ...   # widen for one run
+structured-edit --allow-outside-root ...                              # disable containment
+```
+
+```json
+{ "allowedRoots": ["/srv/generated"] }
+```
+
+Some locations are **never** writable, and neither `allowedRoots` nor
+`--allow-outside-root` re-enables them: `~/.ssh`, `~/.aws`, `~/.gnupg`, `/etc`,
+shell startup files (`~/.zshrc`, `~/.bashrc`, `~/.profile`), and HashPilot's own
+telemetry log. Symlinks are resolved before the check, so a link inside the
+project that points outside it is still refused.
+
+---
+
+## Telemetry and Privacy
+
+HashPilot writes a local JSONL event log to `~/.agentic-tools/logs/`. Nothing is
+ever sent off the machine.
+
+**Turning it off** — highest priority first:
+
+```bash
+structured-edit --no-telemetry ast rename-symbol ...   # one invocation
+export HASHPILOT_TELEMETRY=0                           # whole shell (also: false, off, no)
+```
+
+```json
+{ "telemetry": { "enabled": false } }
+```
+
+**What is in the log.** Operation name, route, file path, language, success,
+elapsed time, and any `--actor` / `--task-id` / `--reason` you pass. Source code
+is *not* recorded by default: the log holds content hashes, not content.
+
+**Diff capture is opt-in.** Setting `provenance.captureDiffs` records a unified
+diff of each edit, which puts real source lines on disk in plaintext:
+
+```json
+{ "provenance": { "captureDiffs": true } }
+```
+
+Even then, files that are secret by definition are never diffed — `.env*`,
+`*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa`/`id_ed25519`, `credentials`,
+`.npmrc`, `.netrc`, `secrets.{yaml,json,toml}`. Their hashes still record *that*
+the file changed.
+
+**Redaction.** Everything written to the log is scrubbed for credential shapes
+first — AWS keys, OpenAI/Anthropic/GitHub/Slack/Google tokens, JWTs, private-key
+blocks, `Authorization` headers, passwords in connection strings, and any
+`secret`/`token`/`password`/`api_key`-named assignment. Matches are replaced with
+`[REDACTED]`. The log directory is created `0700` and the log file `0600`;
+pre-existing logs from older versions are tightened on the next write.
+
+---
+
 ## Integrations
 
 HashPilot installs adapters for the three major coding agent platforms:
@@ -306,9 +388,14 @@ Layered config. Highest priority wins:
     "operationOverrides": { "add-import": "diff" },
     "conflictResolution": "operation"
   },
-  "telemetry": { "enabled": true }
+  "telemetry": { "enabled": true },
+  "provenance": { "captureDiffs": false },
+  "allowedRoots": []
 }
 ```
+
+See [Telemetry and Privacy](#telemetry-and-privacy) and
+[Where HashPilot Will Write](#where-hashpilot-will-write) for what those last two do.
 
 ---
 
@@ -318,7 +405,7 @@ Layered config. Highest priority wins:
 git clone https://github.com/bigknoxy/HashPilot.git
 cd HashPilot
 bun install
-bun test              # 344 tests, 96.68% line coverage
+bun test              # 424 tests
 bun run build         # Build CLI to dist/
 bun test tests/hash-edit.test.ts   # Single test file
 bun test -t "test name pattern"    # Filter by test name
@@ -352,3 +439,11 @@ Active development. Core editing engine, AST operations, telemetry, and all thre
 **Docs policy:** The landing page (README.md) and [design doc](docs/ARCHITECTURE.md) are living documents. Every PR that touches `src/` must update one or both. Every deploy is verified with browser automation. See the CI check `docs-verify`.
 
 v1.3.1 — [Release notes](https://github.com/bigknoxy/HashPilot/releases)
+
+<!-- agent-skills:doc-keeper:start -->
+## Reference (auto-tracked by doc-keeper)
+
+### Environment Variables
+- `HASHPILOT_TELEMETRY`: set to `0`/`false`/`off`/`no` to disable telemetry logging. Overridden by `--no-telemetry`.
+- `HASHPILOT_ROUTE_POLICY`: JSON route policy, highest-priority config layer.
+<!-- agent-skills:doc-keeper:end -->

@@ -8,6 +8,7 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { configureWriteBoundary, resetWriteBoundary } from "../src/core/paths";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hashpilot-diff-"));
 const testFile = path.join(tmpDir, "test.txt");
@@ -21,6 +22,8 @@ function readFile(): string {
 }
 
 beforeAll(() => {
+  // Fixtures live in the OS temp dir, outside the project write boundary.
+  configureWriteBoundary({ allowedRoots: [tmpDir] });
   writeFile(`line1
 line2
 line3
@@ -34,6 +37,7 @@ line10`);
 });
 
 afterAll(() => {
+  resetWriteBoundary();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

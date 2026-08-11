@@ -1,3 +1,4 @@
+import { safeWrite } from "./paths";
 export interface Hunk {
   oldStart: number;
   oldLines: number;
@@ -264,7 +265,7 @@ export async function applyPatch(
 
   if (result.success && result.newSource && !dryRun) {
     try {
-      await Bun.write(filePath, result.newSource);
+      await safeWrite(filePath, result.newSource);
     } catch {
       return { success: false, hunksApplied: result.hunksApplied, hunksFailed: result.hunksFailed, message: `Cannot write file: ${filePath}` };
     }

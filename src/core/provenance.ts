@@ -2,6 +2,7 @@ import { exportEvents, type TelemetryEvent } from "./telemetry";
 import { computeHash } from "./read";
 import { generateUnifiedDiff } from "./diff-engine";
 import { loadConfig, type HashPilotConfig } from "./config";
+import { isSensitiveFile, redactSecrets } from "./redact";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -56,8 +57,13 @@ function getConfig(): HashPilotConfig {
   return _cachedConfig;
 }
 
-export function clearConfigCache(): void {
-  _cachedConfig = null;
+/**
+ * Drop the cached config so the next call re-reads it. Pass an override to pin
+ * a config instead of loading from disk (tests use this to exercise opt-in
+ * behavior like `provenance.captureDiffs` without touching the user's files).
+ */
+export function clearConfigCache(override?: HashPilotConfig): void {
+  _cachedConfig = override ?? null;
 }
 
 // ── Factory ────────────────────────────────────────────────────────────
@@ -90,11 +96,15 @@ export function buildProvenanceFields(input: ProvenanceInput): Partial<Telemetry
 
   if (input.source !== undefined && input.newSource !== undefined) {
     fields.afterHash = computeHash(input.newSource);
-    if (input.source !== input.newSource) {
-      fields.diff = generateUnifiedDiff(
+    // Diff capture is opt-in and never applies to files that are secret by
+    // definition. Hashes still record *that* the file changed.
+    const captureDiffs = config.provenance?.captureDiffs === true;
+    const sensitive = input.filePath !== undefined && isSensitiveFile(input.filePath);
+    if (captureDiffs && !sensitive && input.source !== input.newSource) {
+      fields.diff = redactSecrets(generateUnifiedDiff(
         input.source, input.newSource,
         input.filePath ? input.filePath.replace(/^\//, "") : "unknown", 3
-      );
+      ));
     }
   }
 

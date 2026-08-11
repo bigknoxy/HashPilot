@@ -140,9 +140,37 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 - `provenanceQuery(file, line?)`: Shows edit history per file/line
 - Like `git blame` for agent edits
 - Records: actor, taskId, reason, timestamp, operation, file, hash
+- Unified diffs are **opt-in** (`provenance.captureDiffs`, default off) and are
+  never captured for files `isSensitiveFile` matches; hashes still record that
+  the file changed
+
+#### `src/paths.ts` — Write Boundary
+- `assertWritable(path, opts)`: resolves symlinks, then requires the target to sit
+  inside the project root (or an explicitly allowed root). Otherwise `PATH_DENIED`.
+- Hard deny-list that no option can override: `~/.ssh`, `~/.aws`, `~/.gnupg`,
+  `/etc`, shell startup files, and HashPilot's own telemetry log. Deny targets are
+  themselves realpath-resolved (on macOS `/etc` is a symlink to `/private/etc`).
+- Widened by `allowedRoots` in config or `--allowed-root`; disabled by `--allow-outside-root`.
+- `safeWrite` is the single write path used by every edit route.
+
+#### `src/exit-codes.ts` — Agent-Facing Exit Contract
+- Maps `ErrorCode` → process exit code: `0` ok, `1` usage, `2` edit failed,
+  `3` stale/precondition (retryable), `4` verify failed, `5` I/O, `70` internal.
+- `finish(payload)` prints JSON and sets the code; batch commands take the worst.
+
+#### `src/redact.ts` — Credential Scrubbing
+- `redactSecrets(text)`: replaces credential shapes (AWS, OpenAI, Anthropic,
+  GitHub, Slack, Google, JWT, private-key blocks, auth headers, connection-string
+  passwords, and secret-named assignments) with `[REDACTED]`.
+- `isSensitiveFile(path)`: basename denylist (`.env*`, `*.pem`, `*.key`, `id_rsa`,
+  `credentials`, `.npmrc`, `.netrc`, `secrets.*`) used to suppress diff capture.
+- `redactEvent(event)`: recursive walk applied to every telemetry record.
 
 #### `src/telemetry.ts` — Structured JSONL Logging
-- Logs to `~/.agentic-tools/logs/`
+- Logs to `~/.agentic-tools/logs/` (dir `0700`, file `0600`; older logs tightened on write)
+- Kill switch, highest priority first: `--no-telemetry` → `HASHPILOT_TELEMETRY=0`
+  → `telemetry.enabled` in config → on
+- Every record passes through `redactEvent` before it is written
 - Every CLI command records: operation name, route, file, language, success, elapsed_ms
 - Health reports with threshold warnings:
   - Stale-anchor rate (warns >10%)
@@ -443,3 +471,7 @@ Every deploy to GitHub Pages **must** be verified with browser automation:
 6. **After every deploy:** Browser-verify the live site (see Post-Deploy Verification above).
 
 The CI check `docs-verify` enforces rule 5 — if `src/` files change but neither landing nor design doc changes, the PR fails.
+
+---
+
+_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation)._

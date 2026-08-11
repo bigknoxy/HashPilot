@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { parseIntent, findSymbolDefinition, findReferences, generatePlan } from "../src/core/intent";
+import { parseIntent, findSymbolDefinition, findReferences, generatePlan, UnsupportedIntentError } from "../src/core/intent";
 import { executePlan, executeIntent } from "../src/core/plan-executor";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
@@ -99,16 +99,15 @@ describe("parseIntent", () => {
     }
   });
 
-  test("parses remove-parameter intent", () => {
-    const intent = parseIntent(JSON.stringify({
+  test("refuses remove-parameter instead of planning a no-op", () => {
+    // It was accepted but never implemented: the plan emitted an unmatchable
+    // `/* TODO: remove arg */` search string at each call site and reported
+    // success. Refusing at parse time is the honest answer.
+    expect(() => parseIntent(JSON.stringify({
       operation: "remove-parameter",
       symbol: "greet",
       paramName: "name",
-    }));
-    expect(intent.operation).toBe("remove-parameter");
-    if (intent.operation === "remove-parameter") {
-      expect(intent.paramName).toBe("name");
-    }
+    }))).toThrow(UnsupportedIntentError);
   });
 
   test("parses rename-exported-symbol intent", () => {
@@ -277,16 +276,32 @@ describe("generatePlan", () => {
     expect(plan.steps[0].params.newName).toBe("sayHello");
   });
 
-  test("generates remove-parameter plan", () => {
+  test("generatePlan also refuses remove-parameter", () => {
     const def = { file: FILE_A, name: "process", kind: "function_declaration", line: 8, column: 17 };
     const refs = [{ file: FILE_C, line: 4, column: 3, context: 'process("test", 1)' }];
-    const plan = generatePlan(
-      { operation: "remove-parameter", symbol: "process", paramName: "count" },
+    expect(() => generatePlan(
+      { operation: "remove-parameter", symbol: "process", paramName: "count" } as never,
       def,
       refs
-    );
-    expect(plan.steps.length).toBeGreaterThanOrEqual(1);
-    expect(plan.steps[0].operation).toBe("remove-import");
+    )).toThrow(UnsupportedIntentError);
+  });
+
+  // A TODO placeholder is fine as *inserted* text (add-parameter emits one as
+  // the new argument for a caller to fill in), but never as text the step has
+  // to find in the file — that step can only ever fail.
+  test("no plan step searches for a TODO placeholder", () => {
+    const def = { file: FILE_A, name: "greet", kind: "function_declaration", line: 1, column: 17 };
+    const refs = [{ file: FILE_C, line: 4, column: 3, context: 'greet("test")' }];
+    for (const intent of [
+      { operation: "add-parameter", symbol: "greet", param: { name: "x", type: "string" } },
+      { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+    ] as never[]) {
+      for (const step of generatePlan(intent, def, refs).steps) {
+        for (const key of ["oldContent", "oldName", "search", "content"]) {
+          expect(String(step.params[key] ?? "")).not.toContain("TODO:");
+        }
+      }
+    }
   });
 });
 

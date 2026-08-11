@@ -1,6 +1,7 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { chooseRoute, routeEdit } from "../src/core/router";
 import { computeHash } from "../src/core/read";
+import { configureWriteBoundary, resetWriteBoundary } from "../src/core/paths";
 import { loadConfig, policyForce } from "../src/core/config";
 import type { RoutePolicy } from "../src/core/config";
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from "fs";
@@ -127,6 +128,11 @@ describe("config loading", () => {
 
 describe("routeEdit", () => {
   const tmpDir = "/tmp/hashpilot-route-edit-tests";
+
+  // These fixtures live outside the repo, so the write boundary has to be told
+  // about them explicitly.
+  beforeAll(() => configureWriteBoundary({ allowedRoots: [tmpDir] }));
+  afterAll(() => resetWriteBoundary());
 
   function setup(filePath: string, content: string) {
     mkdirSync(tmpDir, { recursive: true });
@@ -401,7 +407,9 @@ describe("routeEdit", () => {
     const file = `${tmpDir}/policy.ts`;
     setup(file, "function xyz() { return 1; }\n");
     const policy: RoutePolicy = { languageOverrides: { typescript: "hash" } };
-    const hash = computeHash("function xyz() { return 1; }");
+    // Whole-file anchor: must include the trailing newline. A mismatch here is
+    // now a hard failure rather than a silent whole-file overwrite.
+    const hash = computeHash("function xyz() { return 1; }\n");
     const result = await routeEdit({
       filePath: file,
       operation: "rename-symbol",

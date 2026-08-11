@@ -34,7 +34,7 @@ HashPilot is a global, tool-agnostic structured editing core for coding agents. 
 ### Three-tier edit hierarchy
 
 1. **AST** — tree-sitter based syntax-aware edits (rename-symbol, replace-body, add/remove-import, insert-before/after). Only available for supported languages.
-2. **Hash** — SHA-256 anchored content replacement. Read a file (with hash), then replace by referencing that hash. Detects stale anchors (file changed since read) and auto-recovers.
+2. **Hash** — SHA-256 anchored content replacement. Read a file (with hash), then replace by referencing that hash. Detects stale anchors (file changed since read) and relocates the anchor when the content moved and appears exactly once; otherwise it refuses rather than overwriting.
 3. **Diff** — Search-and-replace fallback for unsupported languages/operations. Accepts oldContent + newContent, detects duplicates, fails with disambiguation hints.
 
 Supported AST languages: TypeScript, TSX, JavaScript, Python, Go, Rust. `.d.ts` files are excluded from AST editing.
@@ -47,7 +47,7 @@ All core modules live in `src/core/` (paths below are relative to it).
 |--------|---------------|
 | `src/cli.ts` | Commander-based CLI entry point. Every command records a telemetry event. |
 | `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove (with per-language configs for import formatting and grouped import handling). |
-| `hash-edit.ts` | SHA-256 anchored content replacement with stale-anchor auto-recovery. |
+| `hash-edit.ts` | SHA-256 anchored content replacement with relocation-based stale-anchor recovery and strict range validation. |
 | `diff-engine.ts` | LCS-based unified diff generation and patch application with fuzzy matching. |
 | `read.ts` | `read-many` (batch file reads with SHA-256 hashes) and `read-hash` (single line with context hashes). |
 | `grep.ts` | `grep-many` (regex search via system grep) and `symbol-lookup-many` (regex-based symbol definition search). |
@@ -56,6 +56,9 @@ All core modules live in `src/core/` (paths below are relative to it).
 | `plan-executor.ts` | **M5** — Executes `EditPlan` steps through the router with dry-run, verify, and revert-on-failure support. `executeIntent()` is the top-level entry point: parse → resolve → plan → execute. |
 | `provenance.ts` | **M6** — Edit history tracking with changeSet IDs. `provenanceQuery(file, line?)` shows who changed what and why (like `git blame` for agent edits). |
 | `config.ts` | Configuration loading with merge priority: env var > CLI arg > project `.hashpilot.json` > global `~/.config/hashpilot/config.json` > defaults. |
+| `paths.ts` | Write boundary. `assertWritable`/`safeWrite` confine every write to the project root (widened by `allowedRoots`), with a hard deny-list (`~/.ssh`, `~/.aws`, `/etc`, shell rc files, the telemetry log) that no flag overrides. Symlinks are resolved on both sides before comparison. |
+| `exit-codes.ts` | Maps `ErrorCode` to process exit codes (0 ok · 1 usage · 2 edit failed · 3 stale/retryable · 4 verify failed · 5 I/O · 70 internal). `finish()` prints JSON and sets the code. |
+| `redact.ts` | Credential scrubbing for anything written to the telemetry log: `redactSecrets`, `isSensitiveFile`, `redactEvent`. |
 | `batch-edit.ts` | Batch editing — applies the same edit to multiple files in parallel (`editMany`) or serially (`editManySerial`). |
 | `verify.ts` | `verify-changes` — runs formatter, linter, and tests on specified files. All checks are opt-in via CLI flags. Auto-detects tools from `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`. |
 | `telemetry.ts` | JSONL telemetry logging to `~/.agentic-tools/logs/`. Includes health reports with threshold warnings (stale-anchor rate, diff fallback rate, verify failure rate, per-language failure rate) and trend comparison. |
@@ -83,7 +86,7 @@ Route policies can override routing per language or per operation, with configur
 
 ### Gotchas
 
-- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 344 pass / 0 fail.
+- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 424 pass / 0 fail.
 - **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`. The router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 
 ### Adapter integrations
