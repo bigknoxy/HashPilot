@@ -607,6 +607,9 @@ program
         if (result.execution.verification) {
           console.log(`Verification: ${result.execution.verification.overall}`);
         }
+        // Human output still has to carry the exit contract — an agent may run
+        // without --json and branch on the code.
+        process.exitCode = exitCodeFor(result);
       }
     } catch (err: any) {
       console.error(`Intent failed: ${err.message}`);
@@ -736,7 +739,9 @@ telCmd
   .description("Show recent telemetry events")
   .option("-n, --limit <n>", "Number of events", "20")
   .action(async (opts) => {
-    const events = readEvents(parseInt(opts.limit));
+    const limit = parseIntFlag(opts.limit, "--limit", 20);
+    if (typeof limit === "object") return usageError(limit.error);
+    const events = readEvents(limit);
     finish(events);
   });
 
@@ -753,13 +758,9 @@ telCmd
   .option("-w, --window <days>", "Time window in days", "7")
   .option("-t, --trend", "Compare current window to previous window")
   .action((opts) => {
-    if (opts.trend) {
-      const report = healthTrend(parseInt(opts.window));
-      finish(report);
-    } else {
-      const report = health(parseInt(opts.window));
-      finish(report);
-    }
+    const window = parseIntFlag(opts.window, "--window", 7);
+    if (typeof window === "object") return usageError(window.error);
+    finish(opts.trend ? healthTrend(window) : health(window));
   });
 
 telCmd
@@ -850,6 +851,7 @@ provCmd
       console.log(`Edits: ${result.editCount}`);
       console.log(`Time: ${result.timeRange.first} -- ${result.timeRange.last}\n`);
       console.log(formatProvenanceHuman(result.entries));
+      process.exitCode = exitCodeFor(result);
     } else {
       finish(result);
     }
@@ -907,6 +909,11 @@ program
     finish(config);
   });
 
+/** Node syscall codes that mean "the filesystem said no", not "HashPilot has a bug". */
+const IO_SYSCALL_CODES = new Set([
+  "ENOENT", "EACCES", "EPERM", "EISDIR", "ENOTDIR", "ENOSPC", "EROFS", "EMFILE", "ENFILE", "EBUSY",
+]);
+
 /**
  * Nothing below a command action should ever surface a raw stack trace to an
  * agent parsing stdout. Uncaught failures exit 70 with the same JSON envelope
@@ -916,6 +923,23 @@ function reportInternalError(err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
   if (err instanceof PathDeniedError) {
     finish({ success: false, errorCode: err.errorCode, path: err.path, message }, ExitCode.USAGE);
+    return;
+  }
+  // Commander's async actions reject outside the try/catch around `parse()`,
+  // so a plain missing file lands here. Those are ordinary I/O failures, not
+  // HashPilot bugs — reporting them as exit 70 tells an agent to file a bug
+  // report instead of fixing its path.
+  const syscall = (err as { code?: string } | undefined)?.code;
+  if (syscall !== undefined && IO_SYSCALL_CODES.has(syscall)) {
+    finish(
+      {
+        success: false,
+        errorCode: syscall === "ENOENT" ? ErrorCode.FILE_NOT_FOUND : ErrorCode.WRITE_FAILED,
+        message,
+        recovery: "Check that the path exists and is readable and writable.",
+      },
+      ExitCode.IO,
+    );
     return;
   }
   finish(
