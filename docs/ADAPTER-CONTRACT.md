@@ -825,7 +825,12 @@ All commands return JSON with:
 
 **Error codes:** `PARSE_ERROR`, `SYMBOL_NOT_FOUND`, `STALE_ANCHOR`,
 `AMBIGUOUS_ANCHOR`, `HASH_MISMATCH`, `INVALID_ARGUMENT`, `PATH_DENIED`,
-`UNSUPPORTED_OPERATION`, `FILE_NOT_FOUND`, `WRITE_FAILED`, `VERIFY_FAILED`.
+`UNSUPPORTED_OPERATION`, `FILE_NOT_FOUND`, `READ_FAILED`, `WRITE_FAILED`,
+`VERIFY_FAILED`.
+
+`READ_FAILED` means the file exists but could not be read (permissions, a
+directory in its place, a device error) — distinct from `FILE_NOT_FOUND`.
+Telemetry queries raise it rather than reporting a broken log as an empty one.
 
 ## Exit Codes
 
@@ -838,7 +843,7 @@ Branch on the exit code, not on stderr text.
 | `2` | Edit failed — the operation ran but could not be applied | Try another route or report |
 | `3` | Stale anchor / precondition failed | **Retryable:** re-read the file and reissue with the fresh hash |
 | `4` | Verification failed — the edit applied but format/lint/test did not pass | Inspect the verify output; the edit may have been reverted |
-| `5` | I/O error — file not found, write failed | Check the path and permissions |
+| `5` | I/O error — file not found, unreadable, or write failed | Check the path and permissions |
 | `70` | Internal error | Report a bug |
 
 Batch commands return the worst code across all items; an all-success batch

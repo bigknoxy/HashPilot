@@ -21,6 +21,8 @@ import {
   verifyChanges,
   recordEvent,
   readEvents,
+  lastReadSkipped,
+  TelemetryReadError,
   clearEvents,
   summary,
   health,
@@ -730,6 +732,18 @@ program
     finish(result);
   });
 
+/**
+ * Corruption must be visible. The query payloads are a published contract
+ * (docs/ADAPTER-CONTRACT.md), so the count of unparseable lines goes to stderr
+ * rather than into the JSON an agent parses off stdout.
+ */
+function warnSkipped(): void {
+  const skipped = lastReadSkipped();
+  if (skipped > 0) {
+    console.error(`warning: skipped ${skipped} malformed telemetry line(s) — the log is corrupt`);
+  }
+}
+
 const telCmd = program
   .command("telemetry")
   .description("View or manage telemetry");
@@ -742,6 +756,7 @@ telCmd
     const limit = parseIntFlag(opts.limit, "--limit", 20);
     if (typeof limit === "object") return usageError(limit.error);
     const events = readEvents(limit);
+    warnSkipped();
     // A telemetry event's `success` field describes the operation it recorded,
     // not this query. Letting `finish` infer the code turns "your log contains a
     // failure" into "the query failed" (exit 2). Reads that complete are exit 0.
@@ -752,8 +767,10 @@ telCmd
   .command("summary")
   .description("Show telemetry summary")
   .action(() => {
+    const result = summary();
+    warnSkipped();
     // Read-only query: see the note on `telemetry show`.
-    finish(summary(), ExitCode.OK);
+    finish(result, ExitCode.OK);
   });
 
 telCmd
@@ -764,8 +781,10 @@ telCmd
   .action((opts) => {
     const window = parseIntFlag(opts.window, "--window", 7);
     if (typeof window === "object") return usageError(window.error);
+    const report = opts.trend ? healthTrend(window) : health(window);
+    warnSkipped();
     // Read-only query: see the note on `telemetry show`.
-    finish(opts.trend ? healthTrend(window) : health(window), ExitCode.OK);
+    finish(report, ExitCode.OK);
   });
 
 telCmd
@@ -781,6 +800,7 @@ telCmd
   .description("List session summaries")
   .action(() => {
     const sessions = listSessions();
+    warnSkipped();
     // Read-only query: see the note on `telemetry show`.
     finish(sessions, ExitCode.OK);
   });
@@ -797,6 +817,7 @@ telCmd
       to: opts.to ? new Date(opts.to) : undefined,
       sessionId: opts.session,
     });
+    warnSkipped();
     // NDJSON: one compact object per line, so `finish` (which pretty-prints a
     // single payload and sets the exit code) is not the right tool here.
     for (const e of events) {
@@ -927,6 +948,21 @@ const IO_SYSCALL_CODES = new Set([
  */
 function reportInternalError(err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
+  if (err instanceof TelemetryReadError) {
+    // A log that exists but cannot be read is an I/O failure, not an empty log.
+    // Returning `[]` here would report a broken telemetry store as a healthy one.
+    finish(
+      {
+        success: false,
+        errorCode: ErrorCode.READ_FAILED,
+        path: err.file,
+        message,
+        recovery: "Check that the telemetry log is readable, or run `structured-edit telemetry clear`.",
+      },
+      ExitCode.IO,
+    );
+    return;
+  }
   if (err instanceof PathDeniedError) {
     finish({ success: false, errorCode: err.errorCode, path: err.path, message }, ExitCode.USAGE);
     return;

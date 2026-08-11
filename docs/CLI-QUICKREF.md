@@ -50,6 +50,11 @@ exit code — read `telemetry health`.
 `-n 0` returns `[]`. (It used to return the entire log, because `slice(-0)` is
 `slice(0)`.)
 
+A read that *cannot complete* is the exception: if the log exists but is
+unreadable, the query exits `5` with `errorCode: "READ_FAILED"` instead of
+returning `[]`. Malformed lines are skipped, counted, and reported on stderr
+(`warning: skipped N malformed telemetry line(s)`) — stdout keeps its shape.
+
 ### The telemetry subcommand is `show`, not `recent`
 
 `structured-edit telemetry show -n 50`. Siblings: `summary`, `health`, `clear`,

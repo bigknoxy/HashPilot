@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
   recordEvent,
   readEvents,
+  lastReadSkipped,
+  TelemetryReadError,
   clearEvents,
   summary,
   health,
@@ -16,7 +18,7 @@ import {
   MAX_ROTATED_FILES,
   RETENTION_DAYS,
 } from "../src/core/telemetry";
-import { existsSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
+import { appendFileSync, existsSync, writeFileSync, mkdirSync, rmSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const LOG_DIR = join(process.env.HOME || "/root", ".agentic-tools", "logs");
@@ -429,5 +431,61 @@ describe("health", () => {
     expect(trend.changes).toBeDefined();
     expect(typeof trend.changes.totalEventsDelta).toBe("number");
     expect(typeof trend.changes.errorRateDelta).toBe("number");
+  });
+});
+
+describe("a broken log is not an empty log", () => {
+  beforeEach(() => clearEvents());
+  afterEach(() => {
+    // A directory at LOG_FILE survives clearEvents(), so remove it explicitly.
+    try { rmSync(LOG_FILE, { recursive: true, force: true }); } catch {}
+    clearEvents();
+  });
+
+  test("no log at all is an empty read, not an error", () => {
+    if (existsSync(LOG_FILE)) unlinkSync(LOG_FILE);
+    expect(readEvents(10)).toEqual([]);
+    expect(lastReadSkipped()).toBe(0);
+  });
+
+  test("a log that exists but cannot be read throws instead of returning []", () => {
+    if (existsSync(LOG_FILE)) unlinkSync(LOG_FILE);
+    // A directory where the log should be: readFileSync fails with EISDIR on
+    // every platform, without depending on the test user not being root.
+    mkdirSync(LOG_FILE, { recursive: true });
+    expect(() => readEvents(10)).toThrow(TelemetryReadError);
+    expect(() => health(7)).toThrow(TelemetryReadError);
+  });
+
+  test("malformed lines are counted, not silently dropped", () => {
+    recordEvent({ operation: "test-good", route: "other", success: true, elapsed_ms: 1 });
+    appendFileSync(LOG_FILE, "{not json\n");
+    recordEvent({ operation: "test-good-2", route: "other", success: true, elapsed_ms: 1 });
+
+    const events = readEvents(100);
+    expect(events.map((e) => e.operation)).toEqual(["test-good", "test-good-2"]);
+    expect(lastReadSkipped()).toBe(1);
+  });
+
+  test("the skipped count resets between reads", () => {
+    recordEvent({ operation: "test-good", route: "other", success: true, elapsed_ms: 1 });
+    appendFileSync(LOG_FILE, "{not json\n");
+    readEvents(100);
+    expect(lastReadSkipped()).toBe(1);
+
+    clearEvents();
+    recordEvent({ operation: "test-good", route: "other", success: true, elapsed_ms: 1 });
+    readEvents(100);
+    expect(lastReadSkipped()).toBe(0);
+  });
+
+  test("`limit` still counts events, not lines, when the log is corrupt", () => {
+    for (let i = 0; i < 3; i++) {
+      recordEvent({ operation: `test-${i}`, route: "other", success: true, elapsed_ms: 1 });
+      appendFileSync(LOG_FILE, "garbage\n");
+    }
+    const events = readEvents(2);
+    expect(events.map((e) => e.operation)).toEqual(["test-1", "test-2"]);
+    expect(lastReadSkipped()).toBe(3);
   });
 });
