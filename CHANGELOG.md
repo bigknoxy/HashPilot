@@ -1,3 +1,15 @@
+# [3.0.0](https://github.com/bigknoxy/HashPilot/compare/v2.1.2...v3.0.0) (2026-08-11)
+
+
+* feat!: emit one uniform JSON envelope from every command ([#63](https://github.com/bigknoxy/HashPilot/issues/63)) ([5a73c0c](https://github.com/bigknoxy/HashPilot/commit/5a73c0c32b5d2623e09e51c759f0bdb538727788)), closes [#18](https://github.com/bigknoxy/HashPilot/issues/18) [#56](https://github.com/bigknoxy/HashPilot/issues/56)
+
+
+### BREAKING CHANGES
+
+* JSON output is wrapped in an envelope. Read `.data` where you
+previously read the root, and `.error.code` where you read `.errorCode`.
+Migration notes in docs/ADAPTER-CONTRACT.md.
+
 ## [2.1.2](https://github.com/bigknoxy/HashPilot/compare/v2.1.1...v2.1.2) (2026-08-11)
 
 
