@@ -469,6 +469,7 @@ structured-edit intent [options] <intent>
 |------|---------|
 | `--project-root <dir>` | Project root directory |
 | `--dry-run` | Preview plan without modifying files |
+| `--yes` | Apply the plan even though part of the intent could not be resolved |
 | `--no-verify` | Skip verification after execution |
 | `--no-revert` | Don't roll back on failure |
 | `--timeout <ms>` | Timeout per operation in ms (default: "30000") |

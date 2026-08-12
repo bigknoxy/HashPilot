@@ -32,6 +32,10 @@ export interface PlanResult {
   };
   verification?: VerifyResult;
   reverted: boolean;
+  /** Set when the plan was refused outright; drives the process exit code. */
+  errorCode?: string;
+  /** Work the planner could not compute. Non-empty means the plan was partial. */
+  unresolved: EditPlan["unresolved"];
 }
 
 // ── Plan execution ────────────────────────────────────────────────────
@@ -47,6 +51,8 @@ export async function executePlan(
     taskId?: string;
     reason?: string;
     context?: string;
+    /** Proceed even though part of the intent could not be planned. */
+    yes?: boolean;
   } = {}
 ): Promise<PlanResult> {
   const start = Date.now();
@@ -54,6 +60,23 @@ export async function executePlan(
   const doVerify = options.verify ?? true;
   const doRevert = options.revertOnFailure ?? true;
   const timeout = options.timeout ?? 30000;
+  const unresolved = plan.unresolved ?? [];
+
+  // A partial plan is refused rather than half-applied: applying only the
+  // signature edit and leaving every call site alone breaks the build, and the
+  // caller has no way to know it happened unless we stop and say so (#16).
+  if (unresolved.length > 0 && !options.yes) {
+    return {
+      success: false,
+      intent: plan.intent,
+      plan,
+      steps: [],
+      summary: { totalSteps: plan.steps.length, succeeded: 0, failed: 0, elapsed_ms: Date.now() - start },
+      reverted: false,
+      errorCode: "UNSUPPORTED_OPERATION",
+      unresolved,
+    };
+  }
 
   const planActor = options.actor;
   const planTaskId = options.taskId;
@@ -229,6 +252,7 @@ export async function executePlan(
     },
     verification,
     reverted,
+    unresolved,
   };
 }
 
@@ -238,6 +262,8 @@ export interface IntentResult {
   success: boolean;
   plan: EditPlan;
   execution: PlanResult;
+  /** Mirrors `execution.errorCode` so the CLI's exit-code mapping sees it. */
+  errorCode?: string;
 }
 
 /**
@@ -256,6 +282,7 @@ export async function executeIntent(
     taskId?: string;
     reason?: string;
     context?: string;
+    yes?: boolean;
   } = {}
 ): Promise<IntentResult> {
   const intent = parseIntent(rawIntent);
@@ -271,5 +298,5 @@ export async function executeIntent(
   const plan = generatePlan(intent, definition, references);
   const execution = await executePlan(plan, options);
 
-  return { success: execution.success, plan, execution };
+  return { success: execution.success, plan, execution, errorCode: execution.errorCode };
 }

@@ -60,7 +60,7 @@ All core modules live in `src/core/` (paths below are relative to it).
 | `read.ts` | `read-many` (batch file reads with SHA-256 hashes) and `read-hash` (single line with context hashes). |
 | `grep.ts` | `grep-many` (regex search via system grep) and `symbol-lookup-many` (regex-based symbol definition search). |
 | `router.ts` | Route selection and dispatch. `chooseRoute` determines AST vs hash vs diff. `routeEdit` is the unified execution entry point that auto-routes and applies the edit. |
-| `intent.ts` | **M5** — Parses structured intents (e.g. `{"operation":"add-parameter","symbol":"fn","param":{"name":"x"}}`), resolves symbol definitions and references, generates an `EditPlan` with ordered steps and blast radius summary. |
+| `intent.ts` | **M5** — Parses structured intents (e.g. `{"operation":"add-parameter","symbol":"fn","param":{"name":"x"}}`), resolves symbol definitions and references, generates an `EditPlan` with ordered steps and blast radius summary. An edit the planner cannot compute (e.g. `add-parameter` with no default, so there is no call-site argument) is recorded as an `unresolved` item rather than written into the source as a placeholder comment. |
 | `plan-executor.ts` | **M5** — Executes `EditPlan` steps through the router with dry-run, verify, and revert-on-failure support. `executeIntent()` is the top-level entry point: parse → resolve → plan → execute. |
 | `provenance.ts` | **M6** — Edit history tracking with changeSet IDs. `provenanceQuery(file, line?)` shows who changed what and why (like `git blame` for agent edits). |
 | `config.ts` | Configuration loading with merge priority: env var > CLI arg > project `.hashpilot.json` > global `~/.config/hashpilot/config.json` > defaults. |
@@ -95,7 +95,7 @@ Route policies can override routing per language or per operation, with configur
 
 ### Gotchas
 
-- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 537 pass / 0 fail.
+- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 553 pass / 0 fail.
 - **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`. The router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 
 ### Adapter integrations

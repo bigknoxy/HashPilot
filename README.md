@@ -248,6 +248,13 @@ demoted large files to the diff route.
 | `intent <json>` | Declarative multi-file edit — plan, discover references, execute |
 | `route <file> <operation>` | Preview which route would be chosen |
 
+`intent` never invents source text. If part of the intent cannot be computed —
+`add-parameter` with no `param.default` leaves nothing to pass at the call
+sites — it lists the gap under `plan.unresolved` (`file`, `operation`, `reason`,
+`resolution`) and refuses the whole plan with `UNSUPPORTED_OPERATION` rather
+than applying it halfway. Give the parameter a default, or pass `--yes` to
+apply only the steps it could compute.
+
 ### Verification
 
 | Command | What It Does |

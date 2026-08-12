@@ -596,6 +596,7 @@ program
   .argument("<intent>", "Intent as JSON: {\"operation\":\"add-parameter\",\"symbol\":\"fn\",\"param\":{\"name\":\"x\"}}")
   .option("--project-root <dir>", "Project root directory")
   .option("--dry-run", "Preview plan without modifying files")
+  .option("--yes", "Apply the plan even though part of the intent could not be resolved")
   .option("--no-verify", "Skip verification after execution")
   .option("--no-revert", "Don't roll back on failure")
   .option("--timeout <ms>", "Timeout per operation in ms", "30000")
@@ -614,6 +615,7 @@ program
       const result = await executeIntent(intent, {
         projectRoot: opts.projectRoot || process.cwd(),
         dryRun: opts.dryRun,
+        yes: Boolean(opts.yes),
         verify: opts.verify,
         revertOnFailure: opts.revert,
         timeout: parseInt(opts.timeout),
@@ -628,6 +630,10 @@ program
       } else {
         console.log(`Intent: ${result.plan.intent.operation} on '${result.plan.definition.name}'`);
         console.log(`Impact: ${result.plan.impactSummary}`);
+        for (const u of result.plan.unresolved) {
+          console.log(`Unresolved (${u.file}): ${u.reason}`);
+          console.log(`  → ${u.resolution}`);
+        }
         console.log(`Success: ${result.success}`);
         if (result.execution.verification) {
           console.log(`Verification: ${result.execution.verification.overall}`);

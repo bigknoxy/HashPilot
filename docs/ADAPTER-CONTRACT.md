@@ -587,7 +587,7 @@ Execute an editing intent — one command, full blast radius. Parses a structure
 
 **Invocation:**
 ```
-structured-edit intent '<json>' [--project-root <dir>] [--dry-run] [--no-verify] [--no-revert] [--timeout <ms>] [--actor <name>] [--task-id <id>] [--reason <text>] [--context <text>]
+structured-edit intent '<json>' [--project-root <dir>] [--dry-run] [--yes] [--no-verify] [--no-revert] [--timeout <ms>] [--actor <name>] [--task-id <id>] [--reason <text>] [--context <text>]
 ```
 
 **Intent format (JSON):**
@@ -607,10 +607,32 @@ signature plus `diff apply` at each call site.
 ```json
 {
   "success": true,
-  "plan": { "intent": {...}, "definition": {...}, "impactSummary": "..." },
+  "plan": { "intent": {...}, "definition": {...}, "impactSummary": "...", "unresolved": [] },
   "execution": { "steps": [...], "summary": {...}, "verification": {...} }
 }
 ```
+
+**Partial plans (`plan.unresolved`)**
+
+The planner never invents source text. When part of an intent cannot be
+computed — `add-parameter` with no `param.default`, so there is no argument to
+pass at the call sites — it reports the gap instead of writing a placeholder
+comment into your files ([#16](../../issues/16)):
+
+```json
+{
+  "file": "/abs/path/app.py",
+  "operation": "insert-call-arg",
+  "reason": "no default given for 'flag', so the argument to pass at each call site cannot be computed",
+  "resolution": "Re-run with \"param\": {\"name\": \"flag\", \"default\": \"<value>\"}, or edit the call sites in app.py yourself with `diff apply`."
+}
+```
+
+A plan with a non-empty `unresolved` is **refused rather than half-applied**:
+`error.code` is `UNSUPPORTED_OPERATION`, exit code `1`, and nothing is written.
+Supply `param.default` (the fix in almost every case) or pass `--yes` to apply
+only the steps that could be computed — the unresolved call sites stay
+untouched and are still listed in `plan.unresolved`.
 
 ---
 
