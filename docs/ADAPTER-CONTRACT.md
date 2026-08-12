@@ -37,6 +37,28 @@ Two commands keep a raw, unwrapped mode for piping into other tools:
 event per line). `--human` output on `provenance query` and `telemetry` is text, not JSON,
 and is unaffected.
 
+## Parse-validity gate
+
+Every AST operation refuses a file that does not already parse, and reparses its own
+output before the write. Two failure shapes an adapter should expect:
+
+| Situation | `error.code` | Exit | Meaning |
+|-----------|--------------|------|---------|
+| Input has a syntax error | `PARSE_ERROR` | 2 | No edit was attempted. The message carries `line:column` and the offending node. |
+| Edit would corrupt a clean file | `PARSE_ERROR` | 2 | Nothing was written. The file on disk is unchanged. |
+
+Neither is retryable by re-reading — fix the source, or pass the global
+`--allow-parse-errors` flag to waive the *pre*-check when editing a knowingly broken
+file. The post-edit check is never waived for AST edits, because it also catches bugs
+in HashPilot's own offset arithmetic. `replace-hash` honors the flag for its
+post-check, since a hash edit may legitimately be the thing that repairs a broken file.
+
+Hash and diff edits get the post-check too, whenever a parser exists for the language.
+Languages with no tree-sitter grammar (and `.d.ts`) are never gated.
+
+There is no file-size limit on AST edits. Through v3.0.0 sources over 32KB threw
+inside the tree-sitter binding and fell back to the diff route.
+
 ## Command Reference
 
 ### Configuration

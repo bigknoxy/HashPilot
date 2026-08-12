@@ -83,17 +83,28 @@ This masked a genuine exit-70 during review and made a broken build look green.
 
 Batch commands return worst-wins across their files.
 
-### AST edits fail on files ≥ 32 KB
+### `PARSE_ERROR` is not retryable — fix the source
 
-The tree-sitter Node binding rejects `parse(string)` at 32767 characters with a bare
-`Invalid argument`, and the router does not fall back cleanly. Tracked as
-[#55 (B50)](../../issues/55). On a large file, force `--method hash` or `--method diff`.
+Every AST edit refuses a file that does not already parse, and reparses its own output
+before writing. Both refusals surface as `error.code: "PARSE_ERROR"` with exit 2, and the
+message carries `line:column`. Re-reading and retrying will not help; either fix the
+syntax error or pass the global `--allow-parse-errors` (which waives the *pre*-check only —
+an edit that would corrupt a clean file is still discarded).
+
+Hash and diff edits get the post-edit check too, whenever a parser exists for the language.
+
+### File size is not a limit (fixed in v3.1)
+
+Through v3.0.0 the tree-sitter Node binding rejected `parse(string)` at 32767 characters
+with a bare `Invalid argument`, so AST edits silently demoted to the diff route on any
+large file ([#55](../../issues/55)). Source is now streamed to the parser in chunks; there
+is no size ceiling and no reason to force `--method hash` on a big file.
 
 ### `bun install` before anything else
 
 tree-sitter is a native module. Without `node_modules/`, the AST test files abort with
 `Cannot find package 'tree-sitter'` while the rest of the suite passes — the failure
-looks unrelated to AST. Green baseline is `bun test` fully passing.
+looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0 fail).
 
 ---
 
@@ -117,6 +128,7 @@ structured-edit [options] [command]
 | `--allow-outside-root` | Permit writes outside the project root (credentials and system paths stay blocked) |
 | `--allowed-root <dir...>` | Additional directory writes may target |
 | `--no-telemetry` | Disable telemetry logging for this invocation |
+| `--allow-parse-errors` | Edit a file that already has syntax errors (the post-edit parse check still applies) |
 
 ### Command groups
 

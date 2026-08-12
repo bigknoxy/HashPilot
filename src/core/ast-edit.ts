@@ -5,6 +5,7 @@ import JavaScript from "tree-sitter-javascript";
 import Go from "tree-sitter-go";
 import Rust from "tree-sitter-rust";
 import { escapeRegex } from "./utils";
+import { ErrorCode } from "./telemetry";
 
 // Language registry: maps internal language IDs to parser + metadata
 interface LangEntry {
@@ -59,6 +60,34 @@ function getParser(lang: string): Parser | null {
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Chunk size for the callback-form parse. Anything comfortably under the
+ * binding's 32KB marshalling buffer works.
+ */
+const PARSE_CHUNK = 16 * 1024;
+
+/**
+ * Parse source of any size.
+ *
+ * `parser.parse(string)` marshals the whole string through a fixed 32KB buffer
+ * in the node-tree-sitter binding and throws a bare `Invalid argument` at 32767
+ * characters. Every AST operation used that overload, so the top tier of the
+ * edit hierarchy was dead on exactly the large files where a structured edit
+ * beats a hand-written diff (#55). The callback form streams the source in
+ * chunks and has no such limit.
+ */
+export function parseSource(parser: Parser, source: string) {
+  return parser.parse((index: number) => {
+    if (index >= source.length) return null;
+    let end = Math.min(index + PARSE_CHUNK, source.length);
+    // Never split a surrogate pair across chunks — half a code point would
+    // reach the parser as a lone surrogate and corrupt every offset after it.
+    const last = source.charCodeAt(end - 1);
+    if (end < source.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
+    return source.slice(index, end);
+  });
 }
 
 /** Detect language from file path. Returns null for unsupported files. */
@@ -219,6 +248,10 @@ export interface ASTEditResult {
   error?: string;
   newSource?: string;
   symbolFound?: boolean;
+  /** Set when the parse-validity gate rejected the edit. Always PARSE_ERROR. */
+  errorCode?: string;
+  /** Where the offending syntax error is, when `errorCode` is PARSE_ERROR. */
+  parseIssue?: ParseIssue;
 }
 export interface SymbolInfo {
   name: string;
@@ -236,7 +269,7 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
   if (!cfg) return [];
   const parser = getParser(lang);
   if (!parser) return [];
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   const symbols: SymbolInfo[] = [];
 
   function walk(node: Parser.SyntaxNode, depth: number = 0) {
@@ -265,7 +298,7 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
   return symbols;
 }
 
-export function renameSymbol(
+function renameSymbolUnchecked(
   source: string,
   filePath: string,
   oldName: string,
@@ -274,9 +307,9 @@ export function renameSymbol(
   const lang = detectLanguage(filePath);
   if (!lang) return { success: false, path: filePath, operation: "rename-symbol", changes: 0, message: "Unsupported language", error: `Language not supported for file: ${filePath}` };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "rename-symbol", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "rename-symbol", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   let changes = 0;
   const edits: { start: number; end: number; text: string }[] = [];
 
@@ -289,7 +322,7 @@ export function renameSymbol(
   }
   findRefs(tree.rootNode);
 
-  if (changes === 0) return { success: false, path: filePath, operation: "rename-symbol", changes: 0, message: `Symbol '${oldName}' not found` };
+  if (changes === 0) return { success: false, path: filePath, operation: "rename-symbol", changes: 0, message: `Symbol '${oldName}' not found`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   edits.sort((a, b) => b.start - a.start);
   let newSource = source;
@@ -299,20 +332,20 @@ export function renameSymbol(
   return { success: true, path: filePath, operation: "rename-symbol", changes, message: `Renamed ${changes} occurrences of '${oldName}' to '${newName}'`, newSource };
 }
 
-export function replaceBody(
+function replaceBodyUnchecked(
   source: string,
   filePath: string,
   symbolName: string,
   newBody: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const cfg = configFor(lang);
-  if (!cfg) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Unsupported language" };
+  if (!cfg) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   const edits: { start: number; end: number; text: string }[] = [];
   let changes = 0;
 
@@ -322,13 +355,33 @@ export function replaceBody(
       if (nameNode && nameNode.text === symbolName) {
         const bodyNode = node.childForFieldName("body");
         if (bodyNode) {
-          const lineStart = source.lastIndexOf("\n", bodyNode.startIndex) + 1;
-          const indent = source.slice(lineStart, bodyNode.startIndex).match(/^\s*/)?.[0] || "  ";
+          // Indent of the line the signature starts on — the body's own closing
+          // delimiter lines up with that, not with the body node's start column.
+          const declLineStart = source.lastIndexOf("\n", node.startIndex) + 1;
+          const outerIndent = source.slice(declLineStart, node.startIndex).match(/^\s*/)?.[0] ?? "";
+          const indent = outerIndent + "  ";
           const indentedBody = newBody
             .split("\n")
-            .map((l, i) => (i === 0 ? l : indent + l))
+            .map((l) => (l.length ? indent + l : l))
             .join("\n");
-          edits.push({ start: bodyNode.startIndex, end: bodyNode.endIndex, text: indentedBody });
+
+          // Brace-delimited bodies keep their braces. Replacing the whole body
+          // node with bare statement text stripped them, producing
+          // `function f(): string return x;` — which does not parse. The parse
+          // gate now catches that, but the delimiters have to survive anyway.
+          const open = bodyNode.firstChild;
+          const close = bodyNode.lastChild;
+          const braced = open?.text === "{" && close?.text === "}" && open !== close;
+          if (braced) {
+            edits.push({
+              start: open!.endIndex,
+              end: close!.startIndex,
+              text: `\n${indentedBody}\n${outerIndent}`,
+            });
+          } else {
+            // Indentation-delimited (Python): the block node is the body.
+            edits.push({ start: bodyNode.startIndex, end: bodyNode.endIndex, text: indentedBody.trimStart() });
+          }
           changes++;
           return true;
         }
@@ -341,7 +394,7 @@ export function replaceBody(
   }
   findAndReplace(tree.rootNode);
 
-  if (changes === 0) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: `Symbol '${symbolName}' not found or has no body` };
+  if (changes === 0) return { success: false, path: filePath, operation: "replace-body", changes: 0, message: `Symbol '${symbolName}' not found or has no body`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   edits.sort((a, b) => b.start - a.start);
   let newSource = source;
@@ -448,17 +501,17 @@ const IMPORT_CONFIGS: Record<string, ImportConfig> = {
   rust: { nodeTypes: ["use_declaration"], lineTemplate: "use {spec};\n" },
 };
 
-export function addImport(
+function addImportUnchecked(
   source: string,
   filePath: string,
   importSpec: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const icfg = IMPORT_CONFIGS[lang];
-  if (!icfg) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language" };
+  if (!icfg) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
   // Dedup check: search source for existing import containing the spec text
   const dedupPattern = new RegExp(`(import|from|use).*${escapeRegex(importSpec)}`);
@@ -466,7 +519,7 @@ export function addImport(
     return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
   }
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   let lastImportEnd = 0;
   function findLastImport(node: Parser.SyntaxNode) {
     if (icfg!.nodeTypes.includes(node.type)) lastImportEnd = Math.max(lastImportEnd, node.endIndex);
@@ -511,20 +564,20 @@ export function addImport(
   return { success: true, path: filePath, operation: "add-import", changes: 1, message: `Added import: ${importSpec}`, newSource };
 }
 
-export function removeImport(
+function removeImportUnchecked(
   source: string,
   filePath: string,
   importSpec: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
   if (!lang) {
-    return { success: false, path: filePath, operation: "remove-import", changes: 0, message: "Unsupported language" };
+    return { success: false, path: filePath, operation: "remove-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   }
   const parser = getParser(lang);
   if (!parser) {
-    return { success: false, path: filePath, operation: "remove-import", changes: 0, message: "Parser unavailable" };
+    return { success: false, path: filePath, operation: "remove-import", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   }
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   const icfg = IMPORT_CONFIGS[lang];
 
   // --- Rust grouped-use: separate code path for surgical removal ---
@@ -701,18 +754,18 @@ function findLastIdentifier(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
   return null;
 }
 
-export function insertBeforeSymbol(
+function insertBeforeSymbolUnchecked(
   source: string,
   filePath: string,
   symbolName: string,
   content: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   let insertPos = -1;
 
   function find(node: Parser.SyntaxNode): boolean {
@@ -728,7 +781,7 @@ export function insertBeforeSymbol(
   }
   find(tree.rootNode);
 
-  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: `Symbol '${symbolName}' not found` };
+  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: `Symbol '${symbolName}' not found`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   const lineStart = source.lastIndexOf("\n", insertPos) + 1;
   const indent = source.slice(lineStart, insertPos).match(/^\s*/)?.[0] || "";
@@ -737,18 +790,18 @@ export function insertBeforeSymbol(
   return { success: true, path: filePath, operation: "insert-before", changes: 1, message: `Inserted content before '${symbolName}'`, newSource };
 }
 
-export function insertAfterSymbol(
+function insertAfterSymbolUnchecked(
   source: string,
   filePath: string,
   symbolName: string,
   content: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   let insertPos = -1;
 
   function find(node: Parser.SyntaxNode): boolean {
@@ -764,7 +817,7 @@ export function insertAfterSymbol(
   }
   find(tree.rootNode);
 
-  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: `Symbol '${symbolName}' not found` };
+  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: `Symbol '${symbolName}' not found`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   const nextNewline = source.indexOf("\n", insertPos);
   const pos = nextNewline !== -1 ? nextNewline + 1 : source.length;
@@ -866,7 +919,7 @@ const ARG_NODE_TYPES = new Set([
  * Insert a parameter into a function/method signature.
  * Returns the modified source with the new parameter added.
  */
-export function insertParameter(
+function insertParameterUnchecked(
   source: string,
   filePath: string,
   symbolName: string,
@@ -874,13 +927,13 @@ export function insertParameter(
   position: "last" | "first" = "last"
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const cfg = configFor(lang);
-  if (!cfg) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language" };
+  if (!cfg) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   let found = false;
   let insertPos = -1;
   let insertText = "";
@@ -917,7 +970,7 @@ export function insertParameter(
 
   find(tree.rootNode, 0);
 
-  if (!found) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: `Symbol '${symbolName}' not found or has no parameters` };
+  if (!found) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: `Symbol '${symbolName}' not found or has no parameters`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   const newSource = source.slice(0, insertPos) + insertText + source.slice(insertPos);
   return { success: true, path: filePath, operation: "insert-parameter", changes: 1, message: `Inserted parameter '${newParam}' into '${symbolName}'`, newSource };
@@ -928,18 +981,18 @@ export function insertParameter(
  * Returns the modified source with arguments added to every call expression
  * where the function name matches.
  */
-export function insertCallArg(
+function insertCallArgUnchecked(
   source: string,
   filePath: string,
   functionName: string,
   argValue: string
 ): ASTEditResult {
   const lang = detectLanguage(filePath);
-  if (!lang) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Unsupported language" };
+  if (!lang) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const parser = getParser(lang);
-  if (!parser) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Parser unavailable" };
+  if (!parser) return { success: false, path: filePath, operation: "insert-call-arg", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
-  const tree = parser.parse(source);
+  const tree = parseSource(parser, source);
   const edits: { start: number; end: number; text: string }[] = [];
 
   // Collect call_expression / call nodes where function name matches
@@ -998,3 +1051,128 @@ function extractCallableName(node: Parser.SyntaxNode): string | null {
 }
 
 export { getParser, SUPPORTED_LANGUAGES };
+
+/** Location of the first `ERROR`/`MISSING` node tree-sitter recovered from. */
+export interface ParseIssue {
+  /** 1-indexed, to match every other line number the CLI prints. */
+  line: number;
+  column: number;
+  nodeType: string;
+}
+
+/**
+ * tree-sitter is an error-recovering parser: handed a broken file it returns a
+ * tree containing ERROR nodes rather than failing. Right for an editor,
+ * dangerous here — we compute byte offsets from that tree and then write to
+ * disk. Returns the first bad node, or null for a clean parse (and for files
+ * with no parser at all).
+ */
+export function firstParseError(source: string, filePath: string): ParseIssue | null {
+  const lang = detectLanguage(filePath);
+  if (!lang) return null;
+  const parser = getParser(lang);
+  if (!parser) return null;
+  const tree = parseSource(parser, source);
+  if (!tree.rootNode.hasError) return null;
+
+  // Walk to the deepest first offender so the reported position is the actual
+  // syntax problem, not the whole file.
+  let found: Parser.SyntaxNode | null = null;
+  const visit = (node: Parser.SyntaxNode): boolean => {
+    if (node.type === "ERROR" || node.isMissing) {
+      found = node;
+      return true;
+    }
+    for (const child of node.children) {
+      if (child.hasError && visit(child)) return true;
+    }
+    return false;
+  };
+  visit(tree.rootNode);
+  const node: Parser.SyntaxNode = found ?? tree.rootNode;
+  return {
+    line: node.startPosition.row + 1,
+    column: node.startPosition.column,
+    nodeType: node.isMissing ? `MISSING ${node.type}` : node.type,
+  };
+}
+
+let allowParseErrors = false;
+
+/**
+ * Escape hatch for deliberately editing a file that does not parse. Off by
+ * default and never inferred — the CLI sets it only from `--allow-parse-errors`.
+ */
+export function setAllowParseErrors(value: boolean): void {
+  allowParseErrors = value;
+}
+
+export function getAllowParseErrors(): boolean {
+  return allowParseErrors;
+}
+
+function parseErrorResult(filePath: string, operation: string, message: string, issue: ParseIssue): ASTEditResult {
+  return {
+    success: false,
+    path: filePath,
+    operation,
+    changes: 0,
+    message,
+    error: message,
+    errorCode: ErrorCode.PARSE_ERROR,
+    parseIssue: issue,
+  };
+}
+
+/**
+ * Wraps an AST operation in the two checks from the SWE-agent ACI paper
+ * (arXiv 2405.15793), which found that rejecting edits whose result does not
+ * parse materially improves agent task success:
+ *
+ *   pre  — refuse to compute offsets against a tree that already has errors.
+ *   post — reparse the edited source before anyone writes it. This one also
+ *          catches bugs in our own offset arithmetic, so it stays on even when
+ *          `--allow-parse-errors` waives the pre-check.
+ */
+function gated<F extends (source: string, filePath: string, ...rest: never[]) => ASTEditResult>(
+  fn: F,
+  operation: string,
+): F {
+  return function (this: unknown, source: string, filePath: string, ...rest: never[]): ASTEditResult {
+    const before = firstParseError(source, filePath);
+    if (before && !allowParseErrors) {
+      return parseErrorResult(
+        filePath,
+        operation,
+        `File has a syntax error at line ${before.line}:${before.column} (${before.nodeType}); refusing to edit a tree that did not parse cleanly. Fix the file, or pass --allow-parse-errors.`,
+        before,
+      );
+    }
+
+    const result = fn(source, filePath, ...rest);
+    if (!result.success || result.newSource === undefined) return result;
+
+    // Only meaningful when the input was clean: an already-broken file is
+    // expected to still be broken afterwards.
+    if (before) return result;
+    const after = firstParseError(result.newSource, filePath);
+    if (after) {
+      return parseErrorResult(
+        filePath,
+        operation,
+        `Edit was discarded: the result does not parse (syntax error at line ${after.line}:${after.column} — ${after.nodeType}). The input parsed cleanly, so this edit would have corrupted the file.`,
+        after,
+      );
+    }
+    return result;
+  } as F;
+}
+
+export const renameSymbol = gated(renameSymbolUnchecked, "rename-symbol");
+export const replaceBody = gated(replaceBodyUnchecked, "replace-body");
+export const addImport = gated(addImportUnchecked, "add-import");
+export const removeImport = gated(removeImportUnchecked, "remove-import");
+export const insertBeforeSymbol = gated(insertBeforeSymbolUnchecked, "insert-before");
+export const insertAfterSymbol = gated(insertAfterSymbolUnchecked, "insert-after");
+export const insertParameter = gated(insertParameterUnchecked, "add-parameter");
+export const insertCallArg = gated(insertCallArgUnchecked, "add-call-arg");

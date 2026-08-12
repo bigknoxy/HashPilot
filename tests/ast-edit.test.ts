@@ -13,6 +13,8 @@ import {
   isLanguageSupported,
   supportedLanguages,
   astCapabilities,
+  firstParseError,
+  setAllowParseErrors,
 } from "../src/core/ast-edit";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
@@ -885,5 +887,119 @@ describe("replaceBody — interface method (no body)", () => {
     const result = replaceBody(SOURCE, "test.ts", "greet", "return 'hi';");
     expect(result.success).toBe(false);
     expect(result.message).toContain("no body");
+  });
+});
+
+// ── #55: sources larger than the binding's 32KB marshalling buffer ─────
+
+/**
+ * `parser.parse(string)` throws a bare `Invalid argument` at 32767 characters,
+ * so every AST operation was dead on exactly the large files where a structured
+ * edit beats a hand-written diff. These fail on the string overload.
+ */
+describe("AST edits on files over 32KB (#55)", () => {
+  /** Padding that is valid in every supported language. */
+  function pad(chars: number): string {
+    const line = "// " + "x".repeat(76) + "\n";
+    return line.repeat(Math.ceil(chars / line.length));
+  }
+
+  const BIG_CASES: Array<[label: string, file: string, source: string, symbol: string]> = [
+    ["TypeScript", "big.ts", `${pad(100_000)}\nfunction target(a: number): number {\n  return a + 1;\n}\n`, "target"],
+    ["JavaScript", "big.js", `${pad(100_000)}\nfunction target(a) {\n  return a + 1;\n}\n`, "target"],
+    ["Go", "big.go", `package main\n\n${pad(100_000)}\nfunc target(a int) int {\n\treturn a + 1\n}\n`, "target"],
+    ["Rust", "big.rs", `${pad(100_000)}\nfn target(a: i32) -> i32 {\n    a + 1\n}\n`, "target"],
+  ];
+
+  for (const [label, file, source, symbol] of BIG_CASES) {
+    test(`${label}: renames a symbol in a ~100KB file`, () => {
+      expect(source.length).toBeGreaterThan(32_767);
+      const result = renameSymbol(source, file, symbol, "renamed");
+      expect(result.success).toBe(true);
+      expect(result.newSource).toContain("renamed");
+      expect(result.newSource).not.toContain(`${symbol}(`);
+    });
+  }
+
+  test("Python: renames a symbol in a ~100KB file", () => {
+    const source = `${pad(100_000).replace(/\/\//g, "##")}\ndef target(a):\n    return a + 1\n`;
+    expect(source.length).toBeGreaterThan(32_767);
+    const result = renameSymbol(source, "big.py", "target", "renamed");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain("def renamed(a):");
+  });
+
+  test("finds symbols past the 32KB boundary", () => {
+    const source = `${pad(100_000)}\nfunction late(): void {}\n`;
+    const names = findSymbols(source, "big.ts").map((s) => s.name);
+    expect(names).toContain("late");
+  });
+
+  test("multi-byte source is chunked without splitting a surrogate pair", () => {
+    // A naive slice at a fixed offset can cut an emoji in half; the lone
+    // surrogate then corrupts every byte offset after it.
+    const block = "// \u{1F389} émoji 中文\n";
+    const source = `${block.repeat(4000)}\nfunction target(): number { return 1; }\n`;
+    expect(source.length).toBeGreaterThan(32_767);
+    const result = renameSymbol(source, "uni.ts", "target", "renamed");
+    expect(result.success).toBe(true);
+    expect(result.newSource!.split("\u{1F389}").length - 1).toBe(4000);
+    expect(result.newSource).toContain("function renamed(): number");
+  });
+});
+
+// ── #13: the parse-validity gate ───────────────────────────────────────
+
+describe("parse-validity gate (#13)", () => {
+  const BROKEN = `function greet(name: string): string {\n  return "hi" +\n}\n`;
+
+  test("firstParseError locates the syntax error", () => {
+    const issue = firstParseError(BROKEN, "broken.ts");
+    expect(issue).not.toBeNull();
+    expect(issue!.line).toBeGreaterThan(0);
+  });
+
+  test("firstParseError returns null for a clean file", () => {
+    expect(firstParseError(SAMPLE_TS, "sample.ts")).toBeNull();
+  });
+
+  test("refuses to edit a file that does not parse", () => {
+    const result = renameSymbol(BROKEN, "broken.ts", "greet", "hello");
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("PARSE_ERROR");
+    expect(result.parseIssue).toBeDefined();
+    expect(result.newSource).toBeUndefined();
+  });
+
+  test("--allow-parse-errors lets the pre-check through", () => {
+    setAllowParseErrors(true);
+    try {
+      const result = renameSymbol(BROKEN, "broken.ts", "greet", "hello");
+      expect(result.success).toBe(true);
+      expect(result.newSource).toContain("hello");
+    } finally {
+      setAllowParseErrors(false);
+    }
+  });
+
+  test("discards an edit whose result would not parse", () => {
+    // Replacing a body with an unbalanced brace corrupts the file.
+    const result = replaceBody(SAMPLE_TS, "sample.ts", "greet", 'return "hi" +');
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("PARSE_ERROR");
+    expect(result.newSource).toBeUndefined();
+  });
+
+  test("a valid edit is unaffected by the gate", () => {
+    const result = replaceBody(SAMPLE_TS, "sample.ts", "greet", 'return "Hi, " + name;');
+    expect(result.success).toBe(true);
+    expect(result.errorCode).toBeUndefined();
+    expect(result.newSource).toContain('return "Hi, " + name;');
+  });
+
+  test("languages with no parser are not gated", () => {
+    // .d.ts is excluded from AST editing, so nothing here should claim a parse error.
+    expect(firstParseError("this is (not code", "notes.txt")).toBeNull();
+    expect(firstParseError("export declare const x: number", "types.d.ts")).toBeNull();
   });
 });
