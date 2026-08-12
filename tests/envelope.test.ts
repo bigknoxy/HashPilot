@@ -93,6 +93,8 @@ const INVOCATIONS: Array<[name: string, args: string[]]> = [
   ["telemetry clear", ["telemetry", "clear"]],
   ["provenance query", ["provenance", "query", "sample.ts"]],
   ["provenance changeset", ["provenance", "changeset", "nonexistent-id"]],
+  ["changesets", ["changesets"]],
+  ["undo", ["undo", "nonexistent-changeset"]],
   ["doctor", ["doctor"]],
   ["config", ["config"]],
 ];

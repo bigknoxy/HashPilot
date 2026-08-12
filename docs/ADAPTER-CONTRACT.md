@@ -59,6 +59,23 @@ Languages with no tree-sitter grammar (and `.d.ts`) are never gated.
 There is no file-size limit on AST edits. Through v3.0.0 sources over 32KB threw
 inside the tree-sitter binding and fell back to the diff route.
 
+## Atomic writes and undo
+
+Every write is temp-file + `fsync` + `rename`, so a crash mid-edit leaves the original
+file byte-identical rather than truncated. Before each write the original bytes are
+snapshotted under `~/.agentic-tools/snapshots/`, keyed by a changeSet ID minted once
+per CLI invocation.
+
+| Command | Success shape | Failure |
+|---------|---------------|---------|
+| `changesets [--limit N]` | `data.changeSets: [{changeSetId, timestamp, files[]}]`, newest first | — |
+| `undo <id>` / `undo --last` | `data: {success, changeSetId, files[], message}` | `HASH_MISMATCH`, exit 3, when a file changed after the edit |
+
+`undo` never partially clobbers: a file that fails its check is left exactly as found
+and reported in `data.files[]` with a `reason`. `--force` overrides the check;
+`--dry-run` reports without touching disk. An undo is not itself snapshotted, so
+`undo --last` cannot ping-pong between two states.
+
 ## Command Reference
 
 ### Configuration

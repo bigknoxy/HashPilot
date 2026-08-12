@@ -151,7 +151,23 @@ HashPilot has two complementary docs that must always be kept in sync with the c
   `/etc`, shell startup files, and HashPilot's own telemetry log. Deny targets are
   themselves realpath-resolved (on macOS `/etc` is a symlink to `/private/etc`).
 - Widened by `allowedRoots` in config or `--allowed-root`; disabled by `--allow-outside-root`.
-- `safeWrite` is the single write path used by every edit route.
+- `safeWrite` is the single write path used by every edit route. It snapshots the
+  file's pre-edit bytes, then writes atomically: sibling temp file → `fsync` →
+  `rename` over the target → `fsync` of the directory, with the target's mode
+  preserved. A crash mid-write leaves the original byte-identical, and orphaned
+  `.hashpilot-tmp-*` files older than an hour are swept after each write.
+
+#### `src/snapshot.ts` — Pre-Edit Snapshots and Undo (#12)
+- Content-addressed store at `~/.agentic-tools/snapshots/` (`objects/<sha256>` +
+  `index.jsonl`), outside the project tree so it never appears in `git status`.
+- Keyed by changeSet ID — the CLI mints one per invocation via `createChangeSet()`,
+  so every write in one command undoes as a unit.
+- `undoChangeSet(id, {force, dryRun})` restores the pre-*first*-edit bytes per file,
+  removes files the changeSet created, and refuses any file whose current hash no
+  longer matches what the edit wrote (`HASH_MISMATCH`, exit 3) unless `--force`.
+- An undo is not itself snapshotted, so `undo --last` cannot ping-pong.
+- Retention: 200 changeSets / 7 days by default, pruned on every invocation;
+  configurable under `snapshots` in `.hashpilot.json`.
 
 #### `src/exit-codes.ts` — Agent-Facing Exit Contract
 - Maps `ErrorCode` → process exit code: `0` ok, `1` usage, `2` edit failed,
@@ -474,4 +490,4 @@ The CI check `docs-verify` enforces rule 5 — if `src/` files change but neithe
 
 ---
 
-_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint). Telemetry queries are reads: they exit 0 on success regardless of the `success` field of the events they return, and `readEvents(0)` returns nothing rather than the whole log. A log that exists but cannot be read now raises `READ_FAILED` (exit 5) instead of reporting a broken store as an empty one, and malformed JSONL lines are counted and warned about on stderr rather than silently dropped ([#59](../../issues/59)). `read-hash` now emits a 12-character `lineHash` — the same width `replace-hash` compares against — so the read → write round-trip no longer fails with a retryable `STALE_ANCHOR` ([#60](../../issues/60)). **Breaking (apiVersion 1):** every command now writes one envelope — `{ apiVersion, ok, command, data, error, warnings }` — validated against [`schema/hashpilot-envelope.schema.json`](../schema/hashpilot-envelope.schema.json) by a sweep over every leaf command; `ok` is derived from the exit code so the two cannot disagree, and route fallbacks, relocated anchors, and corrupt telemetry lines ride `warnings` instead of being invisible ([#18](../../issues/18), [#56](../../issues/56)). The AST tier no longer has a 32KB ceiling — sources are streamed to tree-sitter in chunks rather than marshalled through the binding's fixed string buffer, which used to throw `Invalid argument` and silently demote every large file to the diff route ([#55](../../issues/55)) — and all three tiers now run a parse-validity gate: a file that does not parse is refused before any offsets are computed, and every edit is reparsed before the write so a corrupting edit is discarded rather than saved ([#13](../../issues/13))._
+_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint). Telemetry queries are reads: they exit 0 on success regardless of the `success` field of the events they return, and `readEvents(0)` returns nothing rather than the whole log. A log that exists but cannot be read now raises `READ_FAILED` (exit 5) instead of reporting a broken store as an empty one, and malformed JSONL lines are counted and warned about on stderr rather than silently dropped ([#59](../../issues/59)). `read-hash` now emits a 12-character `lineHash` — the same width `replace-hash` compares against — so the read → write round-trip no longer fails with a retryable `STALE_ANCHOR` ([#60](../../issues/60)). **Breaking (apiVersion 1):** every command now writes one envelope — `{ apiVersion, ok, command, data, error, warnings }` — validated against [`schema/hashpilot-envelope.schema.json`](../schema/hashpilot-envelope.schema.json) by a sweep over every leaf command; `ok` is derived from the exit code so the two cannot disagree, and route fallbacks, relocated anchors, and corrupt telemetry lines ride `warnings` instead of being invisible ([#18](../../issues/18), [#56](../../issues/56)). The AST tier no longer has a 32KB ceiling — sources are streamed to tree-sitter in chunks rather than marshalled through the binding's fixed string buffer, which used to throw `Invalid argument` and silently demote every large file to the diff route ([#55](../../issues/55)) — and all three tiers now run a parse-validity gate: a file that does not parse is refused before any offsets are computed, and every edit is reparsed before the write so a corrupting edit is discarded rather than saved ([#13](../../issues/13)). Every write is now atomic (temp file → fsync → rename, mode preserved) and pre-edit bytes are snapshotted to a content-addressed store, so `changesets` lists undoable units and `undo <id>` / `undo --last` restores them — refusing files changed since the edit unless `--force` ([#12](../../issues/12))._

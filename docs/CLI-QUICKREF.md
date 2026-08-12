@@ -112,7 +112,7 @@ looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0
 
 <!-- BEGIN GENERATED: command reference -->
 
-_31 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
+_33 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
 ### Global options
 
@@ -657,6 +657,36 @@ structured-edit provenance changeset [options] <changeSetId>
 | Flag | Meaning |
 |------|---------|
 | `--human` | Human-readable output |
+
+#### `changesets`
+
+List undoable changeSets, newest first
+
+```
+structured-edit changesets [options]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--limit <n>` | Max changeSets to list (default 20) |
+
+#### `undo`
+
+Restore every file in a changeSet to its pre-edit contents
+
+```
+structured-edit undo [options] [changeSetId]
+```
+
+| Positional | Meaning |
+|------------|---------|
+| `changeSetId` | ChangeSet to undo; omit with --last |
+
+| Flag | Meaning |
+|------|---------|
+| `--last` | Undo the most recent changeSet |
+| `--force` | Restore even files modified since the edit was applied |
+| `--dry-run` | Report what would be restored without touching the disk |
 
 #### `doctor`
 

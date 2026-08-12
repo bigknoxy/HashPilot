@@ -64,7 +64,8 @@ All core modules live in `src/core/` (paths below are relative to it).
 | `plan-executor.ts` | **M5** — Executes `EditPlan` steps through the router with dry-run, verify, and revert-on-failure support. `executeIntent()` is the top-level entry point: parse → resolve → plan → execute. |
 | `provenance.ts` | **M6** — Edit history tracking with changeSet IDs. `provenanceQuery(file, line?)` shows who changed what and why (like `git blame` for agent edits). |
 | `config.ts` | Configuration loading with merge priority: env var > CLI arg > project `.hashpilot.json` > global `~/.config/hashpilot/config.json` > defaults. |
-| `paths.ts` | Write boundary. `assertWritable`/`safeWrite` confine every write to the project root (widened by `allowedRoots`), with a hard deny-list (`~/.ssh`, `~/.aws`, `/etc`, shell rc files, the telemetry log) that no flag overrides. Symlinks are resolved on both sides before comparison. |
+| `paths.ts` | Write boundary. `assertWritable`/`safeWrite` confine every write to the project root (widened by `allowedRoots`), with a hard deny-list (`~/.ssh`, `~/.aws`, `/etc`, shell rc files, the telemetry log) that no flag overrides. Symlinks are resolved on both sides before comparison. Writes are atomic: temp file → fsync → rename, with the target's mode preserved. |
+| `snapshot.ts` | **#12** — pre-edit snapshot store (`~/.agentic-tools/snapshots/`, content-addressed, keyed by changeSet) plus `undoChangeSet`, `listChangeSets`, and retention pruning. Backs the `changesets` and `undo` commands. |
 | `exit-codes.ts` | Maps `ErrorCode` to process exit codes (0 ok · 1 usage · 2 edit failed · 3 stale/retryable · 4 verify failed · 5 I/O · 70 internal). `finish()` prints JSON and sets the code. |
 | `redact.ts` | Credential scrubbing for anything written to the telemetry log: `redactSecrets`, `isSensitiveFile`, `redactEvent`. |
 | `batch-edit.ts` | Batch editing — applies the same edit to multiple files in parallel (`editMany`) or serially (`editManySerial`). |
@@ -94,7 +95,7 @@ Route policies can override routing per language or per operation, with configur
 
 ### Gotchas
 
-- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 515 pass / 0 fail.
+- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 537 pass / 0 fail.
 - **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`. The router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 
 ### Adapter integrations

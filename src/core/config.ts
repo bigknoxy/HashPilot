@@ -31,10 +31,20 @@ export interface ProvenanceConfig {
   captureDiffs?: boolean;
 }
 
+export interface SnapshotConfig {
+  /** Take a pre-edit snapshot of every written file so `undo` can restore it. Default true. */
+  enabled?: boolean;
+  /** Keep at most this many changeSets, default 200. */
+  maxChangeSets?: number;
+  /** Drop changeSets older than this many days, default 7. */
+  maxAgeDays?: number;
+}
+
 export interface HashPilotConfig {
   routePolicy?: RoutePolicy;
   telemetry?: TelemetryConfig;
   provenance?: ProvenanceConfig;
+  snapshots?: SnapshotConfig;
   /** Extra directories writes may target, beyond the project root. Relative entries resolve against cwd. */
   allowedRoots?: string[];
 }
@@ -126,6 +136,9 @@ function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>):
   }
   if (override.provenance) {
     base.provenance = { ...base.provenance, ...override.provenance };
+  }
+  if (override.snapshots) {
+    base.snapshots = { ...base.snapshots, ...override.snapshots };
   }
   if (override.allowedRoots) {
     base.allowedRoots = [...(base.allowedRoots || []), ...override.allowedRoots];
