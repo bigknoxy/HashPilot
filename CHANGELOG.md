@@ -1,3 +1,10 @@
+## [3.0.3](https://github.com/bigknoxy/HashPilot/compare/v3.0.2...v3.0.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* **intent:** report unresolved plan steps instead of injecting placeholder comments ([#66](https://github.com/bigknoxy/HashPilot/issues/66)) ([9993a6d](https://github.com/bigknoxy/HashPilot/commit/9993a6d3e2bf97df2924907c30b34416cd7ed8da)), closes [#13](https://github.com/bigknoxy/HashPilot/issues/13) [#16](https://github.com/bigknoxy/HashPilot/issues/16)
+
 ## [3.0.2](https://github.com/bigknoxy/HashPilot/compare/v3.0.1...v3.0.2) (2026-08-12)
 
 
