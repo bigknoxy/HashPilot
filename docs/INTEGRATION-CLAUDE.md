@@ -96,13 +96,13 @@ structured-edit replace-hash config.yaml "$HASH" "  port: 8080" --range 5:6
 
 | Task | Use HashPilot | Use Direct |
 |------|--------------|------------|
-| Edit existing TS/JS/Python/Go/Rust files | ✅ AST commands | — |
-| Edit any file with hash safety | ✅ replace-hash | — |
-| Rename symbols across files | ✅ ast rename-symbol | — |
-| Add/remove imports | ✅ ast commands | — |
-| Replace function body | ✅ ast replace-body | — |
-| Batch read multiple files | ✅ read-many | — |
-| Verify changes | ✅ verify-changes | — |
+| Edit existing TS/JS/Python/Go/Rust files | ✅ AST commands | ❌ |
+| Edit any file with hash safety | ✅ replace-hash | ❌ |
+| Rename symbols across files | ✅ ast rename-symbol | ❌ |
+| Add/remove imports | ✅ ast commands | ❌ |
+| Replace function body | ✅ ast replace-body | ❌ |
+| Batch read multiple files | ✅ read-many | ❌ |
+| Verify changes | ✅ verify-changes | ❌ |
 | Create new files | — | ✅ write/edit |
 | Delete files/dirs | — | ✅ bash rm |
 | Move/rename files | — | ✅ bash mv |

@@ -1,0 +1,288 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "MIT License" [ref=e5]
+      - img "Bun" [ref=e6]
+      - img "Tree-sitter" [ref=e7]
+      - img "Tests" [ref=e8]
+    - heading "HashPilot" [level=1] [ref=e9]
+    - generic [ref=e10]: structured-edit CLI · v1.3.1
+    - paragraph [ref=e11]:
+      - strong [ref=e12]: AI agents edit code blind.
+      - text: HashPilot gives them cryptographic certainty. Every edit anchored by SHA-256 hash — not a line number or fuzzy text match.
+    - generic [ref=e13]:
+      - link "curl | sh Install" [ref=e14] [cursor=pointer]:
+        - /url: "#install"
+      - link "View Commands" [ref=e15] [cursor=pointer]:
+        - /url: "#commands"
+      - link "GitHub →" [ref=e16] [cursor=pointer]:
+        - /url: https://github.com/bigknoxy/HashPilot
+  - separator [ref=e17]
+  - generic [ref=e19]:
+    - generic [ref=e20]: The Problem
+    - heading "AI agents edit code blind" [level=2] [ref=e21]:
+      - text: AI agents edit code
+      - emphasis [ref=e22]: blind
+    - paragraph [ref=e23]: No IDE, no visual location, no working memory of file structure. Yet tools expect agents to edit like humans — counting lines and guessing text.
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - heading "Line Counting" [level=3] [ref=e26]
+        - paragraph [ref=e27]: "\"Replace line 42\" breaks when one import shifts every line. +3 retries, corrupted file."
+      - generic [ref=e28]:
+        - heading "Fuzzy Find-Replace" [level=3] [ref=e29]
+        - paragraph [ref=e30]: Guess the right text to match — or match the wrong occurrence. Silent corruption, wasted tokens.
+      - generic [ref=e31]:
+        - heading "Race Conditions" [level=3] [ref=e32]
+        - paragraph [ref=e33]: Two edits interleave. Invalid syntax, agent confusion, no recovery.
+  - separator [ref=e34]
+  - generic [ref=e36]:
+    - generic [ref=e37]: The Solution
+    - heading "Cryptographic certainty for every edit" [level=2] [ref=e38]:
+      - text: Cryptographic
+      - emphasis [ref=e39]: certainty
+      - text: for every edit
+    - generic [ref=e40]:
+      - generic [ref=e41]:
+        - generic [ref=e42]: 🔐
+        - heading "SHA-256 Anchors" [level=3] [ref=e43]
+        - paragraph [ref=e44]: Target content by its cryptographic fingerprint. If the hash matches, you're editing the right content. No ambiguity.
+        - generic [ref=e45]: For agents — never edit the wrong content
+      - generic [ref=e46]:
+        - generic [ref=e47]: ⚡
+        - heading "3-Tier Routing" [level=3] [ref=e48]
+        - paragraph [ref=e49]: AST → Hash → Diff. Auto-selects the best strategy per file + operation. One command, right tool every time.
+        - generic [ref=e50]: For agents — one shot, every time
+      - generic [ref=e51]:
+        - generic [ref=e52]: 🔄
+        - heading "Stale Recovery" [level=3] [ref=e53]
+        - paragraph [ref=e54]: Detects out-of-date edits (file changed since read) and re-applies transparently. No silent corruption.
+        - generic [ref=e55]: For agents — survive race conditions
+      - generic [ref=e56]:
+        - generic [ref=e57]: 🎯
+        - heading "Intents (M5)" [level=3] [ref=e58]
+        - paragraph [ref=e59]: "\"Add a parameter to processData\" → discovers all call sites, plans the edit, executes every step."
+        - generic [ref=e60]: For agents — multi-file refactors in one shot
+      - generic [ref=e61]:
+        - generic [ref=e62]: ✅
+        - heading "Verification Bundling" [level=3] [ref=e63]
+        - paragraph [ref=e64]: Run formatter + linter + typechecker + tests in one command. Optional revert on failure.
+        - generic [ref=e65]: For developers — know it works
+      - generic [ref=e66]:
+        - generic [ref=e67]: 📋
+        - heading "Provenance" [level=3] [ref=e68]
+        - paragraph [ref=e69]:
+          - code [ref=e70]: provenance query src/utils.ts
+          - text: shows edit history per line. Like
+          - code [ref=e71]: git blame
+          - text: for agent edits.
+        - generic [ref=e72]: For teams — audit trail for AI changes
+  - separator [ref=e73]
+  - generic [ref=e75]:
+    - generic [ref=e76]: Who It's For
+    - heading "Three audiences, one tool" [level=2] [ref=e77]:
+      - text: Three audiences,
+      - emphasis [ref=e78]: one tool
+    - generic [ref=e79]:
+      - generic [ref=e80]:
+        - generic [ref=e81]: 👤
+        - heading "Developers" [level=3] [ref=e82]
+        - list [ref=e83]:
+          - listitem [ref=e84]: → Edits work on the first try
+          - listitem [ref=e85]: → Every change is auditable
+          - listitem [ref=e86]: → Trust AI refactors completely
+          - listitem [ref=e87]: → It's invisible — agent uses it automatically
+      - generic [ref=e88]:
+        - generic [ref=e89]: 🤖
+        - heading "AI Agents" [level=3] [ref=e90]
+        - list [ref=e91]:
+          - listitem [ref=e92]: → SHA-256 hash = no ambiguity
+          - listitem [ref=e93]: → Less re-reading = fewer round-trips
+          - listitem [ref=e94]: → AST edits are structurally valid
+          - listitem [ref=e95]: → Intents handle the blast radius
+          - listitem [ref=e96]: → Telemetry monitors reliability
+      - generic [ref=e97]:
+        - generic [ref=e98]: 🏢
+        - heading "Engineering Teams" [level=3] [ref=e99]
+        - list [ref=e100]:
+          - listitem [ref=e101]: → Provenance = compliance
+          - listitem [ref=e102]: → Team-wide config policies
+          - listitem [ref=e103]: → Batch edits at scale
+          - listitem [ref=e104]: → Verify = confidence before merge
+  - separator [ref=e105]
+  - generic [ref=e107]:
+    - generic [ref=e108]: Quick Start
+    - heading "Install in one command" [level=2] [ref=e109]:
+      - text: Install in
+      - emphasis [ref=e110]: one command
+    - generic [ref=e111]:
+      - generic [ref=e112]: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
+      - generic [ref=e113]:
+        - text: Requires
+        - strong [ref=e114]: Bun 1.2+
+        - text: — installs CLI, configures Claude Code, OpenCode, and Pi adapters automatically.
+    - heading "Your First Edit" [level=3] [ref=e115]
+    - code [ref=e117]: "# 1. Read a file — get its content hash structured-edit read-many src/main.ts # 2. Edit by hash — target the exact content HASH=\"abc123...\" # from read-many output structured-edit replace-hash src/main.ts \"$HASH\" \" port: 8080\" --range 5:5 # 3. Verify nothing broke structured-edit verify-changes src/main.ts --auto-detect"
+  - separator [ref=e118]
+  - generic [ref=e120]:
+    - generic [ref=e121]: Architecture
+    - heading "The 3-tier routing model" [level=2] [ref=e122]:
+      - text: The
+      - emphasis [ref=e123]: 3-tier
+      - text: routing model
+    - generic [ref=e124]: ┌─────────────────┐ │ Your Edit │ └────────┬────────┘ │ ▼ ┌──────────────────────────┐ │ 1. AST Route │ ◄── tree-sitter syntax edits │ TS/TSX/JS/Python/Go/Rust│ rename-symbol, replace-body └────────────┬─────────────┘ │ unsupported ▼ ┌──────────────────────────┐ │ 2. Hash Route │ ◄── SHA-256 anchored replacement │ (any file) │ stale-anchor detection └────────────┬─────────────┘ │ no hash ▼ ┌──────────────────────────┐ │ 3. Diff Route │ ◄── LCS-based search-and-replace │ (fallback) │ fuzzy matching └──────────────────────────┘
+    - paragraph [ref=e125]:
+      - text: The router auto-selects.
+      - strong [ref=e126]: route-edit
+      - text: tries AST → Hash → Diff. Every route records telemetry and provenance.
+    - paragraph [ref=e127]:
+      - text: "Deep dive:"
+      - link "design doc →" [ref=e128] [cursor=pointer]:
+        - /url: https://github.com/bigknoxy/HashPilot/blob/main/docs/ARCHITECTURE.md
+      - text: — module internals, data flow, key decisions, error handling.
+  - separator [ref=e129]
+  - generic [ref=e131]:
+    - generic [ref=e132]: Commands
+    - heading "Everything at your fingertips" [level=2] [ref=e133]:
+      - text: Everything at
+      - emphasis [ref=e134]: your fingertips
+    - heading "Read & Search" [level=3] [ref=e135]
+    - table [ref=e136]:
+      - rowgroup [ref=e137]:
+        - row "Command What It Does" [ref=e138]:
+          - columnheader "Command" [ref=e139]
+          - columnheader "What It Does" [ref=e140]
+        - row "read-many <files> Batch read with SHA-256 content hashes" [ref=e141]:
+          - cell "read-many <files>" [ref=e142]
+          - cell "Batch read with SHA-256 content hashes" [ref=e143]
+        - row "read-hash <file> <line> Read a specific line with context hash" [ref=e144]:
+          - cell "read-hash <file> <line>" [ref=e145]
+          - cell "Read a specific line with context hash" [ref=e146]
+        - row "grep-many <pattern> <paths> Regex search across files" [ref=e147]:
+          - cell "grep-many <pattern> <paths>" [ref=e148]
+          - cell "Regex search across files" [ref=e149]
+        - row "symbol-lookup-many <paths> Find symbol definitions by name" [ref=e150]:
+          - cell "symbol-lookup-many <paths>" [ref=e151]
+          - cell "Find symbol definitions by name" [ref=e152]
+    - heading "Edit — Hash Route" [level=3] [ref=e153]
+    - table [ref=e154]:
+      - rowgroup [ref=e155]:
+        - row "Command What It Does" [ref=e156]:
+          - columnheader "Command" [ref=e157]
+          - columnheader "What It Does" [ref=e158]
+        - row "replace-hash <file> <hash> <content> SHA-256 anchored replacement with stale recovery" [ref=e159]:
+          - cell "replace-hash <file> <hash> <content>" [ref=e160]
+          - cell "SHA-256 anchored replacement with stale recovery" [ref=e161]
+    - heading "Edit — AST Route" [level=3] [ref=e162]
+    - table [ref=e163]:
+      - rowgroup [ref=e164]:
+        - row "Command What It Does" [ref=e165]:
+          - columnheader "Command" [ref=e166]
+          - columnheader "What It Does" [ref=e167]
+        - row "ast find-symbols <file> List all symbols in a file" [ref=e168]:
+          - cell "ast find-symbols <file>" [ref=e169]
+          - cell "List all symbols in a file" [ref=e170]
+        - row "ast rename-symbol <file> <old> <new> Rename symbol + all references" [ref=e171]:
+          - cell "ast rename-symbol <file> <old> <new>" [ref=e172]
+          - cell "Rename symbol + all references" [ref=e173]
+        - row "ast replace-body <file> <symbol> <body> Replace a function/method body" [ref=e174]:
+          - cell "ast replace-body <file> <symbol> <body>" [ref=e175]
+          - cell "Replace a function/method body" [ref=e176]
+        - row "ast add-import <file> <spec> Add an import with grouped merging" [ref=e177]:
+          - cell "ast add-import <file> <spec>" [ref=e178]
+          - cell "Add an import with grouped merging" [ref=e179]
+        - row "ast remove-import <file> <spec> Remove an import statement" [ref=e180]:
+          - cell "ast remove-import <file> <spec>" [ref=e181]
+          - cell "Remove an import statement" [ref=e182]
+        - row "ast insert-before/after Insert content around a symbol" [ref=e183]:
+          - cell "ast insert-before/after" [ref=e184]
+          - cell "Insert content around a symbol" [ref=e185]
+    - heading "Multi-File & Verification" [level=3] [ref=e186]
+    - table [ref=e187]:
+      - rowgroup [ref=e188]:
+        - row "Command What It Does" [ref=e189]:
+          - columnheader "Command" [ref=e190]
+          - columnheader "What It Does" [ref=e191]
+        - 'row "route-edit <file> <op> Auto-routed edit: AST → Hash → Diff" [ref=e192]':
+          - cell "route-edit <file> <op>" [ref=e193]
+          - 'cell "Auto-routed edit: AST → Hash → Diff" [ref=e194]'
+        - row "batch <op> <files> Same edit on many files, parallel or serial" [ref=e195]:
+          - cell "batch <op> <files>" [ref=e196]
+          - cell "Same edit on many files, parallel or serial" [ref=e197]
+        - row "intent <json> Declarative multi-file plan + execute" [ref=e198]:
+          - cell "intent <json>" [ref=e199]
+          - cell "Declarative multi-file plan + execute" [ref=e200]
+        - row "verify-changes <files> Formatter + linter + typechecker + tests" [ref=e201]:
+          - cell "verify-changes <files>" [ref=e202]
+          - cell "Formatter + linter + typechecker + tests" [ref=e203]
+        - row "provenance query <file> Edit history (git blame for agents)" [ref=e204]:
+          - cell "provenance query <file>" [ref=e205]
+          - cell "Edit history (git blame for agents)" [ref=e206]
+        - row "telemetry health Health report with threshold warnings" [ref=e207]:
+          - cell "telemetry health" [ref=e208]
+          - cell "Health report with threshold warnings" [ref=e209]
+    - paragraph [ref=e210]:
+      - text: All commands accept
+      - code [ref=e211]: "--actor"
+      - text: ","
+      - code [ref=e212]: "--task-id"
+      - text: ","
+      - code [ref=e213]: "--reason"
+      - text: for provenance. Every command outputs structured JSON.
+  - separator [ref=e214]
+  - generic [ref=e216]:
+    - generic [ref=e217]: Integrations
+    - heading "Works with every major agent" [level=2] [ref=e218]:
+      - text: Works with every
+      - emphasis [ref=e219]: major agent
+    - generic [ref=e220]:
+      - generic [ref=e221]:
+        - heading "Claude Code" [level=3] [ref=e222]
+        - paragraph [ref=e223]:
+          - text: HashPilot section injected into
+          - code [ref=e224]: ~/.claude/CLAUDE.md
+          - text: . Claude uses
+          - code [ref=e225]: structured-edit
+          - text: commands as shell tools.
+      - generic [ref=e226]:
+        - heading "OpenCode" [level=3] [ref=e227]
+        - paragraph [ref=e228]:
+          - text: Skill at
+          - code [ref=e229]: ~/.config/opencode/skills/hashpilot/
+          - text: + subagent for delegated editing.
+      - generic [ref=e230]:
+        - heading "Pi" [level=3] [ref=e231]
+        - paragraph [ref=e232]:
+          - text: Native extension with 7 custom tools +
+          - code [ref=e233]: /hp
+          - text: slash command.
+    - paragraph [ref=e234]:
+      - text: All adapters follow the
+      - link "Adapter Contract" [ref=e235] [cursor=pointer]:
+        - /url: docs/ADAPTER-CONTRACT.md
+      - text: — a machine-readable JSON protocol any agent can consume.
+  - separator [ref=e236]
+  - generic [ref=e238]:
+    - generic [ref=e239]: Development
+    - heading "Build from source" [level=2] [ref=e240]:
+      - text: Build from
+      - emphasis [ref=e241]: source
+    - code [ref=e243]: "git clone https://github.com/bigknoxy/HashPilot.git cd HashPilot bun install bun test # 344 tests, 96.68% line coverage bun run build # Build CLI to dist/ bun test tests/hash-edit.test.ts # Single file bun test -t \"test name\" # Filter by name"
+    - paragraph [ref=e244]:
+      - text: "Configuration: layered (env var → CLI flag →"
+      - code [ref=e245]: .hashpilot.json
+      - text: → global → defaults). Route policies per language, per operation. Telemetry opt-out.
+  - separator [ref=e246]
+  - contentinfo [ref=e247]:
+    - generic [ref=e248]:
+      - paragraph [ref=e249]:
+        - text: MIT License ·
+        - link "GitHub" [ref=e250] [cursor=pointer]:
+          - /url: https://github.com/bigknoxy/HashPilot
+        - text: ·
+        - link "v1.3.1" [ref=e251] [cursor=pointer]:
+          - /url: https://github.com/bigknoxy/HashPilot/releases
+        - text: ·
+        - link "Issues" [ref=e252] [cursor=pointer]:
+          - /url: https://github.com/bigknoxy/HashPilot/issues
+      - paragraph [ref=e253]: Designed for AI agents and the developers who love them.
+      - paragraph [ref=e254]: "Docs policy: README (landing) + ARCHITECTURE.md (design) are living docs. Every source PR must update one or both. Every deploy is browser-verified."
