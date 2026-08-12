@@ -1,3 +1,10 @@
+## [3.0.2](https://github.com/bigknoxy/HashPilot/compare/v3.0.1...v3.0.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* atomic writes, pre-edit snapshots, and undo ([#65](https://github.com/bigknoxy/HashPilot/issues/65)) ([b486fbd](https://github.com/bigknoxy/HashPilot/commit/b486fbd3fc2193374a04abc88d27ba9325d64bfb)), closes [#12](https://github.com/bigknoxy/HashPilot/issues/12)
+
 ## [3.0.1](https://github.com/bigknoxy/HashPilot/compare/v3.0.0...v3.0.1) (2026-08-12)
 
 
