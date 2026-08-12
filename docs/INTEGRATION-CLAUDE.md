@@ -92,6 +92,25 @@ structured-edit read-hash config.yaml 5 -c 2
 structured-edit replace-hash config.yaml "$HASH" "  port: 8080" --range 5:6
 ```
 
+## When to Use HashPilot vs Direct Editing
+
+| Task | Use HashPilot | Use Direct |
+|------|--------------|------------|
+| Edit existing TS/JS/Python/Go/Rust files | ✅ AST commands | ❌ |
+| Edit any file with hash safety | ✅ replace-hash | ❌ |
+| Rename symbols across files | ✅ ast rename-symbol | ❌ |
+| Add/remove imports | ✅ ast commands | ❌ |
+| Replace function body | ✅ ast replace-body | ❌ |
+| Batch read multiple files | ✅ read-many | ❌ |
+| Verify changes | ✅ verify-changes | ❌ |
+| Create new files | — | ✅ write/edit |
+| Delete files/dirs | — | ✅ bash rm |
+| Move/rename files | — | ✅ bash mv |
+| Simple single-line edits | — | ✅ direct edit |
+| Exploratory single-file reads | — | ✅ direct read |
+
+**Bottom line**: HashPilot is for *precise edits to existing files*. Use direct commands for creation, deletion, and file operations.
+
 ## Token Efficiency Tips
 
 1. **Batch reads**: Use `read-many` to read multiple files in one call

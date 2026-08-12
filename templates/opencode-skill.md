@@ -15,6 +15,15 @@ HashPilot is a global, tool-agnostic structured editing system that improves cod
 - **Searching across codebases**: Use `grep-many` for structured search results
 - **Verifying changes**: Use `verify-changes` to bundle formatter + linter + tests
 
+## When NOT to Use This Skill
+
+- **Creating new files**: Use direct write/edit instead (structured-edit edits existing files)
+- **Deleting files/directories**: Use raw bash (`rm`, `rmdir`)
+- **Renaming/moving files**: Use raw bash (`mv`, `git mv`)
+- **Simple single-line edits in non-critical files**: Direct edit is cheaper and just as safe
+- **Exploratory single-file reads**: Raw read has no overhead
+- **File system operations** (copy, move, delete, symlink): Use bash
+
 ## Prerequisites
 
 HashPilot must be installed at `~/.agentic-tools/structured-editing/` with the CLI at `~/.agentic-tools/bin/structured-edit`.

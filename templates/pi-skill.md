@@ -7,6 +7,22 @@ description: HashPilot structured editing — prefers AST edits for TypeScript, 
 
 You have access to HashPilot structured editing tools that are more reliable and token-efficient than raw text editing.
 
+## When to Use
+
+- Editing existing files in supported AST languages (TS/JS/Python/Go/Rust)
+- Editing any file where you need precision (hash-anchored avoids line-counting errors)
+- Renaming symbols, replacing function bodies, managing imports
+- Batch reading multiple files
+- Verifying changes after edits
+
+## When NOT to Use
+
+- Creating new files → use raw write instead
+- Deleting files/directories → use bash
+- Moving/renaming files → use bash
+- Simple one-off edits → direct edit is cheaper
+- File system operations (cp, mv, rm) → use bash
+
 ## Routing Hierarchy
 
 Always follow this priority when editing files:

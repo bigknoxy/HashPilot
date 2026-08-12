@@ -157,6 +157,23 @@ structured-edit telemetry prune --older-than 30  # Delete old rotated files
 structured-edit telemetry clear         # Clear log
 ```
 
+## When to Use HashPilot Tools vs Raw Commands
+
+| Task | Use HashPilot | Use Direct |
+|------|--------------|------------|
+| Edit existing TS/JS/Python/Go/Rust files | ✅ ast commands | ❌ |
+| Edit any file with hash safety | ✅ replace-hash | ❌ |
+| Rename symbols across files | ✅ ast rename-symbol | ❌ |
+| Add/remove imports | ✅ ast add-import / remove-import | ❌ |
+| Replace function body | ✅ ast replace-body | ❌ |
+| Batch read multiple files | ✅ hashpilot_read | ❌ |
+| Verify changes | ✅ hashpilot_verify | ❌ |
+| Create new files | ❌ | ✅ raw write |
+| Delete files/dirs | ❌ | ✅ bash |
+| Move/rename files | ❌ | ✅ bash |
+| Simple one-line edits | optional | ✅ direct edit |
+| Single-file exploration | optional | ✅ direct read |
+
 ## Key Benefits
 
 1. **Reduced token usage** — Hash anchoring eliminates line-counting and re-reading
