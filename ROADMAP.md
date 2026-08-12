@@ -40,7 +40,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB ✅ shipped | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage ✅ shipped | 59 | P1 | verified | correctness |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo ✅ shipped | 56 | P0 | verified | correctness · data-loss |
-| [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust | 52 | P1 | reported | correctness |
+| [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust ✅ shipped | 52 | P1 | verified | correctness |
 | [#18](../../issues/18) | B15 — Uniform JSON envelope with `error.code` and `error.recovery` ✅ shipped | 52 | P1 | verified | cli |
 | [#23](../../issues/23) | B31 — `--no-default-config` inverted; `--config` never reaches routing | 51 | P2 | verified | correctness |
 | [#17](../../issues/17) | B14 — Rollback is best-effort and reports `reverted: true` regardless | 50 | P1 | reported | correctness |

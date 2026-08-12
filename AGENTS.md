@@ -24,7 +24,7 @@ Use Bun 1.2 or newer. There is no separate formatter or linter configured; keep 
 
 ## Gotchas
 
-- **tree-sitter is a native module.** Run `bun install` before anything else. Without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated to your change. The green baseline is 537 pass / 0 fail.
+- **tree-sitter is a native module.** Run `bun install` before anything else. Without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated to your change. The green baseline is 553 pass / 0 fail.
 - **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`; the router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 - **Route precedence** (`chooseRoute`, `src/core/router.ts:36`) is policy override → AST (language supported *and* AST operation) → hash operation → diff fallback. First match wins.
 

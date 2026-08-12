@@ -72,11 +72,28 @@ export interface EditStep {
   params: Record<string, any>;
 }
 
+/**
+ * Work the planner could not compute, surfaced to the caller instead of being
+ * papered over. The planner used to write a C-style TODO comment placeholder
+ * into the source at each of these sites — which is not even a comment in
+ * Python, so a "successful" plan wrote a syntax error to disk (#16).
+ */
+export interface UnresolvedItem {
+  file: string;
+  operation: string;
+  /** Why the planner could not compute this edit. */
+  reason: string;
+  /** What the caller can do about it. */
+  resolution: string;
+}
+
 export interface EditPlan {
   intent: StructuredIntent;
   definition: SymbolDefinition;
   references: ReferenceLocation[];
   steps: EditStep[];
+  /** Non-empty when part of the intent could not be planned; blocks execution without `yes`. */
+  unresolved: UnresolvedItem[];
   impactSummary: string;
 }
 
@@ -234,6 +251,7 @@ export function generatePlan(
   references: ReferenceLocation[]
 ): EditPlan {
   const steps: EditStep[] = [];
+  const unresolved: UnresolvedItem[] = [];
 
   switch (intent.operation) {
     case "add-parameter": {
@@ -241,7 +259,6 @@ export function generatePlan(
       if (intent.param.type) paramParts.push(intent.param.type);
       const paramStr = paramParts.join(": ");
       const defaultVal = intent.param.default ?? undefined;
-      const argValue = defaultVal ?? `/* TODO: add ${intent.param.name} */`;
 
       // Step 0: Insert parameter into function signature
       steps.push({
@@ -257,17 +274,32 @@ export function generatePlan(
         },
       });
 
-      // Steps 1..N: Insert argument at each call site file
+      // Steps 1..N: Insert argument at each call site file.
+      //
+      // Only possible when the caller gave a default: without one there is no
+      // value to pass, and inventing a placeholder means writing text that is
+      // wrong in every language and a syntax error in Python. Report it instead.
       const refFiles = [...new Set(references.map((r) => r.file))];
+      if (defaultVal === undefined) {
+        for (const file of refFiles) {
+          unresolved.push({
+            file,
+            operation: "insert-call-arg",
+            reason: `no default given for '${intent.param.name}', so the argument to pass at each call site cannot be computed`,
+            resolution: `Re-run with "param": {"name": "${intent.param.name}", "default": "<value>"}, or edit the call sites in ${shortPath(file)} yourself with \`diff apply\`.`,
+          });
+        }
+        break;
+      }
       refFiles.forEach((file, i) => {
         steps.push({
           order: i + 1,
           file,
           operation: "insert-call-arg",
-          description: `Add argument '${argValue}' at all call sites in ${shortPath(file)}`,
+          description: `Add argument '${defaultVal}' at all call sites in ${shortPath(file)}`,
           params: {
             functionName: intent.symbol,
-            argValue,
+            argValue: defaultVal,
           },
         });
       });
@@ -308,7 +340,13 @@ export function generatePlan(
     definition,
     references,
     steps,
-    impactSummary: `${steps.length} edits across ${impactedFiles.length} files${references.length > 0 ? ` (${references.length} references found)` : ""}`,
+    unresolved,
+    impactSummary:
+      `${steps.length} edits across ${impactedFiles.length} files` +
+      (references.length > 0 ? ` (${references.length} references found)` : "") +
+      (unresolved.length > 0
+        ? `; ${unresolved.length} unresolved in ${new Set(unresolved.map((u) => u.file)).size} files`
+        : ""),
   };
 }
 

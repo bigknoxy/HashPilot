@@ -66,6 +66,7 @@ export type {
   SymbolDefinition,
   EditStep,
   EditPlan,
+  UnresolvedItem,
 } from "./intent";
 export { executeIntent, executePlan } from "./plan-executor";
 export type { StepResult, PlanResult, IntentResult } from "./plan-executor";
