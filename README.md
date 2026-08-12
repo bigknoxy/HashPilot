@@ -202,6 +202,18 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 | `ast insert-before <file> <symbol> <content>` | Insert content before a named symbol |
 | `ast insert-after <file> <symbol> <content>` | Insert content after a named symbol |
 
+AST edits are guarded at both ends. A file that does not already parse is refused
+(`PARSE_ERROR`, exit 2, with the line and column of the break) rather than edited
+against a tree tree-sitter had to error-recover; and every edit is reparsed before
+anything reaches disk, so an edit that would corrupt a file that parsed cleanly is
+discarded instead of written. The same post-edit check applies to hash and diff
+edits whenever a parser exists for the language. `--allow-parse-errors` waives the
+pre-check for deliberately editing a broken file; the post-check always stands.
+
+There is no file-size ceiling. Through v3.0.0 every AST operation failed on any
+source over 32KB — the binding's string-marshalling limit — which silently
+demoted large files to the diff route.
+
 ### Edit — Diff Route (Fallback)
 
 | Command | What It Does |

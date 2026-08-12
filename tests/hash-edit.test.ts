@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { computeHash, computeLineHash, readMany, readHash } from "../src/core/read";
 import { replaceHash } from "../src/core/hash-edit";
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_test_hash__");
@@ -191,5 +191,51 @@ describe("replaceHash", () => {
     const result = await replaceHash(fp, hash, "// replaced\n" + content);
     expect(result.success).toBe(true);
     expect(result.retries).toBe(0);
+  });
+});
+// ── #13: the hash tier is content-blind, so it gets a post-edit parse check ──
+
+describe("hash edits are rejected when they would corrupt the file", () => {
+  const file = join(TMP_DIR, "gate.ts");
+  const SOURCE = 'function greet(name: string): string {\n  return "Hello, " + name;\n}\n';
+
+  beforeEach(() => {
+    try { mkdirSync(TMP_DIR, { recursive: true }); } catch {}
+    writeFileSync(file, SOURCE);
+  });
+  afterEach(() => {
+    try { rmSync(file, { force: true }); } catch {}
+  });
+
+  test("refuses the write and leaves the file untouched", async () => {
+    const anchor = computeHash('  return "Hello, " + name;');
+    const result = await replaceHash(file, anchor, '  return "Hello, " +', { range: { start: 2, end: 2 } });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("PARSE_ERROR");
+    expect(readFileSync(file, "utf-8")).toBe(SOURCE);
+  });
+
+  test("a syntactically valid replacement still applies", async () => {
+    const anchor = computeHash('  return "Hello, " + name;');
+    const result = await replaceHash(file, anchor, '  return "Hi, " + name;', { range: { start: 2, end: 2 } });
+    expect(result.success).toBe(true);
+    expect(readFileSync(file, "utf-8")).toContain('"Hi, "');
+  });
+
+  test("skipParseCheck writes anyway", async () => {
+    const anchor = computeHash('  return "Hello, " + name;');
+    const result = await replaceHash(file, anchor, '  return "Hello, " +', {
+      range: { start: 2, end: 2 },
+      skipParseCheck: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("an already-broken file is not blocked from further edits", async () => {
+    const broken = 'function greet(name: string): string {\n  return "Hello, " +\n}\n';
+    writeFileSync(file, broken);
+    const anchor = computeHash('  return "Hello, " +');
+    const result = await replaceHash(file, anchor, '  return "Hi" +', { range: { start: 2, end: 2 } });
+    expect(result.success).toBe(true);
   });
 });

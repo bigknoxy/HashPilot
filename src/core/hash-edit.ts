@@ -2,6 +2,7 @@ import { computeHash } from "./read";
 import { ErrorCode } from "./telemetry";
 import { addWarning } from "./envelope";
 import { assertWritable, PathDeniedError, type AssertWritableOptions } from "./paths";
+import { firstParseError } from "./ast-edit";
 
 /**
  * What to do when the anchor hash no longer matches the content at the given range.
@@ -24,6 +25,11 @@ export interface ReplaceHashOptions {
   noRecovery?: boolean;
   /** Write-boundary overrides forwarded to `assertWritable`. */
   pathOptions?: AssertWritableOptions;
+  /**
+   * Skip the post-edit parse check. Off by default; the CLI sets it from
+   * `--allow-parse-errors` only for files that already fail to parse.
+   */
+  skipParseCheck?: boolean;
 }
 
 export interface ReplaceHashResult {
@@ -227,6 +233,7 @@ export async function replaceHash(
   return applyReplacement(
     filePath, lines, targetStart, targetEnd, targetLines, targetText,
     newContent, oldHash, dryRun, stale, retries, messageSuffix, relocatedTo, writePath,
+    options.skipParseCheck === true,
   );
 }
 
@@ -245,7 +252,8 @@ async function applyReplacement(
   messageSuffix: string = "",
   relocatedTo?: { start: number; end: number },
   /** Symlink-resolved destination returned by assertWritable. Falls back to filePath on dry runs. */
-  writePath?: string
+  writePath?: string,
+  skipParseCheck: boolean = false,
 ): Promise<ReplaceHashResult> {
   const newContentLines = newContent.split("\n");
   if (newContentLines[newContentLines.length - 1] === "" && !targetText.endsWith("\n")) {
@@ -262,6 +270,33 @@ async function applyReplacement(
   const diff = buildDiff(targetStart + 1, targetLines, newContentLines);
   const linesChanged = Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines);
   const rangeLabel = `range ${targetStart + 1}-${targetEnd}`;
+
+  // A hash edit is content-blind: it will happily splice half a function into
+  // the middle of another one. When a parser exists for this language, refuse
+  // the write if the result does not parse and the original did (#13).
+  if (!skipParseCheck) {
+    const after = firstParseError(newFullContent, filePath);
+    if (after) {
+      const lines0 = lines.join("\n");
+      const before = firstParseError(lines0, filePath);
+      if (!before) {
+        return {
+          path: filePath,
+          success: false,
+          oldHash,
+          newHash: "",
+          linesChanged: 0,
+          stale: false,
+          retries,
+          errorCode: ErrorCode.PARSE_ERROR,
+          message:
+            `Edit was discarded: the result does not parse (syntax error at line ${after.line}:${after.column} — ${after.nodeType}). ` +
+            `The file parsed cleanly before, so this replacement would have corrupted it.`,
+          recovery: `structured-edit read-hash ${filePath} ${after.line} — re-read around the break, or pass --allow-parse-errors to write anyway.`,
+        };
+      }
+    }
+  }
 
   if (!dryRun) {
     await Bun.write(writePath ?? filePath, newFullContent);

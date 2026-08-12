@@ -54,7 +54,7 @@ All core modules live in `src/core/` (paths below are relative to it).
 | Module | Responsibility |
 |--------|---------------|
 | `src/cli.ts` | Commander-based CLI entry point. Every command records a telemetry event. |
-| `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove (with per-language configs for import formatting and grouped import handling). |
+| `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove (with per-language configs for import formatting and grouped import handling) Source is streamed to the parser in chunks (no 32KB ceiling), and every operation is wrapped in a parse-validity gate: refuse a file that already has syntax errors, and discard an edit whose result would not parse. |
 | `hash-edit.ts` | SHA-256 anchored content replacement with relocation-based stale-anchor recovery and strict range validation. |
 | `diff-engine.ts` | LCS-based unified diff generation and patch application with fuzzy matching. |
 | `read.ts` | `read-many` (batch file reads with SHA-256 hashes) and `read-hash` (single line with context hashes). |
@@ -94,7 +94,7 @@ Route policies can override routing per language or per operation, with configur
 
 ### Gotchas
 
-- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 424 pass / 0 fail.
+- **tree-sitter is a native module.** Run `bun install` before anything else — without `node_modules/`, the AST test files abort with `error: Cannot find package 'tree-sitter'` while the rest of the suite passes, so the failure looks unrelated. Green baseline is 515 pass / 0 fail.
 - **AST load failures are silent.** `getParser()` (`src/core/ast-edit.ts:31-60`) catches parser-init errors and returns `null`. The router then falls back to hash/diff with no warning. If AST edits mysteriously route to diff, check that the tree-sitter bindings actually built.
 
 ### Adapter integrations

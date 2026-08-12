@@ -9,6 +9,7 @@ import {
   insertBeforeSymbol,
   insertAfterSymbol,
   findSymbols,
+  firstParseError,
 } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
 import { readMany, readHash, computeHash } from "./read";
@@ -190,6 +191,7 @@ export async function routeEdit(params: {
           result = { success: false, message: `Failed to read file: ${e.message}` };
           break;
         }
+        try {
         switch (operation) {
         case "rename-symbol":
           result = renameSymbol(source, filePath, oldName!, newName!);
@@ -215,6 +217,25 @@ export async function routeEdit(params: {
         default:
           result = { success: false, message: `Unknown AST operation: ${operation}` };
       }
+        } catch (e: any) {
+          // The tree-sitter binding throws bare errors (it used to throw
+          // `Invalid argument` for any source over 32KB — see #55). Whatever
+          // the cause, an AST failure is an edit failure, never an internal
+          // crash: this is the only thing standing between a parser bug and
+          // exit 70.
+          result = {
+            success: false,
+            errorCode: ErrorCode.PARSE_ERROR,
+            message: `AST parse failed for ${filePath}: ${e?.message ?? e}`,
+            recovery: "Retry with an explicit --old-content/--new-content pair to use the diff route.",
+          };
+          addWarning({
+            code: "ROUTE_FALLBACK",
+            message: `AST route failed to parse ${filePath}; a diff-route edit is the remaining option.`,
+            from: "ast",
+            to: "diff",
+          });
+        }
       // Write result to file if successful
       if (result.success && (result as any).newSource && !dryRun) {
         await safeWrite(filePath, (result as any).newSource);
@@ -241,6 +262,21 @@ export async function routeEdit(params: {
         break;
       }
       result = applyTextReplace(source, filePath, oldContent, newContent);
+      // Same post-edit parse check the AST and hash tiers apply: a search-and-
+      // replace that lands mid-expression must not reach disk (#13).
+      if (result.success && (result as any).newSource) {
+        const after = firstParseError((result as any).newSource, filePath);
+        if (after && !firstParseError(source, filePath)) {
+          result = {
+            success: false,
+            errorCode: ErrorCode.PARSE_ERROR,
+            message:
+              `Edit was discarded: the result does not parse (syntax error at line ${after.line}:${after.column} — ${after.nodeType}). ` +
+              `The file parsed cleanly before, so this replacement would have corrupted it.`,
+          };
+          break;
+        }
+      }
       if (result.success && (result as any).newSource && !dryRun) {
         await safeWrite(filePath, (result as any).newSource);
         editResult = (result as any).newSource;

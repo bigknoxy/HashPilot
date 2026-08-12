@@ -184,12 +184,12 @@ describe("routeEdit", () => {
     const result = await routeEdit({
       filePath: file,
       operation: "add-import",
-      importSpec: "{ z } from ./mod",
+      importSpec: "{ z } from './mod'",
     });
     expect(result.route).toBe("ast");
     expect(result.result.success).toBe(true);
     const updated = readFileSync(file, "utf-8");
-    expect(updated).toContain("import { z } from ./mod");
+    expect(updated).toContain("import { z } from './mod'");
     teardown(file);
   });
 

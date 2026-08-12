@@ -53,6 +53,7 @@ import {
   finish,
   usageError,
   setCommand,
+  setAllowParseErrors,
   addWarning,
   ExitCode,
   exitCodeFor,
@@ -102,6 +103,7 @@ program
   .option("--allow-outside-root", "Permit writes outside the project root (credentials and system paths stay blocked)")
   .option("--allowed-root <dir...>", "Additional directory writes may target")
   .option("--no-telemetry", "Disable telemetry logging for this invocation")
+  .option("--allow-parse-errors", "Edit a file that already has syntax errors (the post-edit parse check still applies)")
   .hook("preAction", (thisCommand, actionCommand) => {
     // Name the running subcommand so the envelope can report it. Walk up so
     // nested commands read as "telemetry show", not "show".
@@ -118,6 +120,7 @@ program
     // and env var win over `telemetry.enabled`.
     configureTelemetry(config.telemetry);
     enableTelemetry(resolveTelemetryEnabled(config.telemetry, globals.telemetry === false));
+    setAllowParseErrors(Boolean(globals.allowParseErrors));
   });
 
 program
@@ -227,6 +230,7 @@ program
       dryRun: opts.dryRun,
       // Commander maps --no-recover to opts.recover === false.
       recovery: opts.recover === false ? "off" : "relocate",
+      skipParseCheck: Boolean(program.opts().allowParseErrors),
     });
     const provFields = buildProvenanceFields({
       actor: opts.actor,

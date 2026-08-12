@@ -18,7 +18,12 @@ export {
   isLanguageSupported,
   supportedLanguages,
   astCapabilities,
+  parseSource,
+  firstParseError,
+  setAllowParseErrors,
+  getAllowParseErrors,
 } from "./ast-edit";
+export type { ParseIssue } from "./ast-edit";
 export type { ASTEditResult, SymbolInfo, LanguageCapability } from "./ast-edit";
 export { verifyChanges } from "./verify";
 export type { VerifyResult, VerifyOptions } from "./verify";
