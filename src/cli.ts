@@ -744,6 +744,7 @@ program
   .option("--linter-args <args...>", "Linter args")
   .option("--test-args <args...>", "Test runner args")
   .option("--auto-detect", "Auto-detect tools from project config files")
+  .option("--allow-arbitrary-tool", "Allow binaries outside the allowlist (warns on each use)")
   .option("--revert-on-failure", "Restore original file contents if any check fails")
   .option("--timeout <ms>", "Per-check timeout in ms (default 30000)", parseInt)
   .option("--json", "Output as JSON", true)
@@ -758,6 +759,7 @@ program
       linterArgs: opts.linterArgs,
       testArgs: opts.testArgs,
       autoDetect: opts.autoDetect,
+      allowArbitraryTool: opts.allowArbitraryTool ?? false,
       revertOnFailure: opts.revertOnFailure,
       timeout: opts.timeout,
     });
