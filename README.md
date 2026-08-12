@@ -189,6 +189,24 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 |---------|-------------|
 | `replace-hash <file> <hash> <content>` | Replace content identified by SHA-256 hash (auto-recovers on stale anchor) |
 
+### Undo
+
+| Command | What It Does |
+|---------|-------------|
+| `changesets [--limit N]` | List undoable changeSets, newest first |
+| `undo <changeSetId>` | Restore every file in a changeSet to its pre-edit contents |
+| `undo --last` | Undo the most recent changeSet |
+
+Every write goes to a sibling temp file, is `fsync`ed, and is renamed over the
+target, so an interrupted write can never leave a truncated source file — a reader
+sees either the whole old file or the whole new one, and the target's permissions
+are preserved. Before the write, the file's original bytes are stored in a
+content-addressed snapshot store under `~/.agentic-tools/snapshots/`, keyed by the
+changeSet the invocation belongs to. `undo` refuses any file that changed after the
+edit was applied unless `--force` is passed, and `--dry-run` reports without writing.
+Retention defaults to 200 changeSets / 7 days, configurable under `snapshots` in
+`.hashpilot.json`.
+
 ### Edit — AST Route
 
 | Command | What It Does |

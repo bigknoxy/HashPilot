@@ -1,7 +1,8 @@
 import { computeHash } from "./read";
 import { ErrorCode } from "./telemetry";
 import { addWarning } from "./envelope";
-import { assertWritable, PathDeniedError, type AssertWritableOptions } from "./paths";
+import { assertWritable, atomicWrite, PathDeniedError, type AssertWritableOptions } from "./paths";
+import { recordSnapshot } from "./snapshot";
 import { firstParseError } from "./ast-edit";
 
 /**
@@ -299,7 +300,11 @@ async function applyReplacement(
   }
 
   if (!dryRun) {
-    await Bun.write(writePath ?? filePath, newFullContent);
+    // `writePath` is already boundary-resolved by the caller. Atomic, and
+    // snapshotted, for the same reasons every other write is (#12).
+    const target = writePath ?? filePath;
+    recordSnapshot(target, newFullContent);
+    atomicWrite(target, newFullContent);
   }
 
   const action = dryRun ? "Dry run: would replace" : "Replaced";

@@ -42,6 +42,12 @@ import {
   exportEvents,
   pruneEvents,
   createChangeSet,
+  configureSnapshots,
+  setCurrentChangeSet,
+  listChangeSets,
+  lastChangeSetId,
+  undoChangeSet,
+  pruneSnapshots,
   buildProvenanceFields,
   provenanceQuery,
   changeSetQuery,
@@ -121,6 +127,12 @@ program
     configureTelemetry(config.telemetry);
     enableTelemetry(resolveTelemetryEnabled(config.telemetry, globals.telemetry === false));
     setAllowParseErrors(Boolean(globals.allowParseErrors));
+
+    // Every write this invocation makes belongs to one changeSet, so `undo`
+    // has a unit to work in even for commands that never mint one themselves.
+    configureSnapshots(config.snapshots);
+    setCurrentChangeSet(config.snapshots?.enabled === false ? null : createChangeSet());
+    pruneSnapshots();
   });
 
 program
@@ -908,6 +920,40 @@ provCmd
     } else {
       finish(result);
     }
+  });
+
+program
+  .command("changesets")
+  .description("List undoable changeSets, newest first")
+  .option("--limit <n>", "Max changeSets to list (default 20)")
+  .action((opts) => {
+    const limit = parseIntFlag(opts.limit, "--limit", 20);
+    if (typeof limit === "object") return usageError(limit.error);
+    finish({ changeSets: listChangeSets(limit) }, ExitCode.OK);
+  });
+
+program
+  .command("undo")
+  .description("Restore every file in a changeSet to its pre-edit contents")
+  .argument("[changeSetId]", "ChangeSet to undo; omit with --last")
+  .option("--last", "Undo the most recent changeSet")
+  .option("--force", "Restore even files modified since the edit was applied")
+  .option("--dry-run", "Report what would be restored without touching the disk")
+  .action((changeSetId, opts) => {
+    const id = opts.last ? lastChangeSetId() : changeSetId;
+    if (!id) {
+      return usageError(
+        opts.last
+          ? "No changeSets have been recorded yet."
+          : "Provide a changeSet ID, or pass --last.",
+        { recovery: "structured-edit changesets" },
+      );
+    }
+    // The undo's own write must not be snapshotted as a new changeSet — that
+    // would make `undo --last` toggle between two states forever.
+    setCurrentChangeSet(null);
+    const result = undoChangeSet(id, { force: Boolean(opts.force), dryRun: Boolean(opts.dryRun) });
+    finish(result, result.success ? ExitCode.OK : ExitCode.PRECONDITION);
   });
 
 program

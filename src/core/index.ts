@@ -70,7 +70,22 @@ export type {
 export { executeIntent, executePlan } from "./plan-executor";
 export type { StepResult, PlanResult, IntentResult } from "./plan-executor";
 export { loadConfig, policyForce } from "./config";
-export type { HashPilotConfig, RoutePolicy, TelemetryConfig, ProvenanceConfig } from "./config";
+export type { HashPilotConfig, RoutePolicy, TelemetryConfig, ProvenanceConfig, SnapshotConfig } from "./config";
+export {
+  recordSnapshot,
+  listChangeSets,
+  lastChangeSetId,
+  undoChangeSet,
+  pruneSnapshots,
+  cleanOrphanTempFiles,
+  configureSnapshots,
+  resetSnapshots,
+  setCurrentChangeSet,
+  getCurrentChangeSet,
+  snapshotRoot,
+  DEFAULT_RETENTION,
+} from "./snapshot";
+export type { SnapshotRecord, ChangeSetSummary, UndoResult, UndoFileResult, SnapshotRetention } from "./snapshot";
 export { createChangeSet, buildProvenanceFields, provenanceQuery, changeSetQuery, formatProvenanceHuman } from "./provenance";
 export type { ProvenanceInput, ProvenanceEntry, ChangeSetResult } from "./provenance";
 export { doctor } from "./doctor";
@@ -80,6 +95,8 @@ export {
   assertWritable,
   assertAllWritable,
   safeWrite,
+  atomicWrite,
+  simulateCrashAfterTempWrite,
   findProjectRoot,
   configureWriteBoundary,
   resetWriteBoundary,

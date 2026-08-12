@@ -1,7 +1,11 @@
-import { existsSync, realpathSync } from "node:fs";
+import {
+  existsSync, realpathSync, writeFileSync, renameSync, unlinkSync,
+  statSync, openSync, fsyncSync, closeSync,
+} from "node:fs";
 import { homedir, platform } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ErrorCode } from "./telemetry";
+import { recordSnapshot, cleanOrphanTempFiles } from "./snapshot";
 
 /**
  * Filesystem write boundary.
@@ -219,8 +223,70 @@ export async function safeWrite(
   options: AssertWritableOptions = {},
 ): Promise<string> {
   const resolved = assertWritable(target, options);
-  await Bun.write(resolved, content);
+  recordSnapshot(resolved, content);
+  atomicWrite(resolved, content);
   return resolved;
+}
+
+/** Injectable failure point, so a test can simulate a crash mid-write. */
+let crashAfterTempWrite = false;
+
+/** Make the next atomic write throw between the temp write and the rename. For tests. */
+export function simulateCrashAfterTempWrite(value: boolean): void {
+  crashAfterTempWrite = value;
+}
+
+/**
+ * Replace `target`'s contents without ever exposing a partial file.
+ *
+ * A bare truncating write that is interrupted — SIGINT, a crash, a full disk —
+ * leaves the source file permanently truncated and the original content gone
+ * (#12). Writing to a sibling temp file and renaming over the target avoids
+ * that: `rename(2)` within a filesystem is atomic, so a concurrent reader sees
+ * either the whole old file or the whole new one.
+ *
+ * The temp file must live in the target's own directory. In `/tmp` the rename
+ * would usually cross a device boundary and degrade into a copy, which is
+ * exactly the non-atomic write this replaces.
+ */
+export function atomicWrite(resolved: string, content: string): void {
+  const dir = dirname(resolved);
+  const tmp = join(dir, `.hashpilot-tmp-${process.pid}-${Math.random().toString(36).slice(2)}`);
+
+  // Carry the target's permissions onto the replacement, or every edit
+  // silently resets the file to the default mode.
+  let mode = 0o644;
+  try {
+    if (existsSync(resolved)) mode = statSync(resolved).mode & 0o777;
+  } catch { /* unreadable target: fall back to the default mode */ }
+
+  let fd: number | undefined;
+  try {
+    writeFileSync(tmp, content, { mode });
+    // fsync the data before the rename; otherwise a power loss can land the
+    // rename in the journal while the file's blocks are still unwritten.
+    fd = openSync(tmp, "r+");
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+
+    if (crashAfterTempWrite) throw new Error("simulated crash after temp write");
+
+    renameSync(tmp, resolved);
+  } catch (err) {
+    if (fd !== undefined) { try { closeSync(fd); } catch { /* already closed */ } }
+    try { unlinkSync(tmp); } catch { /* nothing to clean up */ }
+    throw err;
+  }
+
+  // fsync the directory so the rename itself is durable.
+  try {
+    const dirFd = openSync(dir, "r");
+    fsyncSync(dirFd);
+    closeSync(dirFd);
+  } catch { /* not supported on every platform; the rename still applied */ }
+
+  cleanOrphanTempFiles(dir);
 }
 
 export const PATH_SEPARATOR = sep;
