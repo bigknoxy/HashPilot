@@ -26,6 +26,7 @@ export enum ErrorCode {
   UNSUPPORTED_LANGUAGE = "UNSUPPORTED_LANGUAGE",
   HASH_MISMATCH = "HASH_MISMATCH",
   WRITE_FAILED = "WRITE_FAILED",
+  LOCK_TIMEOUT = "LOCK_TIMEOUT",
 }
 
 export interface TelemetryEvent {

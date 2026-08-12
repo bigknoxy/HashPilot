@@ -27,6 +27,8 @@ export interface BatchSummary {
   total: number;
   succeeded: number;
   failed: number;
+  /** Failures caused by CAS stale anchor (concurrent write conflict, not a logic error) */
+  conflicts: number;
   elapsed_ms: number;
 }
 
@@ -68,6 +70,7 @@ export async function editMany(params: BatchParams): Promise<BatchResult> {
   const elapsed = Date.now() - start;
   const succeeded = results.filter((r) => r.result.success).length;
   const failed = results.length - succeeded;
+  const conflicts = results.filter((r) => r.result.stale).length;
 
   recordEvent({
     operation: `batch-${params.operation}`,
@@ -79,7 +82,7 @@ export async function editMany(params: BatchParams): Promise<BatchResult> {
 
   return {
     results,
-    summary: { total: params.files.length, succeeded, failed, elapsed_ms: elapsed },
+    summary: { total: params.files.length, succeeded, failed, conflicts, elapsed_ms: elapsed },
   };
 }
 
@@ -94,6 +97,7 @@ export async function editManySerial(params: BatchParams): Promise<BatchResult> 
   const elapsed = Date.now() - start;
   const succeeded = results.filter((r) => r.result.success).length;
   const failed = results.length - succeeded;
+  const conflicts = results.filter((r) => r.result.stale).length;
 
   recordEvent({
     operation: `batch-${params.operation}-serial`,
@@ -105,6 +109,6 @@ export async function editManySerial(params: BatchParams): Promise<BatchResult> 
 
   return {
     results,
-    summary: { total: params.files.length, succeeded, failed, elapsed_ms: elapsed },
+    summary: { total: params.files.length, succeeded, failed, conflicts, elapsed_ms: elapsed },
   };
 }

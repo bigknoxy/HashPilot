@@ -62,6 +62,30 @@ export async function replaceHash(
   const currentHash = computeHash(targetText);
 
   if (currentHash !== oldHash) {
+    if (dryRun) {
+      // Dry-run: simulate the write without CAS enforcement
+      const newContentLines = newContent.split("\n");
+      if (newContentLines[newContentLines.length - 1] === "" && !targetText.endsWith("\n")) {
+        newContentLines.pop();
+      }
+      const newLines = [
+        ...lines.slice(0, targetStart),
+        ...newContentLines,
+        ...lines.slice(targetEnd),
+      ];
+      const newFullContent = newLines.join("\n");
+      return {
+        path: filePath,
+        success: true,
+        oldHash,
+        newHash: computeHash(newFullContent),
+        linesChanged: Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines),
+        stale: false,
+        retries: 0,
+        message: `Dry run: would replace ${targetLines.length} lines with ${newContentLines.length} lines (stale anchor bypassed in dry-run)`,
+        diff: buildDiff(targetStart + 1, targetLines, newContentLines),
+      };
+    }
     if (!noRecovery) {
       // Auto-recovery: the file has changed since the hash was computed.
       // Apply the edit to the current file content instead of failing.

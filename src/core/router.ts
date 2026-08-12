@@ -11,6 +11,7 @@ import {
 } from "./ast-edit";
 import { replaceHash, ReplaceHashResult } from "./hash-edit";
 import { ReadResult, ReadHashResult, readMany, readHash, computeHash } from "./read";
+import { acquireLock, releaseLock } from "./lock";
 import { recordEvent, ErrorCode } from "./telemetry";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 
@@ -94,6 +95,87 @@ function isASTOperation(op: string): boolean {
 
 function isHashOperation(op: string): boolean {
   return ["read-hash", "replace-hash"].includes(op);
+}
+
+/**
+ * Read a file and compute its hash for CAS (compare-and-swap) gating.
+ * Used by callers that want to capture a hash before editing, then pass
+ * it back to routeEdit as oldHash.
+ */
+export async function routeRead(
+  filePath: string,
+  _operation: string = "read"
+): Promise<{ content: string; hash: string | null; lines: number; stale: boolean }> {
+  let content: string;
+  try {
+    content = await Bun.file(filePath).text();
+  } catch {
+    return { content: "", hash: null, lines: 0, stale: false };
+  }
+  return {
+    content,
+    hash: computeHash(content),
+    lines: content.split("\n").length,
+    stale: false,
+  };
+}
+
+/**
+ * CAS (Compare-And-Swap) write gateway.
+ *
+ * Re-reads the file immediately before writing. If oldHash is provided and
+ * the file's hash no longer matches, the write is aborted with STALE_ANCHOR
+ * and the caller is given the fresh hash to retry with.
+ *
+ * This makes every tier (AST, hash, diff) safe against concurrent edits,
+ * not just the hash tier.
+ */
+async function casWrite(
+  filePath: string,
+  newContent: string,
+  oldHash: string | undefined,
+  dryRun: boolean = false
+): Promise<{ success: boolean; stale: boolean; newHash: string; message: string }> {
+  if (dryRun) {
+    return { success: true, stale: false, newHash: "", message: "Dry run: write suppressed" };
+  }
+
+  // Acquire advisory lock around the read-modify-write window
+  const lockResult = await acquireLock(filePath);
+  if (!lockResult.success) {
+    return { success: false, stale: false, newHash: "", message: lockResult.message };
+  }
+
+  try {
+    let currentContent: string;
+    try {
+      currentContent = await Bun.file(filePath).text();
+    } catch (e: any) {
+      return { success: false, stale: false, newHash: "", message: `Failed to read file for CAS: ${e.message}` };
+    }
+
+    // If caller provided a hash, verify it still matches before writing
+    if (oldHash !== undefined) {
+      const currentHash = computeHash(currentContent);
+      if (currentHash !== oldHash) {
+        return {
+          success: false,
+          stale: true,
+          newHash: currentHash,
+          message: `STALE ANCHOR: File was modified since hash '${oldHash}' was computed. Current hash: '${currentHash}'. Re-read and retry.`,
+        };
+      }
+    }
+
+    try {
+      await Bun.write(filePath, newContent);
+      return { success: true, stale: false, newHash: computeHash(newContent), message: "Write succeeded (CAS verified)" };
+    } catch (e: any) {
+      return { success: false, stale: false, newHash: "", message: `Write failed: ${e.message}` };
+    }
+  } finally {
+    releaseLock(lockResult.lockPath);
+  }
 }
 
 export async function routeEdit(params: {
@@ -191,15 +273,35 @@ export async function routeEdit(params: {
         default:
           result = { success: false, message: `Unknown AST operation: ${operation}` };
       }
-      // Write result to file if successful
-      if (result.success && (result as any).newSource && !dryRun) {
-        await Bun.write(filePath, (result as any).newSource);
+      // Write result to file if successful — with CAS gate
+      if (result.success && (result as any).newSource) {
+        const writeResult = await casWrite(filePath, (result as any).newSource, oldHash, dryRun);
+        if (!writeResult.success) {
+          (result as any).success = false;
+          (result as any).stale = writeResult.stale;
+          (result as any).message = writeResult.message;
+          (result as any).newHash = writeResult.newHash;
+        }
       }
       break;
     }
-    case "hash":
-      result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun });
+    case "hash": {
+      if (!dryRun) {
+        const lockResult = await acquireLock(filePath);
+        if (!lockResult.success) {
+          result = { success: false, stale: false, message: lockResult.message, lockTimeout: true };
+          break;
+        }
+        try {
+          result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun, noRecovery: oldHash !== undefined });
+        } finally {
+          releaseLock(lockResult.lockPath);
+        }
+      } else {
+        result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun, noRecovery: oldHash !== undefined });
+      }
       break;
+    }
     case "diff": {
       if (!oldContent || !newContent) {
         result = { success: false, message: "Diff route requires oldContent and newContent" };
@@ -213,8 +315,14 @@ export async function routeEdit(params: {
         break;
       }
       result = applyTextReplace(source, filePath, oldContent, newContent);
-      if (result.success && (result as any).newSource && !dryRun) {
-        await Bun.write(filePath, (result as any).newSource);
+      if (result.success && (result as any).newSource) {
+        const writeResult = await casWrite(filePath, (result as any).newSource, oldHash, dryRun);
+        if (!writeResult.success) {
+          (result as any).success = false;
+          (result as any).stale = writeResult.stale;
+          (result as any).message = writeResult.message;
+          (result as any).newHash = writeResult.newHash;
+        }
       }
       break;
     }
@@ -227,7 +335,9 @@ export async function routeEdit(params: {
 
   let errorCode: ErrorCode | undefined;
   if (!result.success) {
-    if (result.stale) {
+    if (result.lockTimeout) {
+      errorCode = ErrorCode.LOCK_TIMEOUT;
+    } else if (result.stale) {
       errorCode = ErrorCode.STALE_ANCHOR;
     } else if (result.message?.includes("not found") || result.message?.includes("ENOENT")) {
       errorCode = ErrorCode.FILE_NOT_FOUND;

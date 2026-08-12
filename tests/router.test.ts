@@ -401,7 +401,7 @@ describe("routeEdit", () => {
     const file = `${tmpDir}/policy.ts`;
     setup(file, "function xyz() { return 1; }\n");
     const policy: RoutePolicy = { languageOverrides: { typescript: "hash" } };
-    const hash = computeHash("function xyz() { return 1; }");
+    const hash = computeHash("function xyz() { return 1; }\n");
     const result = await routeEdit({
       filePath: file,
       operation: "rename-symbol",
