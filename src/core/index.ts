@@ -54,7 +54,14 @@ export type { Hunk, PatchResult } from "./diff-engine";
 export { chooseRoute, routeEdit } from "./router";
 export type { EditRoute, RouterResult, RouteExplanation } from "./router";
 export { editMany, editManySerial } from "./batch-edit";
-export type { BatchParams, BatchResult, BatchSummary } from "./batch-edit";
+export type { BatchParams, BatchResult, BatchSummary, BatchEditOptions } from "./batch-edit";
+export {
+  acquireLock,
+  acquireSortedLocks,
+  LOCK_TIMEOUT_MS,
+  lockPathFor,
+  LockAcquireError,
+} from "./locking";
 export { parseIntent, findSymbolDefinition, findReferences, generatePlan } from "./intent";
 export type {
   IntentOperation,

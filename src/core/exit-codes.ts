@@ -24,6 +24,7 @@ export enum ExitCode {
 
 const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   [ErrorCode.STALE_ANCHOR]: ExitCode.PRECONDITION,
+  [ErrorCode.LOCK_TIMEOUT]: ExitCode.PRECONDITION,
   [ErrorCode.HASH_MISMATCH]: ExitCode.PRECONDITION,
   [ErrorCode.FILE_NOT_FOUND]: ExitCode.IO,
   [ErrorCode.WRITE_FAILED]: ExitCode.IO,

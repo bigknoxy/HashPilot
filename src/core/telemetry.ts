@@ -55,6 +55,8 @@ export enum ErrorCode {
   AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR",
   /** A file exists but could not be read (permissions, device error). Distinct from FILE_NOT_FOUND. */
   READ_FAILED = "READ_FAILED",
+  /** Lock acquisition timed out — another process holds the advisory lock. */
+  LOCK_TIMEOUT = "LOCK_TIMEOUT",
   /** A failure that carried no code of its own. Better than an empty `error.code`. */
   UNKNOWN = "UNKNOWN",
 }

@@ -184,9 +184,11 @@ export async function routeEdit(params: {
     switch (route) {
       case "ast": {
         let source: string;
+        let casHash: string | undefined;
         try {
           source = await Bun.file(filePath).text();
           editSource = source;
+          casHash = computeHash(source);
         } catch (e: any) {
           result = { success: false, message: `Failed to read file: ${e.message}` };
           break;
@@ -236,10 +238,24 @@ export async function routeEdit(params: {
             to: "diff",
           });
         }
-      // Write result to file if successful
+      // Write result to file if successful — CAS guard prevents silent data
+      // loss when concurrent edits both read the same snapshot.
       if (result.success && (result as any).newSource && !dryRun) {
-        await safeWrite(filePath, (result as any).newSource);
-        editResult = (result as any).newSource;
+        const currentOnDisk = await Bun.file(filePath).text();
+        const nowHash = computeHash(currentOnDisk);
+        if (nowHash !== casHash) {
+          result = {
+            success: false,
+            stale: true,
+            errorCode: ErrorCode.STALE_ANCHOR,
+            message: `CAS failed for ${filePath}: file changed while editing`,
+            newCurrentHash: nowHash,
+            recovery: "Re-read the file and retry the edit.",
+          };
+        } else {
+          await safeWrite(filePath, (result as any).newSource);
+          editResult = (result as any).newSource;
+        }
       }
       break;
     }
@@ -254,9 +270,11 @@ export async function routeEdit(params: {
         break;
       }
       let source: string;
+      let casHash: string | undefined;
       try {
         source = await Bun.file(filePath).text();
-          editSource = source;
+        editSource = source;
+        casHash = computeHash(source);
       } catch (e: any) {
         result = { success: false, message: `Failed to read file: ${e.message}` };
         break;
@@ -278,8 +296,21 @@ export async function routeEdit(params: {
         }
       }
       if (result.success && (result as any).newSource && !dryRun) {
-        await safeWrite(filePath, (result as any).newSource);
-        editResult = (result as any).newSource;
+        const currentOnDisk = await Bun.file(filePath).text();
+        const nowHash = computeHash(currentOnDisk);
+        if (nowHash !== casHash) {
+          result = {
+            success: false,
+            stale: true,
+            errorCode: ErrorCode.STALE_ANCHOR,
+            message: `CAS failed for ${filePath}: file changed while editing`,
+            newCurrentHash: nowHash,
+            recovery: "Re-read the file and retry the edit.",
+          };
+        } else {
+          await safeWrite(filePath, (result as any).newSource);
+          editResult = (result as any).newSource;
+        }
       }
       break;
     }
