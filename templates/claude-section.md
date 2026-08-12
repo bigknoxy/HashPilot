@@ -3,6 +3,10 @@
 This session has HashPilot Claude active at user scope.
 HashPilot Core (`structured-edit`) is available on PATH.
 
+**Use HashPilot when:** editing existing files, renaming symbols, replacing function bodies, managing imports, batch reading, or verifying changes.
+
+**Skip HashPilot when:** creating new files, deleting files, moving/renaming files, simple one-off edits, or file system operations — use direct commands instead.
+
 Edit hierarchy (prefer top first):
 1. **`structured-edit ast <subcommand>`** — syntax-aware structured edit (best)
 2. **`structured-edit replace-hash`** — hash-anchored content replacement (safe)

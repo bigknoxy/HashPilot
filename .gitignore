@@ -4,6 +4,7 @@ dist/
 *.log
 .DS_Store
 logs/
+.lean-ctx/
 # Local Claude Code state stays untracked, but shared project skills ship.
 .claude/*
 !.claude/skills/

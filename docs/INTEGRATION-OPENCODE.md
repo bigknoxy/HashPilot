@@ -75,6 +75,25 @@ The subagent will:
 3. Use `replace-hash` for other files
 4. Run `verify-changes` on all modified files
 
+## When to Use HashPilot vs Raw Editing
+
+| Task | Use HashPilot | Use Direct |
+|------|--------------|------------|
+| Edit existing TS/JS/Python/Go/Rust files | ✅ AST commands | ❌ |
+| Edit any file with hash safety | ✅ replace-hash | ❌ |
+| Rename symbols across files | ✅ ast rename-symbol | ❌ |
+| Add/remove imports | ✅ ast add-import / remove-import | ❌ |
+| Replace function body | ✅ ast replace-body | ❌ |
+| Batch read multiple files | ✅ read-many | ❌ |
+| Verify changes (lint+test) | ✅ verify-changes | ❌ |
+| Create new files | ❌ | ✅ write |
+| Delete files/directories | ❌ | ✅ bash rm |
+| Move/rename files | ❌ | ✅ bash mv |
+| Simple one-line edits | optional | ✅ direct edit |
+| Single-file exploration | optional | ✅ direct read |
+
+**General rule**: HashPilot for precision edits to existing files; direct tools for creation, deletion, and file system operations.
+
 ## Key Advantages Over Raw Editing
 
 | Aspect | Raw Edit | HashPilot |
