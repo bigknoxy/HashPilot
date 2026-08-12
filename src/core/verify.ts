@@ -32,6 +32,45 @@ export interface VerifyOptions {
   autoDetect?: boolean;
   revertOnFailure?: boolean;
   timeout?: number;
+  /** When true, allow any binary name. When false (default), only allowlisted tools are permitted. */
+  allowArbitraryTool?: boolean;
+}
+
+// ---- Security: allowlist of known-safe binaries (B19) ----
+// Any binary not on this list requires --allow-arbitrary-tool.
+// The allowlist is checked against the first token (the actual executable),
+// not against arguments — e.g. "tsc" passes but "/tmp/evil.sh" does not.
+const ALLOWED_BINARIES = new Set([
+  // JavaScript/TypeScript tooling
+  "prettier", "biome", "eslint", "tsc",
+  "bun", "node", "npx",
+  "vitest", "jest",
+  // Python
+  "python", "python3", "mypy", "ruff", "black", "pytest",
+  // Go
+  "go",
+  // Rust
+  "cargo", "rustfmt", "clippy", "rustc",
+  // Generic/unix tools (safe for formatting/linting)
+  "gofmt",
+]);
+
+/** Resolve a command string to [binary, ...args]. Validates the binary against
+ * the allowlist unless `allowArbitrary` is true. Returns an error string instead.
+ */
+function resolveCommand(cmd: string, allowArbitrary: boolean): { binary: string; args: string[] } | { error: string } {
+  const parts = cmd.split(/\s+/);
+  const binary = parts[0];
+  if (!binary) return { error: `empty command` };
+  // Allow relative paths (./node_modules/.bin/x) and full paths to node_modules
+  // Only reject binaries that are not on the allowlist when allowArbitrary is false
+  const binaryName = binary.split(/[\\/]/).pop()!; // extract basename
+  if (!allowArbitrary && !ALLOWED_BINARIES.has(binaryName)) {
+    return {
+      error: `binary "${binaryName}" is not in the allowlist. Use --allow-arbitrary-tool to override. Allowed: ${[...ALLOWED_BINARIES].sort().join(", ")}`,
+    };
+  }
+  return { binary, args: parts.slice(1) };
 }
 
 // Extension-based tool defaults (used when autoDetect finds no config files)
@@ -45,10 +84,12 @@ const EXT_TOOLS: Record<string, { typecheck?: string; test: string }> = {
   ".jsx": { test: "bun test" },
 };
 
+// Test runner command mapping — never uses `npx` without --no-install (B19).
+// A missing package is an error instead of a network fetch.
 const TEST_RUNNER_MAP: Record<string, string> = {
   "bun test": "bun test",
-  "vitest": "npx vitest run",
-  "jest": "npx jest",
+  "vitest": "npx --no-install vitest run",
+  "jest": "npx --no-install jest",
   "pytest": "python -m pytest",
   "go test": "go test ./...",
   "cargo test": "cargo test",
@@ -186,16 +227,22 @@ async function detectTools(
   }
 
   // Merge: explicit options win over detected
-  return {
-    detected,
-    effective: {
-      ...options,
-      formatter: options.formatter || detected.formatter,
-      linter: options.linter || detected.linter,
-      typecheck: options.typecheck || detected.typecheck,
-      testRunner: options.testRunner || detected.testRunner,
-    },
+  const effective = {
+    ...options,
+    formatter: options.formatter || detected.formatter,
+    linter: options.linter || detected.linter,
+    typecheck: options.typecheck || detected.typecheck,
+    testRunner: options.testRunner || detected.testRunner,
   };
+
+  // Warn when auto-detect fills in a tool from the target repo (B19)
+  for (const key of ["formatter", "linter", "typecheck", "testRunner"] as const) {
+    if (!options[key] && detected[key]) {
+      console.error(`[verify-changes] auto-detected ${key} from project config: ${detected[key]}`);
+    }
+  }
+
+  return { detected, effective };
 }
 
 // ---- Process execution ----
@@ -203,17 +250,27 @@ async function detectTools(
 async function runTool(
   cmd: string,
   args: string[],
-  timeoutMs: number = 30000
-): Promise<{ passed: boolean; output: string }> {
-  const parts = cmd.split(" ");
-  const binary = parts[0];
-  const builtinArgs = parts.slice(1);
+  timeoutMs: number = 30000,
+  allowArbitrary: boolean = false
+): Promise<{ passed: boolean; output: string; resolved?: string }> {
+  // Validate binary against allowlist (B19)
+  const resolved = resolveCommand(cmd, allowArbitrary);
+  if ("error" in resolved) {
+    return { passed: false, output: `security: ${resolved.error}` };
+  }
+
+  const { binary, args: builtinArgs } = resolved as { binary: string; args: string[] };
   const allArgs = [...builtinArgs, ...args];
+  const resolvedLine = `${binary} ${allArgs.filter(a => a.trim()).join(" ")}`;
+
+  // Log the command that is about to execute (B19 requirement)
+  console.error(`[verify-changes] running: ${resolvedLine}`);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    // Always spawn without shell (B19): argv array keeps shell metacharacters inert
     const proc = Bun.spawn([binary, ...allArgs], {
       stdout: "pipe",
       stderr: "pipe",
@@ -225,11 +282,13 @@ async function runTool(
     return {
       passed: exitCode === 0,
       output: (stdout + "\n" + stderr).trim(),
+      resolved: resolvedLine,
     };
   } catch (err: any) {
     return {
       passed: false,
       output: `Failed to run ${cmd}: ${err.message}`,
+      resolved: resolvedLine,
     };
   } finally {
     clearTimeout(timer);
@@ -264,26 +323,30 @@ export async function verifyChanges(
   }
 
   const { detected, effective } = await detectTools(files, options);
+  const allowArbitrary = options.allowArbitraryTool ?? false;
 
   // Formatter
   const formatter = effective.formatter ? await runTool(
     effective.formatter,
     [...(options.formatterArgs || []), ...files],
-    timeout
+    timeout,
+    allowArbitrary
   ) : undefined;
 
   // Linter
   const linter = effective.linter ? await runTool(
     effective.linter,
     [...(options.linterArgs || []), ...files],
-    timeout
+    timeout,
+    allowArbitrary
   ) : undefined;
 
   // Typecheck
   const typecheck = effective.typecheck ? await runTool(
     effective.typecheck,
     files,
-    timeout
+    timeout,
+    allowArbitrary
   ) : undefined;
 
   // Tests
@@ -295,7 +358,7 @@ export async function verifyChanges(
       ...(options.testArgs || []),
       ...(options.testFilter ? buildTestFilterArgs(runner, options.testFilter) : []),
     ];
-    tests = await runTool(runnerCmd, testArgs, timeout);
+    tests = await runTool(runnerCmd, testArgs, timeout, allowArbitrary);
   }
 
   const elapsed = Date.now() - start;
