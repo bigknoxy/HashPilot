@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/bigknoxy/HashPilot/compare/v3.0.0...v3.0.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* remove the 32KB AST ceiling and gate every edit on parse validity ([#64](https://github.com/bigknoxy/HashPilot/issues/64)) ([f0bf91f](https://github.com/bigknoxy/HashPilot/commit/f0bf91f5a24ab35a00b34f22d49f1d3f42d39813)), closes [#13](https://github.com/bigknoxy/HashPilot/issues/13) [#55](https://github.com/bigknoxy/HashPilot/issues/55) [#13](https://github.com/bigknoxy/HashPilot/issues/13)
+
 # [3.0.0](https://github.com/bigknoxy/HashPilot/compare/v2.1.2...v3.0.0) (2026-08-11)
 
 
