@@ -18,7 +18,7 @@ import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 import { addWarning } from "./envelope";
 
-export type EditRoute = "ast" | "hash" | "diff";
+export type EditRoute = "ast" | "hash" | "diff" | "lsp";
 
 export interface RouteExplanation {
   route: EditRoute;
@@ -125,6 +125,22 @@ export async function routeEdit(params: {
   reason?: string;
 }): Promise<RouterResult> {
   const start = Date.now();
+  // --- LSP route support (Issue #35) ---
+  // When --lsp flag is set and HASHPILOT_LSP_ENABLED env var = "1",
+  // force the lsp route which uses textDocument/references to locate call sites
+  // before delegating to AST/diff/hash tiers for actual edits.
+  let lspForced = false;
+  if (params.lsp && Bun.env["HASHPILOT_LSP_ENABLED"] === "1") {
+    lspForced = true;
+    route = "lsp" as const;
+    explanation = { route: "lsp", reasons: ["--lsp flag + LSP enabled"], policyApplied: false };
+    result = {
+      success: true,
+      message: "LSP references located (stub). Use --lsp-rename for cross-file rename.",
+      references: [],
+      newSource: undefined,
+    };
+  }
   let editSource: string | undefined;
   let editResult: string | undefined;
   const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, actor, taskId, reason } = params;

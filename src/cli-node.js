@@ -1,10 +1,7 @@
+#!/usr/bin/env node
 // Node-compatible shim for HashPilot CLI.
 // When Bun is available, forwards execution to the Bun-managed CLI.
 // When Bun is not available, prints an actionable message and exits cleanly.
-//
-// This file is valid CommonJS/JavaScript so Node can parse it without
-// compilation errors.  It must NOT use top-level `await`, JSX, or TypeScript
-// syntax.
 
 "use strict";
 
