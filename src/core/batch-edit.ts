@@ -43,10 +43,13 @@ export interface BatchResult {
 
 async function editOne(
   file: string,
-  params: BatchParams
+  params: BatchParams,
+  /** `editMany` holds every target's lock already; `editManySerial` does not. */
+  alreadyLocked = false,
 ): Promise<RouterResult> {
   return routeEdit({
     filePath: file,
+    alreadyLocked,
     operation: params.operation,
     method: params.method,
     policy: params.policy,
@@ -110,7 +113,7 @@ export async function editMany(params: BatchParams, opts?: BatchEditOptions): Pr
 
   try {
     const results = await Promise.all(
-      uniqueFiles.map((f) => editOne(f, params))
+      uniqueFiles.map((f) => editOne(f, params, true))
     );
 
     // Distinguish CAS/STALE_ANCHOR conflicts from other per-file failures.

@@ -17,6 +17,7 @@ import { recordEvent, ErrorCode } from "./telemetry";
 import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 import { addWarning } from "./envelope";
+import { acquireLock, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -119,6 +120,14 @@ export async function routeEdit(params: {
   // Diff params (search-and-replace fallback)
   oldContent?: string;
   dryRun?: boolean;
+  /**
+   * Internal: the caller already holds this file's advisory lock (`batch-edit`
+   * locks its whole file set up front in sorted order, then routes each file).
+   * The lock is not re-entrant on purpose — two genuinely concurrent writers in
+   * one process must still exclude each other — so nesting would self-deadlock
+   * until the timeout. Not exposed on the CLI.
+   */
+  alreadyLocked?: boolean;
   // Provenance params
   actor?: string;
   taskId?: string;
@@ -127,7 +136,7 @@ export async function routeEdit(params: {
   const start = Date.now();
   let editSource: string | undefined;
   let editResult: string | undefined;
-  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, actor, taskId, reason } = params;
+  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, alreadyLocked, actor, taskId, reason } = params;
 
   let route: EditRoute;
   let explanation: RouteExplanation;
@@ -180,6 +189,33 @@ export async function routeEdit(params: {
 
   routeReason = `${explanation.reasons.join("; ")}${fallback ? `; ${fallback}` : ""}`;
 
+  // Compare-and-swap alone cannot close the single-file race: between the hash
+  // compare and `safeWrite` another writer can land, and CAS then reports success
+  // over top of an edit it never saw. Hold the same advisory lock `batch-edit`
+  // uses across the whole read → edit → compare → write window so CAS is checking
+  // a snapshot nobody else can invalidate. `batch-edit` locked its whole file set
+  // up front and passes `alreadyLocked` so it does not wait on itself (#21/B18).
+  let releaseFileLock: (() => void) | undefined;
+  if (!result && !dryRun && !alreadyLocked) {
+    try {
+      releaseFileLock = await acquireLock(filePath, { timeoutMs: LOCK_TIMEOUT_MS });
+    } catch (e: any) {
+      // A contended lock is transient — report it as retryable rather than as a
+      // failed edit, so callers branch on the same code they use for stale anchors.
+      result = {
+        success: false,
+        stale: true,
+        errorCode: ErrorCode.STALE_ANCHOR,
+        message:
+          e instanceof LockAcquireError
+            ? `Could not lock ${filePath}: ${e.message}`
+            : `Could not lock ${filePath}: ${e?.message ?? e}`,
+        recovery: "Another edit holds this file. Wait and retry.",
+      };
+    }
+  }
+
+  try {
   if (!result) {
     switch (route) {
       case "ast": {
@@ -319,6 +355,9 @@ export async function routeEdit(params: {
     default:
       result = { success: false, message: `Unknown route: ${route}` };
     }
+  }
+  } finally {
+    releaseFileLock?.();
   }
 
   const elapsed = Date.now() - start;

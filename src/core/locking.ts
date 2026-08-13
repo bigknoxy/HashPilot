@@ -115,7 +115,9 @@ export async function acquireLock(
     const existing = readLockFile(lockFile);
     if (!existing) {
       // No lock exists → acquire.
-      if (tryLock(lockFile, process.pid, [targetPath], true)) return () => releaseLock(lockFile);
+      if (tryLock(lockFile, process.pid, [targetPath], true)) {
+        return once(() => releaseLock(lockFile));
+      }
       continue;
     }
 
@@ -136,6 +138,23 @@ export async function acquireLock(
     `Lock on ${targetPath} timed out after ${maxWait}ms (held by PID ${readLockFile(lockFile)?.pid ?? "?"})`,
     "timeout",
   );
+}
+
+/**
+ * Wrap a release so extra calls are no-ops.
+ *
+ * Release functions land in `finally` blocks that can run more than once on
+ * tangled error paths. Without this, a second call would decrement past our own
+ * acquisition and unlink a lockfile a *different* process had since acquired —
+ * silently handing two writers the same file, which is the exact race the lock exists to stop.
+ */
+function once(fn: () => void): () => void {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
 }
 
 /** Release / remove a lockfile. */
