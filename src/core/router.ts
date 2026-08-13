@@ -171,7 +171,7 @@ export async function routeEdit(params: {
   }
 
   if (route === "hash") {
-    if (!oldHash || !newContent) {
+    if (!oldHash || newContent === undefined) {
       route = "diff";
       fallback = "Hash edit requires oldHash and newContent";
       addWarning({ code: "ROUTE_FALLBACK", message: fallback, from: "hash", to: "diff" });
