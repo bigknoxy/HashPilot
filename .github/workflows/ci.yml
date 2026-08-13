@@ -40,6 +40,57 @@ jobs:
       - name: Run doctor smoke test
         run: bun run src/cli.ts doctor
 
+  # Issue #35: `npm i -g hashpilot` must not install a package that dies on first
+  # use. Pack the tarball, install it on a machine with Node but no Bun, and assert
+  # the shim gives an actionable message; then install Bun and assert doctor runs.
+  packaging:
+    name: Packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Pack the tarball
+        run: npm pack --pack-destination /tmp
+
+      - name: Inspect tarball contents
+        run: |
+          tar -tzf /tmp/hashpilot-*.tgz | sort
+          # The bin target must actually be in the package, or the install is broken.
+          tar -tzf /tmp/hashpilot-*.tgz | grep -qx 'package/src/cli-node.cjs'
+          tar -tzf /tmp/hashpilot-*.tgz | grep -qx 'package/src/cli.ts'
+
+      - name: Install globally without Bun present
+        run: npm i -g /tmp/hashpilot-*.tgz
+
+      - name: Assert actionable message, not a stack trace
+        run: |
+          set +e
+          out=$(structured-edit doctor 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          echo "exit=$code"
+          [ "$code" -eq 127 ] || { echo "FAIL: expected exit 127 without Bun, got $code"; exit 1; }
+          echo "$out" | grep -q 'requires Bun' || { echo "FAIL: message not actionable"; exit 1; }
+          if echo "$out" | grep -qi 'SyntaxError\|at Object\.\|node:internal'; then
+            echo "FAIL: leaked a stack trace"; exit 1
+          fi
+          echo "✓ Node-only machine gets an actionable message"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Doctor runs from the packed install once Bun is present
+        run: structured-edit doctor
+
   docs-verify:
     name: Docs Verify
     runs-on: ubuntu-latest

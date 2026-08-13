@@ -67,7 +67,9 @@ export async function readHash(
     const content = await Bun.file(filePath).text();
     const lines = content.split("\n");
     const targetLine = lines[line - 1];
-    if (!targetLine) {
+    // A blank line is an empty string, which is falsy — checking truthiness here
+    // reported a legitimate blank line as out of range (#40 falsy-parameter audit).
+    if (targetLine === undefined) {
       return {
         path: filePath,
         line,

@@ -53,6 +53,7 @@ All core modules live in `src/core/` (paths below are relative to it).
 
 | Module | Responsibility |
 |--------|---------------|
+| `src/cli-node.cjs` | Node-parseable CommonJS `bin` shim. Spawns Bun with array argv, forwards the child exit code, and prints an actionable install message (exit 127) when Bun is absent. |
 | `src/cli.ts` | Commander-based CLI entry point. Every command records a telemetry event. |
 | `ast-edit.ts` | Tree-sitter parsing, symbol finding, rename, body replacement, import add/remove (with per-language configs for import formatting and grouped import handling) Source is streamed to the parser in chunks (no 32KB ceiling), and every operation is wrapped in a parse-validity gate: refuse a file that already has syntax errors, and discard an edit whose result would not parse. |
 | `hash-edit.ts` | SHA-256 anchored content replacement with relocation-based stale-anchor recovery and strict range validation. |

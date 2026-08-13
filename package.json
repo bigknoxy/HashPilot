@@ -7,7 +7,7 @@
     "bun": ">=1.2.0"
   },
   "bin": {
-    "structured-edit": "./src/cli-node.js"
+    "structured-edit": "./src/cli-node.cjs"
   },
   "scripts": {
     "test": "bun test",
