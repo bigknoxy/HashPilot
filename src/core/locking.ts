@@ -1,7 +1,10 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync, statSync } from "fs";
-import { join, resolve as pathResolve } from "path";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync, statSync, readdirSync } from "fs";
+import { createHash, randomBytes } from "crypto";
+import { join, dirname, resolve as pathResolve } from "path";
+import { findProjectRoot } from "./paths";
 
-const LOCK_DIR = ".hashpilot/locks";
+/** Lock directory, relative to the *target file's* project root — never to cwd. */
+const LOCK_DIR_NAME = join(".hashpilot", "locks");
 
 /** Maximum wait before abandoning a lock acquisition. */
 export const LOCK_TIMEOUT_MS = 10_000;
@@ -9,14 +12,19 @@ export const LOCK_TIMEOUT_MS = 10_000;
 /** How often to retry when waiting for a lock (ms). */
 const LOCK_RETRY_MS = 50;
 
-/** If the PID in a lock file hasn't written in this many ms, treat it as stale. */
+/** How often a held lock refreshes its `ts` so others can see it is alive. */
+const HEARTBEAT_MS = 5_000;
+
+/** If the holder hasn't refreshed `ts` in this many ms, treat the lock as stale. */
 const STALE_THRESHOLD_MS = 30_000;
 
-/** Per-lockfile bookkeeping so we can release our own locks. */
-interface HeldLock {
-  filePath: string;  // target file being locked
-  lockPath: string;  // path to the .lock file on disk
+/** On-disk lock payload. */
+interface LockPayload {
   pid: number;
+  /** Per-acquisition token. Release only unlinks a file still carrying our nonce. */
+  nonce: string;
+  ts: number;
+  targets: string[];
 }
 
 /** Errors thrown by this module. */
@@ -31,32 +39,30 @@ export class LockAcquireError extends Error {
 }
 
 /**
- * Derive a unique lock-file name from an absolute target path.
+ * Derive the lock-file path for a target file.
+ *
+ * The key is a SHA-256 of the *absolute* target path, and the directory is
+ * anchored to that target's project root. Both halves must be cwd-independent:
+ * a cwd-relative lock directory combined with an absolute key means two
+ * processes editing the same file from different working directories write to
+ * different lock files and never exclude each other.
  */
 export function lockPathFor(targetFile: string): string {
   const resolved = pathResolve(targetFile);
-  // Lightweight hash: just fold the path into a short hex-ish string so we don't blow out the
-  // filesystem with extremely deep nesting on Windows. md5/sha256 would round-trip to node_modules
-  // and this is an advisory lock, not cryptography.
-  const raw = Buffer.from(resolved, "utf8");
-  let h = 0;
-  for (let i = 0; i < raw.length; i++) {
-    h = ((h << 5) - h + raw[i]) | 0; // djb2-ish fold
-  }
-  const key = Math.abs(h).toString(36);
-  return join(LOCK_DIR, `${key}.lock`);
+  const root = findProjectRoot(dirname(resolved));
+  const key = createHash("sha256").update(resolved).digest("hex").slice(0, 32);
+  return join(root, LOCK_DIR_NAME, `${key}.lock`);
 }
 
 /** Ensure the lock directory exists with safe permissions. */
-function ensureLockDir(): void {
-  mkdirSync(LOCK_DIR, { recursive: true, mode: 0o755 });
+function ensureLockDir(lockPath: string): void {
+  mkdirSync(dirname(lockPath), { recursive: true, mode: 0o755 });
 }
 
 /** Check whether a PID is alive (best-effort). */
 function isPidAlive(pid: number): boolean {
   try {
     // send signal 0 — checks process existence without delivering anything.
-    // On Windows process.kill works via Node's internal check too.
     process.kill(pid, 0);
     return true;
   } catch {
@@ -64,43 +70,87 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-/** Read a lockfile back into structured data (or null). */
-function readLockFile(lockPath: string): { pid: number; targets: string[]; ts: number } | null {
+/** Read a lockfile back into structured data. `null` means absent or unreadable. */
+function readLockFile(lockPath: string): LockPayload | null {
   try {
-    const raw = readFileSync(lockPath, "utf8");
-    return JSON.parse(raw) as { pid: number; targets: string[]; ts: number };
+    return JSON.parse(readFileSync(lockPath, "utf8")) as LockPayload;
   } catch {
-    return null; // broken file => treat as stale
+    return null;
   }
 }
 
 /**
- * Attempt to acquire (or update) a lockfile. Returns `true` on success.
+ * Age of a lock, in ms. Prefers the payload's heartbeat `ts`; falls back to the
+ * file's mtime when the payload is unreadable (a torn write, or a lockfile from
+ * an older version). Returns `null` if the file is gone.
  */
-function tryLock(lockPath: string, pid: number, targets: string[], exclusive: boolean): boolean {
-  ensureLockDir();
+function lockAgeMs(lockPath: string, payload: LockPayload | null): number | null {
+  if (payload && typeof payload.ts === "number") return Date.now() - payload.ts;
   try {
-    const payload = JSON.stringify({ pid, ts: Date.now(), targets, exclusive });
-    if (exclusive) {
-      // Fail if the file already exists.
-      if (existsSync(lockPath)) return false;
-      writeFileSync(lockPath, payload);
-      return true;
-    } else {
-      // Shared write — always succeeds (just updates timestamp for liveness).
-      writeFileSync(lockPath, payload);
-      return true;
-    }
+    return Date.now() - statSync(lockPath).mtimeMs;
   } catch {
-    return false;
+    return null;
   }
 }
 
 /**
- * Acquire an advisory lock for the given target file(s).
+ * Atomically create the lockfile. Returns `true` only if *we* created it.
  *
- * Returns a callback that releases (writes heartbeat / removes) the lock on next call.
- * Callers MUST invoke the release function even on error paths (e.g., in `finally`).
+ * `wx` is O_CREAT|O_EXCL: the existence check and the create are one syscall.
+ * An `existsSync` guard followed by a plain write is check-then-act — two
+ * processes can both observe no lockfile and both write, which is precisely the
+ * race this lock exists to prevent.
+ */
+function tryCreateLock(lockPath: string, payload: LockPayload): boolean {
+  ensureLockDir(lockPath);
+  try {
+    writeFileSync(lockPath, JSON.stringify(payload), { flag: "wx" });
+    return true;
+  } catch {
+    return false; // EEXIST (held) or an I/O error — either way we did not acquire.
+  }
+}
+
+/** Refresh the heartbeat, but only while the lockfile is still ours. */
+function heartbeat(lockPath: string, payload: LockPayload): void {
+  const current = readLockFile(lockPath);
+  if (!current || current.nonce !== payload.nonce) return; // no longer ours
+  payload.ts = Date.now();
+  try {
+    writeFileSync(lockPath, JSON.stringify(payload));
+  } catch {
+    /* transient I/O — the next tick retries */
+  }
+}
+
+/**
+ * Release a lock we own.
+ *
+ * Unlinks only if the lockfile still carries our nonce. Unlinking by path alone
+ * is unsafe: if our lock was reclaimed as stale and another process acquired it,
+ * a blind unlink would delete *their* lockfile and hand a third writer the same
+ * file — two writers, silently.
+ */
+function releaseOwnedLock(lockPath: string, payload: LockPayload, timer: ReturnType<typeof setInterval>): void {
+  clearInterval(timer);
+  const current = readLockFile(lockPath);
+  if (!current || current.nonce !== payload.nonce) return; // reclaimed by someone else
+  try {
+    unlinkSync(lockPath);
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * Acquire an advisory lock for the given target file.
+ *
+ * Returns a release callback. Callers MUST invoke it even on error paths
+ * (e.g. in a `finally`). Extra calls are no-ops.
+ *
+ * Locks are **not** re-entrant: acquiring the same file twice in one process
+ * blocks until the timeout. Callers that already hold a lock must say so rather
+ * than nesting an acquire.
  */
 export async function acquireLock(
   targetPath: string,
@@ -108,46 +158,55 @@ export async function acquireLock(
 ): Promise<() => void> {
   const maxWait = opts?.timeoutMs ?? LOCK_TIMEOUT_MS;
   const lockFile = lockPathFor(targetPath);
-
   const deadline = Date.now() + maxWait;
 
   while (Date.now() < deadline) {
+    const payload: LockPayload = {
+      pid: process.pid,
+      nonce: randomBytes(12).toString("hex"),
+      ts: Date.now(),
+      targets: [targetPath],
+    };
+
+    if (tryCreateLock(lockFile, payload)) {
+      const timer = setInterval(() => heartbeat(lockFile, payload), HEARTBEAT_MS);
+      // Never hold the event loop open just to heartbeat.
+      (timer as unknown as { unref?: () => void }).unref?.();
+      return once(() => releaseOwnedLock(lockFile, payload, timer));
+    }
+
+    // Creation failed — someone holds it (or it is a leftover). Check staleness.
     const existing = readLockFile(lockFile);
-    if (!existing) {
-      // No lock exists → acquire.
-      if (tryLock(lockFile, process.pid, [targetPath], true)) {
-        return once(() => releaseLock(lockFile));
-      }
+    const age = lockAgeMs(lockFile, existing);
+    if (age === null) {
+      // Vanished between create and read — retry immediately-ish.
+      await sleep(LOCK_RETRY_MS);
       continue;
     }
-
-    // Lock exists — check staleness.
-    const age = Date.now() - existing.ts;
-    if (age > STALE_THRESHOLD_MS && !isPidAlive(existing.pid)) {
+    // Reclaim only when the holder stopped heartbeating AND its PID is gone.
+    // An unreadable payload has no PID to check, so age alone decides.
+    const holderGone = !existing || !isPidAlive(existing.pid);
+    if (age > STALE_THRESHOLD_MS && holderGone) {
       try {
         unlinkSync(lockFile);
-      } catch { /* someone else raced us */ }
-      continue; // retry the loop
+      } catch {
+        /* someone else raced us to the reclaim */
+      }
     }
 
-    // Lock is held by a live PID — wait and retry.
+    // Always yield. A `continue` without sleeping busy-spins a core for the
+    // whole timeout, starving the very edit we are waiting on.
     await sleep(LOCK_RETRY_MS);
   }
 
+  const holder = readLockFile(lockFile)?.pid ?? "?";
   throw new LockAcquireError(
-    `Lock on ${targetPath} timed out after ${maxWait}ms (held by PID ${readLockFile(lockFile)?.pid ?? "?"})`,
+    `Lock on ${targetPath} timed out after ${maxWait}ms (held by PID ${holder})`,
     "timeout",
   );
 }
 
-/**
- * Wrap a release so extra calls are no-ops.
- *
- * Release functions land in `finally` blocks that can run more than once on
- * tangled error paths. Without this, a second call would decrement past our own
- * acquisition and unlink a lockfile a *different* process had since acquired —
- * silently handing two writers the same file, which is the exact race the lock exists to stop.
- */
+/** Wrap a release so extra calls are no-ops. */
 function once(fn: () => void): () => void {
   let done = false;
   return () => {
@@ -157,33 +216,33 @@ function once(fn: () => void): () => void {
   };
 }
 
-/** Release / remove a lockfile. */
-function releaseLock(lockPath: string): void {
-  try {
-    unlinkSync(lockPath);
-  } catch { /* stale delete — already gone */ }
-}
-
 /** Sleep for `ms` milliseconds (async). */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Acquire locks for multiple file paths in deterministic sorted order to prevent deadlock.
- * Returns a single release function that undoes all acquisitions (best-effort; partial
- * failure only releases what was acquired).
+ * Acquire locks for multiple files in deterministic order to prevent deadlock.
+ *
+ * Deduplication is by *lock path*, not by input path: two different inputs that
+ * map to the same lockfile would otherwise make this function block against
+ * itself, since locks are not re-entrant.
  */
-export let acquireSortedLocks = async (
+export async function acquireSortedLocks(
   paths: string[],
   opts?: { timeoutMs?: number },
-): Promise<() => void> => {
-  const sorted = [...new Set(paths)].sort((a, b) => a.localeCompare(b));
+): Promise<() => void> {
+  const byLockPath = new Map<string, string>();
+  for (const p of paths) {
+    const lp = lockPathFor(p);
+    if (!byLockPath.has(lp)) byLockPath.set(lp, p);
+  }
+  const sorted = [...byLockPath.keys()].sort((a, b) => a.localeCompare(b));
   const releases: (() => void)[] = [];
 
-  for (const p of sorted) {
+  for (const lp of sorted) {
     try {
-      releases.push(await acquireLock(p, opts));
+      releases.push(await acquireLock(byLockPath.get(lp)!, opts));
     } catch (err) {
       // Release everything we already acquired on failure.
       for (const rel of releases) {
@@ -193,10 +252,41 @@ export let acquireSortedLocks = async (
     }
   }
 
-  return () => {
+  return once(() => {
     // Release in reverse order (LIFO).
     for (let i = releases.length - 1; i >= 0; i--) {
       try { releases[i](); } catch { /* ignore */ }
     }
-  };
-};
+  });
+}
+
+/**
+ * Remove reclaimable lockfiles left behind by crashed processes.
+ * Returns the number of lockfiles removed. Safe to call at startup.
+ */
+export function pruneStaleLocks(root: string = findProjectRoot()): number {
+  const dir = join(root, LOCK_DIR_NAME);
+  if (!existsSync(dir)) return 0;
+  let removed = 0;
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return 0;
+  }
+  for (const name of entries) {
+    if (!name.endsWith(".lock")) continue;
+    const lockPath = join(dir, name);
+    const payload = readLockFile(lockPath);
+    const age = lockAgeMs(lockPath, payload);
+    if (age === null) continue;
+    const holderGone = !payload || !isPidAlive(payload.pid);
+    if (age > STALE_THRESHOLD_MS && holderGone) {
+      try {
+        unlinkSync(lockPath);
+        removed++;
+      } catch { /* ignore */ }
+    }
+  }
+  return removed;
+}

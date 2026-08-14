@@ -61,6 +61,7 @@ export {
   LOCK_TIMEOUT_MS,
   lockPathFor,
   LockAcquireError,
+  pruneStaleLocks,
 } from "./locking";
 export { parseIntent, findSymbolDefinition, findReferences, generatePlan } from "./intent";
 export type {

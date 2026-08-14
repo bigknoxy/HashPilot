@@ -200,12 +200,14 @@ export async function routeEdit(params: {
     try {
       releaseFileLock = await acquireLock(filePath, { timeoutMs: LOCK_TIMEOUT_MS });
     } catch (e: any) {
-      // A contended lock is transient — report it as retryable rather than as a
-      // failed edit, so callers branch on the same code they use for stale anchors.
+      // A contended lock is transient, so it stays retryable — but it is NOT a
+      // stale anchor. Reporting it as one told callers to re-read the file
+      // (which changes nothing here) and inflated the stale-anchor health
+      // metric. `batch-edit` reports LOCK_TIMEOUT for the identical condition.
       result = {
         success: false,
         stale: true,
-        errorCode: ErrorCode.STALE_ANCHOR,
+        errorCode: ErrorCode.LOCK_TIMEOUT,
         message:
           e instanceof LockAcquireError
             ? `Could not lock ${filePath}: ${e.message}`

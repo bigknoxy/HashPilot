@@ -79,33 +79,45 @@ describe("CAS integration", () => {
     expect(computeHash("HELLO WORLD")).not.toBe(h1);
   });
 
-  it("CAS detects concurrent modification", async () => {
+  // These two exercise the router, not a hand-rolled hash comparison. The
+  // previous versions only re-implemented `computeHash` in the test body and
+  // never called `routeEdit`, so they passed with the CAS guard deleted.
+  it("CAS refuses a hash edit whose anchor moved out from under it", async () => {
     const f = join(TEST_DIR, "cas-target.ts");
-    const original = `export function hello() { return 'world'; }`;
-    writeFileSync(f, original);
+    writeFileSync(f, "export function hello() { return 'world'; }\n");
 
-    // Read and capture reference hash.
-    const source = readFileSync(f, "utf8");
-    const refHash = computeHash(source);
+    const staleHash = computeHash(readFileSync(f, "utf8"));
 
-    // Simulate concurrent modification.
-    writeFileSync(f, `export function hello() { return 'changed'; }`);
+    // Another writer lands between our read and our write.
+    writeFileSync(f, "export function hello() { return 'changed'; }\n");
 
-    const nowSource = await Bun.file(f).text();
-    expect(computeHash(nowSource) !== refHash).toBe(true);
+    const r = await routeEdit({
+      filePath: f,
+      operation: "replace-hash",
+      oldHash: staleHash,
+      newContent: "export function hello() { return 'ours'; }\n",
+    });
 
-    writeFileSync(f, original); // restore
+    expect(r.result.success).toBe(false);
+    // The other writer's content survives — no silent overwrite.
+    expect(readFileSync(f, "utf8")).toContain("'changed'");
   });
 
-  it("CAS allows write when file unchanged", async () => {
-    const f = join(TEST_DIR, "cas-ok.txt");
-    writeFileSync(f, "initial");
+  it("CAS allows the write when the file is unchanged since the read", async () => {
+    const f = join(TEST_DIR, "cas-ok.ts");
+    writeFileSync(f, "const value = 1;\n");
 
-    const source = readFileSync(f, "utf8");
-    const refHash = computeHash(source);
+    const freshHash = computeHash(readFileSync(f, "utf8"));
 
-    const nowSource = await Bun.file(f).text();
-    expect(computeHash(nowSource)).toBe(refHash);
+    const r = await routeEdit({
+      filePath: f,
+      operation: "replace-hash",
+      oldHash: freshHash,
+      newContent: "const value = 2;\n",
+    });
+
+    expect(r.result.success).toBe(true);
+    expect(readFileSync(f, "utf8")).toBe("const value = 2;\n");
   });
 });
 
@@ -138,7 +150,7 @@ describe("router serializes concurrent single-file edits (B18)", () => {
     const f = join(TEST_DIR, "race-many.txt");
     writeFileSync(f, "start\n");
 
-    await Promise.all(
+    const results = await Promise.all(
       Array.from({ length: 8 }, (_, i) =>
         routeEdit({ filePath: f, operation: "replace-content", oldContent: "start\n", newContent: `start\nline${i}\n` }),
       ),
@@ -149,6 +161,18 @@ describe("router serializes concurrent single-file edits (B18)", () => {
     // behind, and no write silently overwrites another's.
     expect(lines[0]).toBe("start");
     expect(new Set(lines).size).toBe(lines.length);
+
+    // The assertions above hold trivially if *every* edit failed and the file
+    // still reads "start". Tie the file back to the reported outcomes: each
+    // success must have left exactly its own line on disk, and each failure must
+    // have reported itself rather than silently doing nothing.
+    const succeeded = results.filter((r) => r.result.success);
+    expect(succeeded.length).toBeGreaterThan(0);
+    expect(lines.length).toBe(1 + succeeded.length);
+    for (let i = 0; i < 8; i++) {
+      const landed = lines.includes(`line${i}`);
+      expect(landed).toBe(results[i].result.success === true);
+    }
   });
 
   it("dry-run takes no lock, so it cannot be blocked by a held one", async () => {

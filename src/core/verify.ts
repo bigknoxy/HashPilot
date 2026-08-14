@@ -1,5 +1,10 @@
+import { realpathSync } from "fs";
+import { join, dirname, resolve } from "path";
 import { computeHash } from "./read";
-import { safeWrite } from "./paths";
+// Aliased: this module already has its own async `findProjectRoot` that walks up
+// looking for tool config files. That one answers "which tools apply here"; this
+// one answers "where is the write boundary" and must not be confused with it.
+import { safeWrite, findProjectRoot as findWriteRoot } from "./paths";
 import { recordEvent } from "./telemetry";
 
 export interface VerifyResult {
@@ -55,22 +60,69 @@ const ALLOWED_BINARIES = new Set([
   "gofmt",
 ]);
 
+// Arguments that turn an allowlisted tool into an arbitrary-code interpreter.
+// Matched against every argument, not just the first — `node --experimental-x -e`
+// is the same hole as `node -e`.
+const DENIED_ARGS: Record<string, RegExp> = {
+  node: /^(-e|--eval|-p|--print|--input-type)$/,
+  bun: /^(-e|--eval|--print|repl|exec|x)$/,
+  python: /^(-c|-m)$/,
+  python3: /^(-c|-m)$/,
+  npx: /^(-c|--call|-p|--package)$/,
+  go: /^(run|generate|install)$/,
+  cargo: /^(run|install)$/,
+};
+
+/** The one directory a path-form binary may live in: the project's own bin shims. */
+function allowedBinDir(): string {
+  return join(findWriteRoot(), "node_modules", ".bin");
+}
+
 /** Resolve a command string to [binary, ...args]. Validates the binary against
  * the allowlist unless `allowArbitrary` is true. Returns an error string instead.
  */
 function resolveCommand(cmd: string, allowArbitrary: boolean): { binary: string; args: string[] } | { error: string } {
-  const parts = cmd.split(/\s+/);
+  const parts = cmd.trim().split(/\s+/).filter(Boolean);
   const binary = parts[0];
   if (!binary) return { error: `empty command` };
-  // Allow relative paths (./node_modules/.bin/x) and full paths to node_modules
-  // Only reject binaries that are not on the allowlist when allowArbitrary is false
-  const binaryName = binary.split(/[\\/]/).pop()!; // extract basename
-  if (!allowArbitrary && !ALLOWED_BINARIES.has(binaryName)) {
+  const args = parts.slice(1);
+  if (allowArbitrary) return { binary, args };
+
+  // A path is checked by where it actually points, not by its basename.
+  // Basename matching let `/tmp/evil/tsc` through: the name is on the allowlist
+  // while the file is anything the caller chose to drop there.
+  if (/[\\/]/.test(binary)) {
+    let real: string;
+    try {
+      real = realpathSync(binary);
+    } catch {
+      return { error: `binary "${binary}" could not be resolved` };
+    }
+    const binDir = allowedBinDir();
+    if (dirname(real) !== binDir && dirname(resolve(binary)) !== binDir) {
+      return { error: `binary "${binary}" is a path outside ${binDir}. Use --allow-arbitrary-tool to override.` };
+    }
+    return { binary: real, args };
+  }
+
+  if (!ALLOWED_BINARIES.has(binary)) {
     return {
-      error: `binary "${binaryName}" is not in the allowlist. Use --allow-arbitrary-tool to override. Allowed: ${[...ALLOWED_BINARIES].sort().join(", ")}`,
+      error: `binary "${binary}" is not in the allowlist. Use --allow-arbitrary-tool to override. Allowed: ${[...ALLOWED_BINARIES].sort().join(", ")}`,
     };
   }
-  return { binary, args: parts.slice(1) };
+
+  // An allowlisted binary is only safe with the arguments it was allowlisted for.
+  // `node`, `python`, `go` and friends all have a flag that turns them into a
+  // general-purpose interpreter, which defeats the allowlist entirely.
+  const denied = DENIED_ARGS[binary];
+  if (denied) {
+    const bad = args.find((a) => denied.test(a));
+    if (bad) {
+      return { error: `argument "${bad}" is not permitted for "${binary}" — it executes arbitrary code. Use --allow-arbitrary-tool to override.` };
+    }
+  }
+
+  return { binary, args };
 }
 
 // Extension-based tool defaults (used when autoDetect finds no config files)
@@ -259,12 +311,19 @@ async function runTool(
     return { passed: false, output: `security: ${resolved.error}` };
   }
 
-  const { binary, args: builtinArgs } = resolved as { binary: string; args: string[] };
+  const { binary, args: builtinArgs } = resolved;
   const allArgs = [...builtinArgs, ...args];
   const resolvedLine = `${binary} ${allArgs.filter(a => a.trim()).join(" ")}`;
 
   // Log the command that is about to execute (B19 requirement)
   console.error(`[verify-changes] running: ${resolvedLine}`);
+
+  // `--allow-arbitrary-tool` is a real escape hatch, so say so when it is what
+  // let this command through. Otherwise the override is invisible in the log
+  // and an audit cannot tell a vetted tool from a bypassed one.
+  if (allowArbitrary && "error" in resolveCommand(cmd, false)) {
+    console.error(`[verify-changes] WARNING: running non-allowlisted command "${resolvedLine}" (--allow-arbitrary-tool)`);
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

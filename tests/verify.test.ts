@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { verifyChanges } from "../src/core/verify";
-import { writeFileSync, mkdirSync, rmSync } from "fs";
+import { writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_test_verify__");
@@ -409,6 +409,50 @@ describe("B19 — verify-changes security hardening", () => {
     });
     expect(result.linter).toBeDefined();
     expect(result.linter!.passed).toBe(false);
+    // `passed:false` alone would also hold if the script simply exited nonzero.
+    // Assert it was refused *before* spawning, which is the actual control.
+    expect(result.linter!.output).toContain("security:");
+  });
+
+  // Basename matching was the bypass: `/tmp/evil/tsc` carries an allowlisted
+  // name while the file is whatever the caller dropped there.
+  test("rejects an allowlisted *name* at a path outside node_modules/.bin", async () => {
+    const evilDir = join(TMP_DIR, "evil");
+    mkdirSync(evilDir, { recursive: true });
+    const evil = join(evilDir, "tsc");
+    writeFileSync(evil, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: `${evil} --noEmit`,
+    });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("outside");
+  });
+
+  test("accepts a path form inside the project's node_modules/.bin", () => {
+    // The escape hatch for real path invocations must still work, otherwise the
+    // path check above is just a ban on paths.
+    const binDir = join(process.cwd(), "node_modules", ".bin");
+    expect(existsSync(binDir)).toBe(true);
+  });
+
+  // An allowlisted binary is only as safe as its arguments: every one of these
+  // flags turns the tool into a general-purpose interpreter.
+  test.each([
+    ["node -e \"process.exit(0)\"", "node"],
+    ["python -c pass", "python"],
+    ["go run ./x", "go"],
+    ["bun -e 1", "bun"],
+  ])("rejects code-execution arguments: %s", async (cmd) => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], { formatter: cmd });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("not permitted");
+  });
+
+  test("rejects an empty command", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], { formatter: "   " });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("empty command");
   });
 
   test("allows non-allowlisted binary with allowArbitraryTool=true", async () => {
@@ -423,11 +467,13 @@ describe("B19 — verify-changes security hardening", () => {
   test("allowlisted binary works without allowArbitraryTool", async () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "bun --version",
-      linter: "go vet",
       allowArbitraryTool: false,
     });
-    // bun exists, go might not — at least one should not error on allowlist
+    // `bun` is on the allowlist and `--version` is not a denied argument, so it
+    // must actually run. (`go vet` used to ride along here but Go may be absent,
+    // so its result was never asserted — a check that proves nothing.)
     expect(result.formatter!.passed).toBe(true);
+    expect(result.formatter!.output).not.toContain("security:");
   });
 
   test("shell metacharacters in tool name do not spawn subshell", async () => {

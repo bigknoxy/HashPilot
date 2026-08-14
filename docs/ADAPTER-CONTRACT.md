@@ -572,12 +572,20 @@ Accepts the same options as `route-edit`, plus `--serial` for sequential executi
   "results": [ ... ],
   "summary": {
     "total": 5,
-    "succeeded": 4,
+    "succeeded": 3,
     "failed": 1,
+    "conflicts": 1,
     "elapsed_ms": 1234
   }
 }
 ```
+
+`conflicts` counts files that failed with a stale-anchor or lock conflict — a
+concurrent writer landed, so the edit is **retryable after re-reading the file**.
+These are counted separately and are *not* included in `failed`, which covers
+non-retryable errors. `total == succeeded + failed + conflicts`. Top-level
+`success` is true only when both `failed` and `conflicts` are zero, so an adapter
+that only checks `failed` will report success on a batch that partly conflicted.
 
 ---
 
