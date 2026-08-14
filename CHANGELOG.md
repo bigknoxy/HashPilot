@@ -1,3 +1,10 @@
+## [3.0.4](https://github.com/bigknoxy/HashPilot/compare/v3.0.3...v3.0.4) (2026-08-14)
+
+
+### Bug Fixes
+
+* **B18:** compare-and-swap on every write, sorted advisory locks ([#21](https://github.com/bigknoxy/HashPilot/issues/21)) ([#70](https://github.com/bigknoxy/HashPilot/issues/70)) ([e995791](https://github.com/bigknoxy/HashPilot/commit/e9957915b1c58da34dd982cc48a18801f5a08dab)), closes [#22](https://github.com/bigknoxy/HashPilot/issues/22) [#22](https://github.com/bigknoxy/HashPilot/issues/22) [#22](https://github.com/bigknoxy/HashPilot/issues/22) [#40](https://github.com/bigknoxy/HashPilot/issues/40) [#40](https://github.com/bigknoxy/HashPilot/issues/40) [#40](https://github.com/bigknoxy/HashPilot/issues/40) [#35](https://github.com/bigknoxy/HashPilot/issues/35) [#35](https://github.com/bigknoxy/HashPilot/issues/35) [#35](https://github.com/bigknoxy/HashPilot/issues/35) [#40](https://github.com/bigknoxy/HashPilot/issues/40)
+
 ## [3.0.3](https://github.com/bigknoxy/HashPilot/compare/v3.0.2...v3.0.3) (2026-08-12)
 
 
