@@ -3,13 +3,16 @@
   "version": "3.0.3",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
+  "engines": {
+    "bun": ">=1.2.0"
+  },
   "bin": {
-    "structured-edit": "./src/cli.ts"
+    "structured-edit": "./src/cli-node.cjs"
   },
   "scripts": {
     "test": "bun test",
     "build": "bun build src/cli.ts --outdir dist --target bun",
-    "install-cli": "ln -sf $(pwd)/src/cli.ts ~/.agentic-tools/bin/structured-edit",
+    "install-cli": "mkdir -p ~/.agentic-tools/bin && ln -sf $(pwd)/src/cli-node.cjs ~/.agentic-tools/bin/structured-edit",
     "semantic-release": "semantic-release",
     "gen:cli-quickref": "bun run scripts/gen-cli-quickref.ts",
     "gen:cli-quickref:check": "bun run scripts/gen-cli-quickref.ts --check",

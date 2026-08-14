@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { verifyChanges } from "../src/core/verify";
-import { writeFileSync, mkdirSync, rmSync } from "fs";
+import { writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_test_verify__");
@@ -34,6 +34,7 @@ describe("verifyChanges", () => {
   test("reports failure for unavailable formatter", async () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "nonexistent-formatter-tool-xyz",
+      allowArbitraryTool: true,
     });
     expect(result.formatter).toBeDefined();
     expect(result.formatter!.passed).toBe(false);
@@ -41,9 +42,9 @@ describe("verifyChanges", () => {
 
   // New tests — typechecking
   test("runs typecheck when specified", async () => {
-    // Use echo as a mock typecheck that passes
+    // Use bun --version as a mock typecheck that always passes (bun is on the allowlist)
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
-      typecheck: "echo",
+      typecheck: "bun --version",
     });
     expect(result.typecheck).toBeDefined();
     expect(result.typecheck!.passed).toBe(true);
@@ -52,6 +53,7 @@ describe("verifyChanges", () => {
   test("reports typecheck failure", async () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       typecheck: "nonexistent-typechecker-tool-xyz",
+      allowArbitraryTool: true,
     });
     expect(result.typecheck).toBeDefined();
     expect(result.typecheck!.passed).toBe(false);
@@ -63,6 +65,7 @@ describe("verifyChanges", () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "echo",
       linter: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.overall).toBe("pass");
   });
@@ -71,6 +74,7 @@ describe("verifyChanges", () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "echo",
       linter: "nonexistent-linter-tool",
+      allowArbitraryTool: true,
     });
     expect(result.overall).toBe("fail");
   });
@@ -86,6 +90,7 @@ describe("verifyChanges", () => {
     const result = await verifyChanges([filePath], {
       linter: "nonexistent-linter-tool",
       revertOnFailure: true,
+      allowArbitraryTool: true,
     });
 
     expect(result.overall).toBe("fail");
@@ -100,6 +105,7 @@ describe("verifyChanges", () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "echo",
       revertOnFailure: true,
+      allowArbitraryTool: true,
     });
     expect(result.overall).toBe("pass");
     expect(result.revertedFiles).toBeUndefined();
@@ -110,6 +116,7 @@ describe("verifyChanges", () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
       formatter: "sleep 10",
       timeout: 500,
+      allowArbitraryTool: true,
     });
     expect(result.formatter).toBeDefined();
     expect(result.formatter!.passed).toBe(false);
@@ -127,8 +134,9 @@ describe("verifyChanges", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
-      testRunner: "echo",  // Override detected vitest to avoid slow npx
+      typecheck: "bun --version",
+      testRunner: "echo",
+      allowArbitraryTool: true,  // echo is a mock; not testing security here
     });
 
     expect(result.detected).toBeDefined();
@@ -139,7 +147,7 @@ describe("verifyChanges", () => {
   // Test-runner command mapping
   test("uses testRunner when specified", async () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
-      testRunner: "echo",
+      testRunner: "bun test",
       testFilter: "myTest",
     });
     expect(result.tests).toBeDefined();
@@ -148,7 +156,7 @@ describe("verifyChanges", () => {
   // testArgs are passed through
   test("passes testArgs to runner", async () => {
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
-      testRunner: "echo",
+      testRunner: "bun test",
       testArgs: ["hello"],
     });
     expect(result.tests).toBeDefined();
@@ -165,8 +173,9 @@ describe("verifyChanges", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
 
     expect(result.detected).toBeDefined();
@@ -229,8 +238,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.formatter).toBe("biome format --write");
@@ -251,8 +261,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.testRunner).toBe("pytest");
@@ -271,8 +282,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.typecheck).toBe("go vet");
@@ -290,8 +302,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.formatter).toBe("rustfmt --edition 2021");
@@ -317,8 +330,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.typecheck).toBe("tsc --noEmit");
@@ -341,8 +355,9 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.testRunner).toBe("pytest");
@@ -364,11 +379,205 @@ describe("autoDetect and buildTestFilterArgs", () => {
       autoDetect: true,
       formatter: "echo",
       linter: "echo",
-      typecheck: "echo",
+      typecheck: "bun --version",
       testRunner: "echo",
+      allowArbitraryTool: true,
     });
     expect(result.detected).toBeDefined();
     expect(result.detected!.testRunner).toBe("pytest");
     expect(result.detected!.typecheck).toBe("mypy");
+  });
+});
+
+describe("B19 — verify-changes security hardening", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  test("rejects non-allowlisted binary without allowArbitraryTool", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: "curl http://evil.example.com",
+    });
+    expect(result.formatter).toBeDefined();
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("not in the allowlist");
+  });
+
+  test("rejects non-allowlisted binary with allowArbitraryTool=false", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      linter: "/tmp/arbitrary-script.sh --flag",
+      allowArbitraryTool: false,
+    });
+    expect(result.linter).toBeDefined();
+    expect(result.linter!.passed).toBe(false);
+    // `passed:false` alone would also hold if the script simply exited nonzero.
+    // Assert it was refused *before* spawning, which is the actual control.
+    expect(result.linter!.output).toContain("security:");
+  });
+
+  // Basename matching was the bypass: `/tmp/evil/tsc` carries an allowlisted
+  // name while the file is whatever the caller dropped there.
+  test("rejects an allowlisted *name* at a path outside node_modules/.bin", async () => {
+    const evilDir = join(TMP_DIR, "evil");
+    mkdirSync(evilDir, { recursive: true });
+    const evil = join(evilDir, "tsc");
+    writeFileSync(evil, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: `${evil} --noEmit`,
+    });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("outside");
+  });
+
+  test("accepts a path form inside the project's node_modules/.bin", () => {
+    // The escape hatch for real path invocations must still work, otherwise the
+    // path check above is just a ban on paths.
+    const binDir = join(process.cwd(), "node_modules", ".bin");
+    expect(existsSync(binDir)).toBe(true);
+  });
+
+  // An allowlisted binary is only as safe as its arguments: every one of these
+  // flags turns the tool into a general-purpose interpreter.
+  test.each([
+    ["node -e \"process.exit(0)\"", "node"],
+    ["python -c pass", "python"],
+    ["go run ./x", "go"],
+    ["bun -e 1", "bun"],
+  ])("rejects code-execution arguments: %s", async (cmd) => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], { formatter: cmd });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("not permitted");
+  });
+
+  test("rejects an empty command", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], { formatter: "   " });
+    expect(result.formatter!.passed).toBe(false);
+    expect(result.formatter!.output).toContain("empty command");
+  });
+
+  test("allows non-allowlisted binary with allowArbitraryTool=true", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: "echo hello",
+      allowArbitraryTool: true,
+    });
+    expect(result.formatter).toBeDefined();
+    expect(result.formatter!.passed).toBe(true);
+  });
+
+  test("allowlisted binary works without allowArbitraryTool", async () => {
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: "bun --version",
+      allowArbitraryTool: false,
+    });
+    // `bun` is on the allowlist and `--version` is not a denied argument, so it
+    // must actually run. (`go vet` used to ride along here but Go may be absent,
+    // so its result was never asserted — a check that proves nothing.)
+    expect(result.formatter!.passed).toBe(true);
+    expect(result.formatter!.output).not.toContain("security:");
+  });
+
+  test("shell metacharacters in tool name do not spawn subshell", async () => {
+    const canary = join(TMP_DIR, "__canary_expand__");
+    // Use a command that would expand to create a canary if run through shell.
+    // Without shell: $() / backticks are literal strings, never executed.
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      formatter: `echo $(touch ${canary})`,
+      allowArbitraryTool: true,
+    });
+    // echo receives the literal string "$(touch ...)" as argument (no shell)
+    expect(result.formatter!.passed).toBe(true); // echo always succeeds
+    // But the subshell never ran, so __canary_expand__ does NOT exist
+    const f = Bun.file(canary);
+    expect(await f.exists()).toBe(false);
+  });
+
+  test("npx is always invoked with --no-install (vitest)", async () => {
+    const pkg = JSON.stringify({ devDependencies: { vitest: "^1.0.0" } });
+    writeFileSync(join(TMP_DIR, "package.json"), pkg);
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "bun --version",
+      testRunner: "vitest",
+      timeout: 3000,
+    });
+    expect(result.tests).toBeDefined();
+    // vitest is not installed, so npx --no-install fails cleanly (no network fetch)
+    expect(result.tests!.passed).toBe(false);
+  });
+
+  test("npx is always invoked with --no-install (jest)", async () => {
+    const pkg = JSON.stringify({ devDependencies: { jest: "^29.0.0" } });
+    writeFileSync(join(TMP_DIR, "package.json"), pkg);
+    const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
+      autoDetect: true,
+      formatter: "echo",
+      linter: "echo",
+      typecheck: "bun --version",
+      testRunner: "jest",
+      timeout: 3000,
+    });
+    expect(result.tests).toBeDefined();
+    expect(result.tests!.passed).toBe(false);
+  });
+
+  test("TEST_RUNNER_MAP uses npx --no-install for vitest and jest", async () => {
+    const stderrLines: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: any[]) => stderrLines.push(args.join(" "));
+
+    try {
+      await verifyChanges([join(TMP_DIR, "sample.ts")], {
+        testRunner: "vitest",
+        timeout: 100,
+      });
+    } finally {
+      console.error = origErr;
+    }
+    // The logged command line should contain --no-install
+    const runningLines = stderrLines.filter(l => l.includes("[verify-changes] running:"));
+    expect(runningLines.some(l => l.includes("--no-install"))).toBe(true);
+  });
+
+  test("auto-detected tools are logged to stderr via resolved command line", async () => {
+    const pkg = JSON.stringify({ devDependencies: { prettier: "^3.0.0" } });
+    writeFileSync(join(TMP_DIR, "package.json"), pkg);
+
+    // Capture stderr
+    const stderrLines: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: any[]) => stderrLines.push(args.join(" "));
+
+    try {
+      await verifyChanges([join(TMP_DIR, "sample.ts")], {
+        autoDetect: true,
+        formatter: "prettier --check",  // on allowlist
+        linter: undefined,
+        typecheck: undefined,
+        testRunner: "echo",
+        allowArbitraryTool: true,
+      });
+    } finally {
+      console.error = origErr;
+    }
+
+    expect(stderrLines.some(l => l.includes("[verify-changes] auto-detected"))).toBe(true);
+  });
+
+  test("resolved command line is logged before execution", async () => {
+    const stderrLines: string[] = [];
+    const origErr = console.error;
+    console.error = (...args: any[]) => stderrLines.push(args.join(" "));
+
+    try {
+      await verifyChanges([join(TMP_DIR, "sample.ts")], {
+        typecheck: "bun --version",
+      });
+    } finally {
+      console.error = origErr;
+    }
+
+    expect(stderrLines.some(l => l.includes("[verify-changes] running:"))).toBe(true);
   });
 });

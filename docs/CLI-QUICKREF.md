@@ -543,6 +543,7 @@ structured-edit verify-changes [options] <files...>
 | `--linter-args <args...>` | Linter args |
 | `--test-args <args...>` | Test runner args |
 | `--auto-detect` | Auto-detect tools from project config files |
+| `--allow-arbitrary-tool` | Allow binaries outside the allowlist (warns on each use) |
 | `--revert-on-failure` | Restore original file contents if any check fails |
 | `--timeout <ms>` | Per-check timeout in ms (default 30000) |
 | `--json` | Output as JSON (default: true) |

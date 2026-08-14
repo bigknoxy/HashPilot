@@ -141,6 +141,18 @@ describe("readHash", () => {
     expect(result.content).toBe("");
   });
 
+  // A blank line is "", which is falsy — the range check used truthiness and so
+  // reported real blank lines as out of range, making them unanchorable (#40).
+  test("reads a blank line instead of calling it out of range", async () => {
+    const filePath = join(TMP_DIR, "blank.txt");
+    writeFileSync(filePath, "a\n\nc\n");
+
+    const result = await readHash(filePath, 2);
+    expect(result.error).toBeUndefined();
+    expect(result.content).toBe("");
+    expect(result.lineHash.length).toBeGreaterThan(0);
+  });
+
   test("reads a specific line with context", async () => {
     const filePath = join(TMP_DIR, "ten_lines.txt");
     const lines: string[] = [];

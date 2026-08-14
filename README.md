@@ -94,7 +94,22 @@ You need reproducible, auditable AI workflows:
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
 ```
 
-**Requirements:** [Bun](https://bun.sh) 1.2+
+**Requirements:** [Bun](https://bun.sh) 1.2+ — install Bun *before* installing HashPilot.
+
+### Runtime support matrix
+
+HashPilot is Bun-only today. The core uses Bun APIs and ships as TypeScript source, so
+there is no Node-compatible build yet.
+
+| Runtime | Supported | Notes |
+|---------|-----------|-------|
+| Bun ≥ 1.2 | ✅ | The only supported runtime. Enforced by `engines.bun`. |
+| Bun < 1.2 | ❌ | `npm`/`bun` warn at install time via `engines`. |
+| Node.js (any version) | ❌ | `structured-edit` exits **127** with an install message pointing at https://bun.sh. |
+
+The `structured-edit` binary is a small CommonJS shim (`src/cli-node.cjs`) that any Node can
+parse. It hands off to Bun and forwards Bun's exit status unchanged, so a Node-only machine
+gets one actionable line instead of a syntax-error stack trace.
 
 ```bash
 # Verify it works

@@ -290,6 +290,97 @@ describe("routeEdit", () => {
     teardown(file);
   });
 
+  // Regression for #40: an explicit empty-string newContent is a deletion, not a
+  // missing argument. A truthiness check here silently downgraded the edit to the
+  // diff route, which then failed for lack of oldContent.
+  test("Hash: empty-string newContent stays on the hash route (deletion)", async () => {
+    const file = `${tmpDir}/hash-delete.ts`;
+    const original = "line1\nline2\nline3\n";
+    setup(file, original);
+    const result = await routeEdit({
+      filePath: file,
+      operation: "replace-hash",
+      oldHash: computeHash(original),
+      newContent: "",
+    });
+    expect(result.route).toBe("hash");
+    expect(result.result.success).toBe(true);
+    expect(readFileSync(file, "utf-8")).toBe("");
+    teardown(file);
+  });
+
+  test("Hash: undefined newContent still falls back to diff", async () => {
+    const file = `${tmpDir}/hash-nocontent.ts`;
+    const original = "line1\nline2\n";
+    setup(file, original);
+    const result = await routeEdit({
+      filePath: file,
+      operation: "replace-hash",
+      oldHash: computeHash(original),
+    });
+    expect(result.route).toBe("diff");
+    teardown(file);
+  });
+
+  // #40 required the same falsy-parameter audit across every tier, not just the
+  // hash route-selection guard. The diff tier had an identical `!newContent`
+  // check, so deleting a region via replace-content was equally impossible.
+  test("Diff: empty-string newContent deletes the matched region", async () => {
+    const file = `${tmpDir}/diff-delete.ts`;
+    setup(file, "keep\ndrop\nkeep2\n");
+    const result = await routeEdit({
+      filePath: file,
+      operation: "replace-content",
+      oldContent: "drop\n",
+      newContent: "",
+    });
+    expect(result.route).toBe("diff");
+    expect(result.result.success).toBe(true);
+    expect(readFileSync(file, "utf-8")).toBe("keep\nkeep2\n");
+    teardown(file);
+  });
+
+  // oldContent is the search key — an empty one matches everywhere and must stay
+  // rejected. Only newContent gained the empty-string meaning.
+  test("Diff: empty-string oldContent is still rejected", async () => {
+    const file = `${tmpDir}/diff-nooldcontent.ts`;
+    setup(file, "keep\n");
+    const result = await routeEdit({
+      filePath: file,
+      operation: "replace-content",
+      oldContent: "",
+      newContent: "x",
+    });
+    expect(result.result.success).toBe(false);
+    expect(readFileSync(file, "utf-8")).toBe("keep\n");
+    teardown(file);
+  });
+
+  // Byte-correctness at each boundary: #40 calls out first line, a middle
+  // region, and last line separately because off-by-one newline handling
+  // typically survives the middle case and breaks the edges.
+  for (const [label, line, expected] of [
+    ["first line", 1, "middle\nlast\n"],
+    ["middle line", 2, "first\nlast\n"],
+    ["last line", 3, "first\nmiddle\n"],
+  ] as const) {
+    test(`Hash: deleting the ${label} is byte-correct`, async () => {
+      const file = `${tmpDir}/hash-del-${line}.ts`;
+      setup(file, "first\nmiddle\nlast\n");
+      const lineText = ["first", "middle", "last"][line - 1]!;
+      const result = await routeEdit({
+        filePath: file,
+        operation: "replace-hash",
+        oldHash: computeHash(lineText),
+        newContent: "",
+        range: { start: line, end: line },
+      });
+      expect(result.result.success).toBe(true);
+      expect(readFileSync(file, "utf-8")).toBe(expected);
+      teardown(file);
+    });
+  }
+
   test("Diff: replace-content via routeEdit", async () => {
     const file = `${tmpDir}/diff.rb`;
     setup(file, "def hello\n  puts 'hi'\nend\n");

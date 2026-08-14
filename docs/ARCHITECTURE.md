@@ -55,6 +55,12 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 
 ### Module Responsibilities
 
+#### `src/cli-node.cjs` — Node-parseable Launcher
+- The `bin` target for the published package. Deliberately plain CommonJS so any Node can parse it.
+- Spawns `bun run src/cli.ts` with an **array** argv (never a shell string — edit payloads contain code, quotes, and newlines).
+- Forwards Bun's exit status verbatim, preserving the 0/1/2/3/4/5/70 contract.
+- Bun missing → one actionable install line on stderr and exit **127**, instead of a syntax-error stack trace ([#35](../../issues/35)).
+
 #### `src/cli.ts` — CLI Entry Point (~750 lines)
 - Commander-based command registration
 - Every command wraps its action in `recordEvent({...})` for telemetry
@@ -164,6 +170,66 @@ HashPilot has two complementary docs that must always be kept in sync with the c
   preserved. A crash mid-write leaves the original byte-identical, and orphaned
   `.hashpilot-tmp-*` files older than an hour are swept after each write.
 
+#### `src/core/locking.ts` — Advisory Locks and Concurrency (#21 / B18)
+- Lockfiles under `<project root>/.hashpilot/locks/`, named by a SHA-256 of the
+  **absolute** target path, holding `{pid, nonce, ts, targets}`.
+- **Both halves of the lock path must be cwd-independent.** The directory is
+  anchored to the *target file's* project root, not to `process.cwd()`: a
+  cwd-relative directory combined with an absolute key means two agents editing
+  one file from different working directories write to different lockfiles and
+  exclude nobody. The key is a cryptographic hash rather than a 32-bit string
+  fold, whose collisions made unrelated files share a lockfile — and since locks
+  are not re-entrant, a collision inside one batch self-deadlocks until timeout.
+- **Acquisition is atomic.** The lockfile is created with `O_CREAT|O_EXCL`
+  (`writeFileSync` flag `wx`), so the existence check and the create are one
+  syscall. An `existsSync` guard followed by a plain write is check-then-act:
+  two processes can both observe no lockfile and both write.
+- **The heartbeat is real.** A held lock refreshes its `ts` every 5s on an
+  `unref`'d timer. Reclaim requires *both* a heartbeat older than 30s and a dead
+  PID. Without the refresh, any lock held longer than the threshold was stealable
+  from a live, working holder.
+- **Release is ownership-checked.** Each acquisition mints a `nonce`; release
+  unlinks only a lockfile still carrying it. A blind unlink-by-path would delete
+  the lockfile of whoever reclaimed and re-acquired after us, handing a third
+  writer the same file.
+- Waiting always yields (50ms) between attempts rather than spinning, so a waiter
+  does not burn a core starving the very edit it is waiting on.
+- `acquireLock(file)` for a single file; `acquireSortedLocks(files)` sorts and
+  dedupes **by lock path** (not by input path) so two plans touching `{A,B}` and
+  `{B,A}` cannot deadlock and no set can block against itself.
+- `pruneStaleLocks(root?)` sweeps reclaimable leftovers from crashed processes.
+- **Compare-and-swap is necessary but not sufficient.** CAS re-reads the file and
+  compares hashes before writing, but between that compare and `safeWrite` another
+  writer can land — and CAS then reports success over an edit it never saw. So
+  `routeEdit` holds the lock across the entire read → edit → compare → write
+  window; CAS is checking a snapshot nobody else can invalidate.
+- **Locks are deliberately not re-entrant.** Refcounting by path would let two
+  genuinely concurrent writers *inside one process* both "hold" the lock, which is
+  the lost update the lock exists to prevent. `batch-edit` already locks its whole
+  file set up front, so it passes `alreadyLocked: true` to the router rather than
+  nesting an acquire that would wait on itself until the timeout.
+- Release functions are idempotent: a `finally` that runs twice must not unlink a
+  lockfile a later acquirer now owns.
+- A contended lock surfaces as a retryable `LOCK_TIMEOUT` (exit 3), not a hard
+  edit failure, so callers reuse the retry path they already have. It is
+  deliberately *not* reported as `STALE_ANCHOR`: that code tells the caller to
+  re-read the file, which changes nothing here, and it inflated the stale-anchor
+  health metric. `batch-edit` reports the same code for the same condition.
+
+```mermaid
+sequenceDiagram
+    participant A as Writer A
+    participant L as .hashpilot/locks
+    participant F as file.ts
+    A->>L: acquireLock(file.ts)
+    L-->>A: held
+    A->>F: read + hash (CAS ref)
+    Note over A,F: edit computed
+    A->>F: re-read, compare, safeWrite
+    A->>L: release
+    Note over L: Writer B waited here,<br/>then reads A's committed bytes
+```
+
 #### `src/snapshot.ts` — Pre-Edit Snapshots and Undo (#12)
 - Content-addressed store at `~/.agentic-tools/snapshots/` (`objects/<sha256>` +
   `index.jsonl`), outside the project tree so it never appears in `git status`.
@@ -212,6 +278,19 @@ HashPilot has two complementary docs that must always be kept in sync with the c
   - `go.mod` (gofmt, go vet)
   - `Cargo.toml` (cargo fmt, cargo clippy, cargo test)
 - Revert-on-failure: if verify fails, undo the edit
+- **Binary allowlist (B19).** Verification spawns tools, so the command string is
+  an execution surface. Commands are split on whitespace and spawned as an argv
+  array — never through a shell — and the executable is checked three ways:
+  - A bare name must be on the allowlist (`prettier`, `tsc`, `pytest`, …).
+  - A *path* is resolved with `realpathSync` and must land in the project's own
+    `node_modules/.bin`. Matching on the basename instead let `/tmp/evil/tsc`
+    through: an allowlisted name on a file the caller chose to place there.
+  - Arguments are checked too. Several allowlisted tools have a flag that turns
+    them into a general-purpose interpreter (`node -e`, `python -c`, `go run`,
+    `bun -e`, `npx --call`), which defeats the allowlist entirely; those are
+    denied on any argument position.
+- `--allow-arbitrary-tool` bypasses all three, and logs a `WARNING` naming the
+  command so an audit can tell a vetted tool from a bypassed one.
 
 #### `src/config.ts` — Layered Configuration
 - Merge priority: env var → CLI flag → project `.hashpilot.json` → global `~/.config/hashpilot/config.json` → defaults
@@ -497,4 +576,4 @@ The CI check `docs-verify` enforces rule 5 — if `src/` files change but neithe
 
 ---
 
-_Last updated: 2026-08-11 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint). Telemetry queries are reads: they exit 0 on success regardless of the `success` field of the events they return, and `readEvents(0)` returns nothing rather than the whole log. A log that exists but cannot be read now raises `READ_FAILED` (exit 5) instead of reporting a broken store as an empty one, and malformed JSONL lines are counted and warned about on stderr rather than silently dropped ([#59](../../issues/59)). `read-hash` now emits a 12-character `lineHash` — the same width `replace-hash` compares against — so the read → write round-trip no longer fails with a retryable `STALE_ANCHOR` ([#60](../../issues/60)). **Breaking (apiVersion 1):** every command now writes one envelope — `{ apiVersion, ok, command, data, error, warnings }` — validated against [`schema/hashpilot-envelope.schema.json`](../schema/hashpilot-envelope.schema.json) by a sweep over every leaf command; `ok` is derived from the exit code so the two cannot disagree, and route fallbacks, relocated anchors, and corrupt telemetry lines ride `warnings` instead of being invisible ([#18](../../issues/18), [#56](../../issues/56)). The AST tier no longer has a 32KB ceiling — sources are streamed to tree-sitter in chunks rather than marshalled through the binding's fixed string buffer, which used to throw `Invalid argument` and silently demote every large file to the diff route ([#55](../../issues/55)) — and all three tiers now run a parse-validity gate: a file that does not parse is refused before any offsets are computed, and every edit is reparsed before the write so a corrupting edit is discarded rather than saved ([#13](../../issues/13)). Every write is now atomic (temp file → fsync → rename, mode preserved) and pre-edit bytes are snapshotted to a content-addressed store, so `changesets` lists undoable units and `undo <id>` / `undo --last` restores them — refusing files changed since the edit unless `--force` ([#12](../../issues/12)). The intent planner no longer writes placeholder comments into source: an edit it cannot compute is reported as `plan.unresolved` and the plan is refused with `UNSUPPORTED_OPERATION` rather than half-applied ([#16](../../issues/16))._
+_Last updated: 2026-08-14 — Sprint 1 (safety hardening: write boundary, exit codes, telemetry opt-out, anchor relocation) · agent ergonomics ([CLI quickref](CLI-QUICKREF.md) generated from `--help`, roadmap consistency lint). Telemetry queries are reads: they exit 0 on success regardless of the `success` field of the events they return, and `readEvents(0)` returns nothing rather than the whole log. A log that exists but cannot be read now raises `READ_FAILED` (exit 5) instead of reporting a broken store as an empty one, and malformed JSONL lines are counted and warned about on stderr rather than silently dropped ([#59](../../issues/59)). `read-hash` now emits a 12-character `lineHash` — the same width `replace-hash` compares against — so the read → write round-trip no longer fails with a retryable `STALE_ANCHOR` ([#60](../../issues/60)). **Breaking (apiVersion 1):** every command now writes one envelope — `{ apiVersion, ok, command, data, error, warnings }` — validated against [`schema/hashpilot-envelope.schema.json`](../schema/hashpilot-envelope.schema.json) by a sweep over every leaf command; `ok` is derived from the exit code so the two cannot disagree, and route fallbacks, relocated anchors, and corrupt telemetry lines ride `warnings` instead of being invisible ([#18](../../issues/18), [#56](../../issues/56)). The AST tier no longer has a 32KB ceiling — sources are streamed to tree-sitter in chunks rather than marshalled through the binding's fixed string buffer, which used to throw `Invalid argument` and silently demote every large file to the diff route ([#55](../../issues/55)) — and all three tiers now run a parse-validity gate: a file that does not parse is refused before any offsets are computed, and every edit is reparsed before the write so a corrupting edit is discarded rather than saved ([#13](../../issues/13)). Every write is now atomic (temp file → fsync → rename, mode preserved) and pre-edit bytes are snapshotted to a content-addressed store, so `changesets` lists undoable units and `undo <id>` / `undo --last` restores them — refusing files changed since the edit unless `--force` ([#12](../../issues/12)). The intent planner no longer writes placeholder comments into source: an edit it cannot compute is reported as `plan.unresolved` and the plan is refused with `UNSUPPORTED_OPERATION` rather than half-applied ([#16](../../issues/16)). An empty-string `newContent` is now a deletion rather than a missing argument across every tier and entry point — the hash and diff route guards, the `route-edit`/`batch` `--new-content` resolver, and `read-hash`'s blank-line range check all used truthiness, which made deleting a region impossible and made blank lines unanchorable ([#40](../../issues/40)). Compare-and-swap is now backed by an advisory lock held across the whole read → edit → compare → write window, closing the single-file TOCTOU that let a concurrent writer land between the hash compare and the write while CAS still reported success; the lock is intentionally non-re-entrant and `batch-edit` signals `alreadyLocked` rather than nesting ([#21](../../issues/21)). The published `bin` is now a Node-parseable CommonJS shim that hands off to Bun and forwards its exit status, so `npm i -g hashpilot` on a machine without Bun yields an actionable message and exit 127 instead of a syntax error; CI packs the tarball and asserts this on a Node-only runner ([#35](../../issues/35))._

@@ -17,6 +17,7 @@ import { recordEvent, ErrorCode } from "./telemetry";
 import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 import { addWarning } from "./envelope";
+import { acquireLock, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -119,6 +120,14 @@ export async function routeEdit(params: {
   // Diff params (search-and-replace fallback)
   oldContent?: string;
   dryRun?: boolean;
+  /**
+   * Internal: the caller already holds this file's advisory lock (`batch-edit`
+   * locks its whole file set up front in sorted order, then routes each file).
+   * The lock is not re-entrant on purpose — two genuinely concurrent writers in
+   * one process must still exclude each other — so nesting would self-deadlock
+   * until the timeout. Not exposed on the CLI.
+   */
+  alreadyLocked?: boolean;
   // Provenance params
   actor?: string;
   taskId?: string;
@@ -127,7 +136,7 @@ export async function routeEdit(params: {
   const start = Date.now();
   let editSource: string | undefined;
   let editResult: string | undefined;
-  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, actor, taskId, reason } = params;
+  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, alreadyLocked, actor, taskId, reason } = params;
 
   let route: EditRoute;
   let explanation: RouteExplanation;
@@ -171,7 +180,7 @@ export async function routeEdit(params: {
   }
 
   if (route === "hash") {
-    if (!oldHash || !newContent) {
+    if (!oldHash || newContent === undefined) {
       route = "diff";
       fallback = "Hash edit requires oldHash and newContent";
       addWarning({ code: "ROUTE_FALLBACK", message: fallback, from: "hash", to: "diff" });
@@ -180,13 +189,44 @@ export async function routeEdit(params: {
 
   routeReason = `${explanation.reasons.join("; ")}${fallback ? `; ${fallback}` : ""}`;
 
+  // Compare-and-swap alone cannot close the single-file race: between the hash
+  // compare and `safeWrite` another writer can land, and CAS then reports success
+  // over top of an edit it never saw. Hold the same advisory lock `batch-edit`
+  // uses across the whole read → edit → compare → write window so CAS is checking
+  // a snapshot nobody else can invalidate. `batch-edit` locked its whole file set
+  // up front and passes `alreadyLocked` so it does not wait on itself (#21/B18).
+  let releaseFileLock: (() => void) | undefined;
+  if (!result && !dryRun && !alreadyLocked) {
+    try {
+      releaseFileLock = await acquireLock(filePath, { timeoutMs: LOCK_TIMEOUT_MS });
+    } catch (e: any) {
+      // A contended lock is transient, so it stays retryable — but it is NOT a
+      // stale anchor. Reporting it as one told callers to re-read the file
+      // (which changes nothing here) and inflated the stale-anchor health
+      // metric. `batch-edit` reports LOCK_TIMEOUT for the identical condition.
+      result = {
+        success: false,
+        stale: true,
+        errorCode: ErrorCode.LOCK_TIMEOUT,
+        message:
+          e instanceof LockAcquireError
+            ? `Could not lock ${filePath}: ${e.message}`
+            : `Could not lock ${filePath}: ${e?.message ?? e}`,
+        recovery: "Another edit holds this file. Wait and retry.",
+      };
+    }
+  }
+
+  try {
   if (!result) {
     switch (route) {
       case "ast": {
         let source: string;
+        let casHash: string | undefined;
         try {
           source = await Bun.file(filePath).text();
           editSource = source;
+          casHash = computeHash(source);
         } catch (e: any) {
           result = { success: false, message: `Failed to read file: ${e.message}` };
           break;
@@ -236,10 +276,24 @@ export async function routeEdit(params: {
             to: "diff",
           });
         }
-      // Write result to file if successful
+      // Write result to file if successful — CAS guard prevents silent data
+      // loss when concurrent edits both read the same snapshot.
       if (result.success && (result as any).newSource && !dryRun) {
-        await safeWrite(filePath, (result as any).newSource);
-        editResult = (result as any).newSource;
+        const currentOnDisk = await Bun.file(filePath).text();
+        const nowHash = computeHash(currentOnDisk);
+        if (nowHash !== casHash) {
+          result = {
+            success: false,
+            stale: true,
+            errorCode: ErrorCode.STALE_ANCHOR,
+            message: `CAS failed for ${filePath}: file changed while editing`,
+            newCurrentHash: nowHash,
+            recovery: "Re-read the file and retry the edit.",
+          };
+        } else {
+          await safeWrite(filePath, (result as any).newSource);
+          editResult = (result as any).newSource;
+        }
       }
       break;
     }
@@ -249,14 +303,18 @@ export async function routeEdit(params: {
       editResult = (await Bun.file(filePath).text());
       break;
     case "diff": {
-      if (!oldContent || !newContent) {
+      // An empty newContent is a deletion. Only oldContent must be non-empty —
+      // there is nothing to search for otherwise (#40 falsy-parameter audit).
+      if (!oldContent || newContent === undefined) {
         result = { success: false, message: "Diff route requires oldContent and newContent" };
         break;
       }
       let source: string;
+      let casHash: string | undefined;
       try {
         source = await Bun.file(filePath).text();
-          editSource = source;
+        editSource = source;
+        casHash = computeHash(source);
       } catch (e: any) {
         result = { success: false, message: `Failed to read file: ${e.message}` };
         break;
@@ -278,14 +336,30 @@ export async function routeEdit(params: {
         }
       }
       if (result.success && (result as any).newSource && !dryRun) {
-        await safeWrite(filePath, (result as any).newSource);
-        editResult = (result as any).newSource;
+        const currentOnDisk = await Bun.file(filePath).text();
+        const nowHash = computeHash(currentOnDisk);
+        if (nowHash !== casHash) {
+          result = {
+            success: false,
+            stale: true,
+            errorCode: ErrorCode.STALE_ANCHOR,
+            message: `CAS failed for ${filePath}: file changed while editing`,
+            newCurrentHash: nowHash,
+            recovery: "Re-read the file and retry the edit.",
+          };
+        } else {
+          await safeWrite(filePath, (result as any).newSource);
+          editResult = (result as any).newSource;
+        }
       }
       break;
     }
     default:
       result = { success: false, message: `Unknown route: ${route}` };
     }
+  }
+  } finally {
+    releaseFileLock?.();
   }
 
   const elapsed = Date.now() - start;

@@ -8,3 +8,6 @@ logs/
 # Local Claude Code state stays untracked, but shared project skills ship.
 .claude/*
 !.claude/skills/
+
+# Advisory lock files — process-local, never shared.
+.hashpilot/

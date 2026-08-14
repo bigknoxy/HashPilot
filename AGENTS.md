@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-HashPilot is a Bun/TypeScript CLI. The entry point is `src/cli.ts`; reusable editing logic lives in `src/core/`. The router selects AST, hash, or diff editing strategies. Tests are in `tests/` and use matching module names, such as `router.test.ts` and `hash-edit.test.ts`. Documentation and adapter contracts are in `docs/`, agent integration snippets are in `templates/`, and operational scripts are in `scripts/`. Build output is written to `dist/` and should not be edited manually.
+HashPilot is a Bun/TypeScript CLI. The entry point is `src/cli.ts` (the published `bin` is `src/cli-node.cjs`, a Node-parseable shim that hands off to Bun and forwards its exit code); reusable editing logic lives in `src/core/`. The router selects AST, hash, or diff editing strategies. Tests are in `tests/` and use matching module names, such as `router.test.ts` and `hash-edit.test.ts`. Documentation and adapter contracts are in `docs/`, agent integration snippets are in `templates/`, and operational scripts are in `scripts/`. Build output is written to `dist/` and should not be edited manually.
 
 ## Build, Test, and Development Commands
 
