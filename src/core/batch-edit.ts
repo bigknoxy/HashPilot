@@ -1,7 +1,7 @@
 import { routeEdit, RouterResult } from "./router";
 import { recordEvent, ErrorCode } from "./telemetry";
 import type { RoutePolicy, EditRoute } from "./config";
-import { acquireSortedLocks, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
+import { acquireSortedLocks, LOCK_TIMEOUT_MS } from "./locking";
 
 export interface BatchParams {
   files: string[];
@@ -90,6 +90,9 @@ export async function editMany(params: BatchParams, opts?: BatchEditOptions): Pr
       routeReason: "lock timeout",
       result: {
         success: false,
+        // A lock timeout is retryable, exactly like a stale anchor. Tag it the
+        // same way so callers that branch on `stale` retry instead of giving up.
+        stale: true,
         errorCode: ErrorCode.LOCK_TIMEOUT,
         message: `Cannot acquire lock for ${f}: ${err.message}`,
         recovery: "Retry; the file may be locked by another HashPilot process.",
@@ -107,7 +110,11 @@ export async function editMany(params: BatchParams, opts?: BatchEditOptions): Pr
 
     return {
       results: lockFailed,
-      summary: { total: uniqueFiles.length, succeeded: 0, failed: uniqueFiles.length, conflicts: 0, elapsed_ms: Date.now() - start },
+      // A lock timeout is a conflict, not a hard failure — the same classification
+      // the per-file path below gives a router-reported LOCK_TIMEOUT. Counting it
+      // as `failed` here made the same condition land in two different buckets
+      // depending on whether the lock was taken up front or mid-batch.
+      summary: { total: uniqueFiles.length, succeeded: 0, failed: 0, conflicts: uniqueFiles.length, elapsed_ms: Date.now() - start },
     };
   }
 

@@ -587,6 +587,13 @@ non-retryable errors. `total == succeeded + failed + conflicts`. Top-level
 `success` is true only when both `failed` and `conflicts` are zero, so an adapter
 that only checks `failed` will report success on a batch that partly conflicted.
 
+When the batch cannot acquire the advisory locks for its files up front, every
+entry in `results` is reported with `"route": null`, `"routeReason": "lock
+timeout"`, and `errorCode: "LOCK_TIMEOUT"` — no route was ever chosen, so there
+is no route name to report. These entries carry `"stale": true` and count toward
+`conflicts`, not `failed`. `route` is a string on every other path; an adapter
+that indexes route names must tolerate `null` here.
+
 ---
 
 ### intent
