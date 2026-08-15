@@ -123,12 +123,20 @@ fi
 MANIFEST="$TARGET_DIR/manifest.json"
 if [ -f "$MANIFEST" ]; then
   if [ "$FORCE" != "true" ]; then
-    warn "Existing HashPilot installation detected at $TARGET_DIR"
-    echo -n "  Overwrite? [y/N] "
-    read -r CONFIRM
-    if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
-      log "Install cancelled."
-      exit 0
+    # Check if we're in an interactive terminal
+    if [ -t 0 ]; then
+      warn "Existing HashPilot installation detected at $TARGET_DIR"
+      echo -n "  Overwrite? [y/N] "
+      read -r CONFIRM
+      if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
+        log "Install cancelled."
+        exit 0
+      fi
+    else
+      # Non-interactive (piped) - refuse without --force
+      warn "Existing HashPilot installation detected at $TARGET_DIR"
+      err "Running non-interactively. Use --force to overwrite, or run interactively."
+      exit 1
     fi
   fi
   log "Upgrading existing installation..."
