@@ -5,6 +5,16 @@ description: HashPilot structured editing core for coding agents. Provides hash-
 
 # HashPilot — Structured Editing for Coding Agents
 
+## Install HashPilot
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
+```
+
+This installs the `structured-edit` CLI and registers the OpenCode skill + subagent.
+
+---
+
 HashPilot is a global, tool-agnostic structured editing system that improves coding-agent efficiency by preferring syntax-aware edits when possible, hash-anchored edits otherwise, and providing verification batching.
 
 ## When to Use This Skill

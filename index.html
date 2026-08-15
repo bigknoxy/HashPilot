@@ -397,21 +397,6 @@ pre code { font-size: 0.85rem; }
   word-break: break-all;
 }
 
-.agent-card-cmd {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-
-.agent-card-cmd .cmd {
-  font-size: 0.75rem;
-  line-height: 1.4;
-}
-
 .agent-card-link {
   font-size: 0.8rem;
   color: var(--accent);
@@ -691,7 +676,7 @@ body { overflow-x: hidden; }
   </div>
 
   <h3 style="font-size: 1.1rem; font-weight: 600; margin: 32px 0 16px;">Agent-specific instructions</h3>
-  <p style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 20px;">Each agent gets its own adapter. Read the instructions, then paste the install command:</p>
+  <p style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 20px;">Each agent gets its own adapter. Read the instructions to install HashPilot:</p>
   
   <div class="agent-cards">
     <article class="agent-card">
@@ -700,13 +685,7 @@ body { overflow-x: hidden; }
       <h4>Claude Code</h4>
      </div>
      <p class="agent-card-desc">Adds HashPilot commands to <code>~/.claude/CLAUDE.md</code></p>
-     <div class="agent-card-cmd">
-      <code class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash</code>
-      <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash" aria-label="Copy Claude Code install command">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-      </button>
-     </div>
-     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/blob/main/templates/claude-section.md" target="_blank" rel="noopener">Read instructions →</a>
+     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/blob/main/templates/claude-section.md" target="_blank" rel="noopener">Read these instructions and install HashPilot →</a>
     </article>
     <article class="agent-card">
      <div class="agent-card-header">
@@ -714,13 +693,7 @@ body { overflow-x: hidden; }
       <h4>OpenCode</h4>
      </div>
      <p class="agent-card-desc">Skill + subagent at <code>~/.config/opencode/</code></p>
-     <div class="agent-card-cmd">
-      <code class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash</code>
-      <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash" aria-label="Copy OpenCode install command">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-      </button>
-     </div>
-     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/tree/main/templates/opencode" target="_blank" rel="noopener">Read instructions →</a>
+     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/blob/main/templates/opencode-skill.md" target="_blank" rel="noopener">Read these instructions and install HashPilot →</a>
     </article>
     <article class="agent-card">
      <div class="agent-card-header">
@@ -728,13 +701,7 @@ body { overflow-x: hidden; }
       <h4>Pi</h4>
      </div>
      <p class="agent-card-desc">Extension + <code>/hp</code> slash command</p>
-     <div class="agent-card-cmd">
-      <code class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash</code>
-      <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash" aria-label="Copy Pi install command">
-       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-      </button>
-     </div>
-     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/tree/main/templates/pi" target="_blank" rel="noopener">Read instructions →</a>
+     <a class="agent-card-link" href="https://github.com/bigknoxy/HashPilot/blob/main/templates/pi-skill.md" target="_blank" rel="noopener">Read these instructions and install HashPilot →</a>
     </article>
   </div>
 

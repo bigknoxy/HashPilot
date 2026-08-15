@@ -1,3 +1,13 @@
+## Install HashPilot
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
+```
+
+This installs the `structured-edit` CLI and injects the sections below into `~/.claude/CLAUDE.md`.
+
+---
+
 ## HashPilot Claude — Structured Editing Integration
 
 This session has HashPilot Claude active at user scope.

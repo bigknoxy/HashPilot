@@ -5,6 +5,16 @@ description: HashPilot structured editing — prefers AST edits for TypeScript, 
 
 # HashPilot Pi — Structured Editing Skill
 
+## Install HashPilot
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
+```
+
+This installs the `structured-edit` CLI and registers the Pi extension with `/hp` slash command.
+
+---
+
 You have access to HashPilot structured editing tools that are more reliable and token-efficient than raw text editing.
 
 ## When to Use
