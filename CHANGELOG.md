@@ -1,3 +1,10 @@
+## [3.0.5](https://github.com/bigknoxy/HashPilot/compare/v3.0.4...v3.0.5) (2026-08-15)
+
+
+### Bug Fixes
+
+* install.sh POSIX compatibility; add upgrade CLI command; fix locking tests ([4b5154e](https://github.com/bigknoxy/HashPilot/commit/4b5154e99b6cf88e598e3093271dda79d742dfd8))
+
 ## [3.0.4](https://github.com/bigknoxy/HashPilot/compare/v3.0.3...v3.0.4) (2026-08-14)
 
 
