@@ -1,3 +1,10 @@
+## [3.0.7](https://github.com/bigknoxy/HashPilot/compare/v3.0.6...v3.0.7) (2026-08-15)
+
+
+### Bug Fixes
+
+* ShellCheck SC2107 - use separate [ ] for && conditions ([8098838](https://github.com/bigknoxy/HashPilot/commit/8098838c0b4502256ad2e80cd700d939d017a06c))
+
 ## [3.0.6](https://github.com/bigknoxy/HashPilot/compare/v3.0.5...v3.0.6) (2026-08-15)
 
 
