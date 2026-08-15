@@ -384,6 +384,13 @@ pre code { font-size: 0.85rem; }
   border-top: 1px solid var(--border);
 }
 
+.agent-card:hover {
+  border-color: var(--accent);
+}
+.agent-card a:hover {
+  text-decoration: underline;
+}
+
 /* Architecture diagram */
 .diagram {
   font-family: 'DM Mono', monospace;
@@ -481,6 +488,10 @@ body { overflow-x: hidden; }
   .install-box .cmd { font-size: 0.8rem; }
   .feature-card, .audience-card { padding: 20px; }
   .audience-card ul { font-size: 0.85rem; }
+  .agent-cards { grid-template-columns: 1fr; }
+  .agent-card { padding: 14px; }
+  .agent-card h4 { font-size: 0.85rem; }
+  .agent-card p { font-size: 0.75rem; }
   footer { padding: 40px 0; }
 }
 
@@ -648,26 +659,45 @@ body { overflow-x: hidden; }
     <div class="req">Auto-installs <strong>Bun 1.2+</strong> if missing · Configures <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Pi</strong> adapters automatically</div>
   </div>
 
-  <details class="agent-install-section">
-    <summary>📋 <strong>Copy-paste for your agent's install method</strong></summary>
-    <div class="agent-install-content">
-      <p style="color: var(--text-dim); margin-bottom: 16px;">Paste this into any agent that runs shell commands:</p>
-      <div class="cmd-wrapper">
-        <code class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash</code>
-        <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash" aria-label="Copy agent install command">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-        </button>
-      </div>
-      <div style="margin-top: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-        <h4 style="margin-bottom: 12px; font-size: 0.9rem;">What the installer configures for each agent:</h4>
-        <ul style="color: var(--text-dim); font-size: 0.85rem; line-height: 1.8; margin: 0; padding-left: 20px;">
-          <li><strong>Claude Code:</strong> Adds HashPilot commands to <code style="font-size: 0.8rem;">~/.claude/CLAUDE.md</code></li>
-          <li><strong>OpenCode:</strong> Skill at <code style="font-size: 0.8rem;">~/.config/opencode/skills/hashpilot/</code> + subagent</li>
-          <li><strong>Pi:</strong> Extension at <code style="font-size: 0.8rem;">~/.pi/agent/extensions/hashpilot.ts</code> with <code style="font-size: 0.8rem;">/hp</code> slash command</li>
-        </ul>
-      </div>
-    </div>
-  </details>
+<details class="agent-install-section">
+  <summary>📋 <strong>Copy-paste for your agent's install method</strong></summary>
+  <div class="agent-install-content">
+   <p style="color: var(--text-dim); margin-bottom: 16px;">Paste this into any agent that runs shell commands:</p>
+   <div class="cmd-wrapper">
+    <code class="cmd">curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash</code>
+    <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash" aria-label="Copy agent install command">
+     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    </button>
+   </div>
+
+   <div class="agent-cards" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+    <article class="agent-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color 0.2s;">
+     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <span style="font-size: 1.2rem;">🤖</span>
+      <h4 style="margin: 0; font-size: 0.9rem; font-weight: 600;">Claude Code</h4>
+     </div>
+     <p style="color: var(--text-dim); font-size: 0.8rem; margin: 0 0 8px 0; line-height: 1.5;">Adds HashPilot commands to <code style="font-size: 0.75rem;">~/.claude/CLAUDE.md</code></p>
+     <a href="https://github.com/bigknoxy/HashPilot/blob/main/templates/claude-section.md" target="_blank" rel="noopener" style="font-size: 0.75rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">Read instructions →</a>
+    </article>
+    <article class="agent-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color 0.2s;">
+     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <span style="font-size: 1.2rem;">📦</span>
+      <h4 style="margin: 0; font-size: 0.9rem; font-weight: 600;">OpenCode</h4>
+     </div>
+     <p style="color: var(--text-dim); font-size: 0.8rem; margin: 0 0 8px 0; line-height: 1.5;">Skill + subagent at <code style="font-size: 0.75rem;">~/.config/opencode/</code></p>
+     <a href="https://github.com/bigknoxy/HashPilot/tree/main/templates/opencode" target="_blank" rel="noopener" style="font-size: 0.75rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">Read instructions →</a>
+    </article>
+    <article class="agent-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; transition: border-color 0.2s;">
+     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <span style="font-size: 1.2rem;">🥧</span>
+      <h4 style="margin: 0; font-size: 0.9rem; font-weight: 600;">Pi</h4>
+     </div>
+     <p style="color: var(--text-dim); font-size: 0.8rem; margin: 0 0 8px 0; line-height: 1.5;">Extension + <code style="font-size: 0.75rem;">/hp</code> slash command</p>
+     <a href="https://github.com/bigknoxy/HashPilot/tree/main/templates/pi" target="_blank" rel="noopener" style="font-size: 0.75rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">Read instructions →</a>
+    </article>
+   </div>
+  </div>
+ </details>
 
   <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 16px; margin-top: 32px;">Your First Edit</h3>
 <pre><code># 1. Read a file — get its content hash
