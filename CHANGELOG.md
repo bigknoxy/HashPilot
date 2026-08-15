@@ -1,3 +1,10 @@
+## [3.0.6](https://github.com/bigknoxy/HashPilot/compare/v3.0.5...v3.0.6) (2026-08-15)
+
+
+### Bug Fixes
+
+* add missing fs imports for upgrade command ([c4b3064](https://github.com/bigknoxy/HashPilot/commit/c4b3064bb1a95e03bb9785d477ea0a35fc1b28c1))
+
 ## [3.0.5](https://github.com/bigknoxy/HashPilot/compare/v3.0.4...v3.0.5) (2026-08-15)
 
 
