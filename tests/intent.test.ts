@@ -272,6 +272,49 @@ describe("generatePlan", () => {
     expect(plan.steps[0].params.newName).toBe("sayHello");
   });
 
+  test("rename-exported-symbol: does not duplicate steps for same file with different path spellings", () => {
+    // Simulate: definition file as absolute path, references with the same file
+    // but spelled differently (one relative, one absolute).
+    const cwd = process.cwd();
+    const def = { file: FILE_A, name: "greet", kind: "function_declaration", line: 3, column: 17 };
+    const refs = [
+      // Same file as definition, but via a relative path spelling
+      { file: "tests/__tmp_intent_tests__/a.ts", line: 8, column: 14, context: "greet(data)" },
+      { file: FILE_B, line: 4, column: 14, context: 'greet("world")' },
+    ];
+    const plan = generatePlan(
+      { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      def,
+      refs
+    );
+    // The definition file should be filtered out (only 1 ref file remains)
+    const fileSteps = plan.steps.filter((s) => s.operation === "rename-symbol");
+    const refSteps = fileSteps.slice(1);
+    expect(refSteps.length).toBe(1);
+    // The remaining ref step should be for FILE_B (normalized to same form)
+    expect(refSteps[0].file).toBe("tests/__tmp_intent_tests__/b.ts");
+  });
+
+  test("remove-parameter: dedupes same file via different path spellings", () => {
+    // Two references pointing to the same file via different path forms
+    // should produce only one step (not duplicate steps).
+    const def = { file: FILE_A, name: "process", kind: "function_declaration", line: 8, column: 17 };
+    const cwd = process.cwd();
+    const refs = [
+      { file: "./" + FILE_C.replace(cwd + "/", ""), line: 4, column: 3, context: 'process("test", 1)' },
+      { file: FILE_C, line: 6, column: 3, context: 'process("other", 2)' },
+    ];
+    const plan = generatePlan(
+      { operation: "remove-parameter", symbol: "process", paramName: "count" },
+      def,
+      refs
+    );
+    // Should have def step + only ONE ref file step (FILE_C deduped)
+    expect(plan.steps.length).toBe(2);
+    const refSteps = plan.steps.filter((s) => s.order > 0);
+    expect(refSteps.length).toBe(1);
+  });
+
   test("generates remove-parameter plan", () => {
     const def = { file: FILE_A, name: "process", kind: "function_declaration", line: 8, column: 17 };
     const refs = [{ file: FILE_C, line: 4, column: 3, context: 'process("test", 1)' }];

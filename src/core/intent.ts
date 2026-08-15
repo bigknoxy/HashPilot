@@ -1,5 +1,6 @@
 import { findSymbols, insertParameter, insertCallArg } from "./ast-edit";
 import { grepMany } from "./grep";
+import { pathsEqual, normalizePath } from "./paths";
 import { glob } from "glob";
 
 // ── Intent types ──────────────────────────────────────────────────────
@@ -247,7 +248,7 @@ export function generatePlan(
       });
 
       // Steps 1..N: Insert argument at each call site file
-      const refFiles = [...new Set(references.map((r) => r.file))];
+      const refFiles = [...new Set(references.map((r) => normalizePath(r.file)))];
       refFiles.forEach((file, i) => {
         steps.push({
           order: i + 1,
@@ -272,7 +273,7 @@ export function generatePlan(
         params: {},
       });
 
-      const refFiles = [...new Set(references.map((r) => r.file))];
+      const refFiles = [...new Set(references.map((r) => normalizePath(r.file)))];
       refFiles.forEach((file, i) => {
         steps.push({
           order: i + 1,
@@ -297,7 +298,7 @@ export function generatePlan(
         params: { oldName: intent.symbol, newName: intent.newName },
       });
 
-      const refFiles = [...new Set(references.map((r) => r.file))].filter((f) => f !== definition.file);
+      const refFiles = [...new Set(references.map((r) => normalizePath(r.file)))].filter((f) => !pathsEqual(f, definition.file));
       refFiles.forEach((file, i) => {
         steps.push({
           order: i + 1,

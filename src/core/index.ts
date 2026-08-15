@@ -64,3 +64,4 @@ export { loadConfig, policyForce } from "./config";
 export type { HashPilotConfig, RoutePolicy, TelemetryConfig } from "./config";
 export { doctor } from "./doctor";
 export type { DoctorReport, DoctorCheck } from "./doctor";
+export { normalizePath, pathsEqual } from "./paths";
