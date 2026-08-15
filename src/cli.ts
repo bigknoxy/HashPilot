@@ -4,7 +4,7 @@ import { Command } from "commander";
 // time, so dist/ carries the real version instead of a hardcoded literal.
 import pkg from "../package.json" with { type: "json" };
 import { join } from "path";
-import { writeFileSync, rmSync, existsSync } from "fs";
+import { writeFileSync, rmSync, existsSync, mkdirSync } from "fs";
 import {
   readMany,
   readHash,
@@ -1069,12 +1069,13 @@ program
 
     if (opts.dryRun) {
       const components: string[] = [];
+      const keep = Boolean(opts.keepConfig);
+      const kept = (label: string) => keep ? `${label} [preserved by --keep-config]` : label;
       if (existsSync(join(targetDir, "bin", "hashpilot"))) components.push(`CLI launcher: ${targetDir}/bin/hashpilot`);
       if (existsSync(join(targetDir, "structured-editing"))) components.push(`Core source: ${targetDir}/structured-editing`);
-      if (existsSync(join(targetDir, "logs"))) components.push(`Telemetry logs: ${targetDir}/logs`);
+      components.push(kept(`Telemetry logs: ${targetDir}/logs`));
       if (existsSync(join(targetDir, "manifest.json"))) components.push(`Manifest: ${targetDir}/manifest.json`);
-      if (existsSync(join(process.env.HOME || "/root", ".config", "hashpilot", "config.json")))
-        components.push("Config: ~/.config/hashpilot/config.json");
+      components.push(kept("Config: ~/.config/hashpilot/config.json"));
       if (existsSync(join(process.env.HOME || "/root", ".claude", "CLAUDE.md")))
         components.push("Claude integration: ~/.claude/CLAUDE.md (section removal)");
       if (existsSync(join(process.env.HOME || "/root", ".config", "opencode", "skills", "hashpilot", "SKILL.md")))
@@ -1113,6 +1114,7 @@ program
       const script = await response.text();
 
       const tmpScript = join(targetDir, `.hashpilot-uninstall-${Date.now()}.sh`);
+      try { mkdirSync(join(targetDir), { recursive: true }); } catch {}
       writeFileSync(tmpScript, script, { mode: 0o755 });
 
       const args: string[] = [];
