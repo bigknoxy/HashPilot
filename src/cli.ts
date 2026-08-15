@@ -4,6 +4,7 @@ import { Command } from "commander";
 // time, so dist/ carries the real version instead of a hardcoded literal.
 import pkg from "../package.json" with { type: "json" };
 import { join } from "path";
+import { writeFileSync, rmSync } from "fs";
 import {
   readMany,
   readHash,
