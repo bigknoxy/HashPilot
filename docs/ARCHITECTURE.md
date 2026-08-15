@@ -64,7 +64,7 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 #### `src/cli.ts` — CLI Entry Point (~750 lines)
 - Commander-based command registration
 - Every command wraps its action in `recordEvent({...})` for telemetry
-- Subcommands: `read-many`, `read-hash`, `replace-hash`, `grep-many`, `symbol-lookup-many`, `ast *`, `diff *`, `route-edit`, `batch`, `intent`, `verify-changes`, `telemetry *`, `provenance *`, `doctor`, `config`
+- Subcommands: `read-many`, `read-hash`, `replace-hash`, `grep-many`, `symbol-lookup-many`, `ast *`, `diff *`, `route-edit`, `batch`, `intent`, `verify-changes`, `telemetry *`, `provenance *`, `doctor`, `config`, `upgrade`
 
 #### `src/router.ts` — Route Selection & Dispatch
 - `chooseRoute(file, operation)`: Determines AST vs Hash vs Diff based on:
