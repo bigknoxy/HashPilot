@@ -91,10 +91,17 @@ You need reproducible, auditable AI workflows:
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
 ```
 
 **Requirements:** [Bun](https://bun.sh) 1.2+ — install Bun *before* installing HashPilot.
+
+### Upgrade
+
+```bash
+structured-edit upgrade          # upgrade to latest from main
+structured-edit upgrade --dry-run  # preview what would happen
+```
 
 ### Runtime support matrix
 
@@ -197,6 +204,12 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 | `read-hash <file> <line>` | Read a specific line with context hash |
 | `grep-many <pattern> <paths...>` | Regex search across files |
 | `symbol-lookup-many <paths...> --names n1,n2` | Find symbol definitions by name |
+
+### Upgrade
+
+| Command | What It Does |
+|---------|-------------|
+| `upgrade [--dry-run] [--channel <branch>] [--target <dir>] [--keep-telemetry] [--force]` | Upgrade HashPilot from GitHub to latest version |
 
 ### Edit — Hash Route
 
