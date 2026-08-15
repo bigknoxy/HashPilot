@@ -126,7 +126,7 @@ if [ -f "$MANIFEST" ]; then
     warn "Existing HashPilot installation detected at $TARGET_DIR"
     echo -n "  Overwrite? [y/N] "
     read -r CONFIRM
-    if [ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]; then
+    if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
       log "Install cancelled."
       exit 0
     fi
@@ -144,7 +144,7 @@ mkdir -p "$TARGET_DIR"
 if [ -d "$TARGET_DIR/structured-editing" ]; then
   rm -rf "$TARGET_DIR/structured-editing/node_modules"
   # Preserve telemetry if requested
-  if [ "$KEEP_TELEMETRY" == "true" && -f "$TARGET_DIR/logs/telemetry.jsonl" ]; then
+  if [ "$KEEP_TELEMETRY" == "true" ] && [ -f "$TARGET_DIR/logs/telemetry.jsonl" ]; then
     mkdir -p /tmp/hashpilot-telemetry-backup
     cp "$TARGET_DIR/logs/telemetry.jsonl" /tmp/hashpilot-telemetry-backup/
     detail "Backed up telemetry to /tmp/hashpilot-telemetry-backup/"
@@ -300,7 +300,7 @@ CONFIG
 fi
 
 # ── Restore telemetry ───────────────────────────────────────────────────
-if [ "$KEEP_TELEMETRY" == "true" && -f /tmp/hashpilot-telemetry-backup/telemetry.jsonl ]; then
+if [ "$KEEP_TELEMETRY" == "true" ] && [ -f /tmp/hashpilot-telemetry-backup/telemetry.jsonl ]; then
   mkdir -p "$TARGET_DIR/logs"
   cp /tmp/hashpilot-telemetry-backup/telemetry.jsonl "$TARGET_DIR/logs/"
   detail "Restored telemetry from backup"
