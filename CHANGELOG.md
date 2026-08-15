@@ -1,3 +1,10 @@
+## [3.0.8](https://github.com/bigknoxy/HashPilot/compare/v3.0.7...v3.0.8) (2026-08-15)
+
+
+### Bug Fixes
+
+* handle non-interactive install (piped to bash) - require --force or TTY ([b3f69eb](https://github.com/bigknoxy/HashPilot/commit/b3f69ebff37e8c311e30af4fa69bf69d4bc963e7))
+
 ## [3.0.7](https://github.com/bigknoxy/HashPilot/compare/v3.0.6...v3.0.7) (2026-08-15)
 
 

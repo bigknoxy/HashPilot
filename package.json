@@ -1,6 +1,6 @@
 {
   "name": "hashpilot",
-  "version": "3.0.7",
+  "version": "3.0.8",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "engines": {
