@@ -30,14 +30,27 @@ if SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"; then
   fi
 fi
 
-# No local source — clone from GitHub (curl-pipe / remote mode)
+# No local source — download release tarball from GitHub (curl-pipe / remote mode)
 if [ -z "$SOURCE_DIR" ]; then
   REMOTE_MODE=true
   CLONE_DIR=$(mktemp -d)
-  log "Downloading HashPilot from GitHub..."
-  git clone --depth 1 https://github.com/bigknoxy/HashPilot.git "$CLONE_DIR" 2>&1 | while IFS= read -r line; do detail "$line"; done
+  
+  # Determine version to download (latest release)
+  log "Fetching latest release info from GitHub..."
+  RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
+  if [ -n "$RELEASE_INFO" ]; then
+    TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+    TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/tags/${TAG_NAME}.tar.gz"
+    log "Downloading HashPilot ${TAG_NAME} from GitHub..."
+  else
+    # Fallback to main branch if no release
+    TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/heads/main.tar.gz"
+    log "Downloading HashPilot from main branch..."
+  fi
+  
+  curl -fsSL "$TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done
   SOURCE_DIR="$CLONE_DIR"
-  detail "Cloned to $CLONE_DIR"
+  detail "Extracted to $CLONE_DIR"
 fi
 
 # ── Parse arguments ──────────────────────────────────────────────────────
@@ -45,7 +58,7 @@ TARGET_DIR="${HOME}/.agentic-tools"
 KEEP_TELEMETRY=false
 FORCE=false
 
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --source) SOURCE_DIR="$2"; shift 2 ;;
     --target) TARGET_DIR="$2"; shift 2 ;;
@@ -56,7 +69,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [options]"
       echo "  --source <dir>     Source directory (default: repo root)."
       echo "                     If omitted and no local source found,"
-      echo "                     auto-clones from GitHub."
+      echo "                     auto-downloads release tarball from GitHub."
       echo "  --target <dir>     Install target (default: ~/.agentic-tools)"
       echo "  --keep-telemetry   Preserve existing telemetry on reinstall"
       echo "  --force, -f        Overwrite existing install without prompt"
@@ -72,10 +85,13 @@ done
 # ── Prerequisites ────────────────────────────────────────────────────────
 log "Checking prerequisites..."
 
+# Auto-install bun if not present
 if ! command -v bun &>/dev/null; then
-  err "bun is required but not found."
-  err "Install it: curl -fsSL https://bun.sh/install | bash"
-  exit 1
+  warn "bun not found. Installing bun..."
+  curl -fsSL https://bun.sh/install | bash
+  # Source the new PATH
+  export BUN_INSTALL="${HOME}/.bun"
+  export PATH="${BUN_INSTALL}/bin:${PATH}"
 fi
 
 BUN_VER=$(bun --version 2>/dev/null || echo "0")
@@ -86,14 +102,18 @@ if ! command -v bash &>/dev/null; then
   exit 1
 fi
 
-if [[ "$REMOTE_MODE" == "true" ]] && ! command -v git &>/dev/null; then
-  err "git is required to download HashPilot"
-  err "Install it or use a local clone: git clone https://github.com/bigknoxy/HashPilot.git"
+if [ "$REMOTE_MODE" = "true" ] && ! command -v curl &>/dev/null; then
+  err "curl is required to download HashPilot"
+  exit 1
+fi
+
+if [ "$REMOTE_MODE" = "true" ] && ! command -v tar &>/dev/null; then
+  err "tar is required to extract HashPilot"
   exit 1
 fi
 
 # Check source
-if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
+if [ ! -f "$SOURCE_DIR/package.json" ]; then
   err "Source directory '$SOURCE_DIR' does not contain package.json"
   err "Run from the hashpilot repo root or use --source <path>"
   exit 1
@@ -101,12 +121,12 @@ fi
 
 # ── Detect existing install ──────────────────────────────────────────────
 MANIFEST="$TARGET_DIR/manifest.json"
-if [[ -f "$MANIFEST" ]]; then
-  if [[ "$FORCE" != "true" ]]; then
+if [ -f "$MANIFEST" ]; then
+  if [ "$FORCE" != "true" ]; then
     warn "Existing HashPilot installation detected at $TARGET_DIR"
     echo -n "  Overwrite? [y/N] "
     read -r CONFIRM
-    if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
+    if [ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]; then
       log "Install cancelled."
       exit 0
     fi
@@ -121,10 +141,10 @@ log "Installing HashPilot Core..."
 mkdir -p "$TARGET_DIR"
 
 # If core already exists, remove node_modules first to avoid stale deps
-if [[ -d "$TARGET_DIR/structured-editing" ]]; then
+if [ -d "$TARGET_DIR/structured-editing" ]; then
   rm -rf "$TARGET_DIR/structured-editing/node_modules"
   # Preserve telemetry if requested
-  if [[ "$KEEP_TELEMETRY" == "true" && -f "$TARGET_DIR/logs/telemetry.jsonl" ]]; then
+  if [ "$KEEP_TELEMETRY" == "true" && -f "$TARGET_DIR/logs/telemetry.jsonl" ]; then
     mkdir -p /tmp/hashpilot-telemetry-backup
     cp "$TARGET_DIR/logs/telemetry.jsonl" /tmp/hashpilot-telemetry-backup/
     detail "Backed up telemetry to /tmp/hashpilot-telemetry-backup/"
@@ -141,8 +161,8 @@ cp -r "$SOURCE_DIR"/* "$TARGET_DIR/structured-editing/" 2>/dev/null || {
   # Fallback: manual copy
   mkdir -p "$TARGET_DIR/structured-editing"
   for item in "$SOURCE_DIR"/*; do
-    [[ "$(basename "$item")" == "node_modules" ]] && continue
-    [[ "$(basename "$item")" == ".git" ]] && continue
+    [ "$(basename "$item")" == "node_modules" ] && continue
+    [ "$(basename "$item")" == ".git" ] && continue
     cp -r "$item" "$TARGET_DIR/structured-editing/"
   done
 }
@@ -169,12 +189,12 @@ detail "Launcher created at $TARGET_DIR/bin/structured-edit"
 log "Adding PATH entry..."
 
 detect_rc() {
-  if [[ -n "${HASHPILOT_SHELL_RC:-}" ]]; then
+  if [ -n "${HASHPILOT_SHELL_RC:-}" ]; then
     echo "$HASHPILOT_SHELL_RC"
     return
   fi
   for f in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.bash_profile" "${HOME}/.profile"; do
-    if [[ -f "$f" ]]; then
+    if [ -f "$f" ]; then
       echo "$f"
       return
     fi
@@ -188,7 +208,7 @@ PATH_MARKER_START="# >>> hashpilot path >>>"
 PATH_MARKER_END="# <<< hashpilot path <<<"
 PATH_LINE="export PATH=\"\$HOME/.agentic-tools/bin:\$PATH\""
 
-if [[ -f "$RC_FILE" ]]; then
+if [ -f "$RC_FILE" ]; then
   if grep -q "$PATH_MARKER_START" "$RC_FILE" 2>/dev/null; then
     detail "PATH entry already exists in $RC_FILE (skipping)"
   else
@@ -218,7 +238,7 @@ install_template() {
   local dst="$2"
   local label="$3"
   mkdir -p "$(dirname "$dst")"
-  if [[ -f "$src" ]]; then
+  if [ -f "$src" ]; then
     cp "$src" "$dst"
     detail "Installed ${label}: ${dst}"
   else
@@ -243,9 +263,9 @@ install_template "$TEMPLATES/pi-skill.md" \
 # Claude
 CLAUDE_MARKER="HashPilot Claude — Structured Editing Integration"
 CLAUDE_FILE="${HOME}/.claude/CLAUDE.md"
-if [[ -f "$TEMPLATES/claude-section.md" ]]; then
+if [ -f "$TEMPLATES/claude-section.md" ]; then
   mkdir -p "$(dirname "$CLAUDE_FILE")"
-  if [[ -f "$CLAUDE_FILE" ]] && grep -q "$CLAUDE_MARKER" "$CLAUDE_FILE" 2>/dev/null; then
+  if [ -f "$CLAUDE_FILE" ] && grep -q "$CLAUDE_MARKER" "$CLAUDE_FILE" 2>/dev/null; then
     detail "Claude integration already present in $CLAUDE_FILE (skipping)"
   else
     {
@@ -262,7 +282,7 @@ fi
 log "Bootstrapping config..."
 CONFIG_DIR="${HOME}/.config/hashpilot"
 CONFIG_FILE="${CONFIG_DIR}/config.json"
-if [[ -f "$CONFIG_FILE" ]]; then
+if [ -f "$CONFIG_FILE" ]; then
   detail "Config already exists at $CONFIG_FILE (preserving)"
 else
   mkdir -p "$CONFIG_DIR"
@@ -280,7 +300,7 @@ CONFIG
 fi
 
 # ── Restore telemetry ───────────────────────────────────────────────────
-if [[ "$KEEP_TELEMETRY" == "true" && -f /tmp/hashpilot-telemetry-backup/telemetry.jsonl ]]; then
+if [ "$KEEP_TELEMETRY" == "true" && -f /tmp/hashpilot-telemetry-backup/telemetry.jsonl ]; then
   mkdir -p "$TARGET_DIR/logs"
   cp /tmp/hashpilot-telemetry-backup/telemetry.jsonl "$TARGET_DIR/logs/"
   detail "Restored telemetry from backup"
@@ -293,7 +313,7 @@ MANIFEST_FILE="$TARGET_DIR/manifest.json"
 
 # Detect shell rc path entries
 RC_ENTRIES="[]"
-if [[ -f "$RC_FILE" ]]; then
+if [ -f "$RC_FILE" ]; then
   RC_ENTRIES=$(cat <<MANIFEST_RC
     [
       {
@@ -346,21 +366,21 @@ MANIFEST
 detail "Manifest written to $MANIFEST_FILE"
 
 # ── Cleanup ────────────────────────────────────────────────────────────────
-if [[ "$REMOTE_MODE" == "true" && -n "${CLONE_DIR:-}" ]]; then
+if [ "$REMOTE_MODE" = "true" ] && [ -n "${CLONE_DIR:-}" ]; then
   rm -rf "$CLONE_DIR"
   detail "Cleaned up temporary source"
 fi
 
 # ── Verify ───────────────────────────────────────────────────────────────
 log "Verifying installation..."
-if [[ -f "$TARGET_DIR/bin/structured-edit" ]]; then
+if [ -f "$TARGET_DIR/bin/structured-edit" ]; then
   detail "CLI launcher: OK"
 else
   err "CLI launcher missing!"
   exit 1
 fi
 
-if [[ -d "$TARGET_DIR/structured-editing/node_modules" ]]; then
+if [ -d "$TARGET_DIR/structured-editing/node_modules" ]; then
   detail "Dependencies: OK"
 else
   err "Dependencies not installed!"
@@ -368,7 +388,7 @@ else
 fi
 
 # Quick smoke test
-if command -v structured-edit &>/dev/null || [[ -x "$TARGET_DIR/bin/structured-edit" ]]; then
+if command -v structured-edit &>/dev/null || [ -x "$TARGET_DIR/bin/structured-edit" ]; then
   VER=$("$TARGET_DIR/bin/structured-edit" --version 2>/dev/null || echo "unknown")
   detail "CLI version: ${VER}"
 fi

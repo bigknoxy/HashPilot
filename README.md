@@ -90,11 +90,37 @@ You need reproducible, auditable AI workflows:
 
 ## Quick Start
 
+### One-Line Install (auto-installs Bun if missing)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
 ```
 
-**Requirements:** [Bun](https://bun.sh) 1.2+ — install Bun *before* installing HashPilot.
+**What it does:** Downloads HashPilot, auto-installs Bun 1.2+ if not present, installs all dependencies, configures adapters for **Claude Code**, **OpenCode**, and **Pi** automatically.
+
+<details>
+<summary><strong>📋 Copy-paste for your agent's install method</strong></summary>
+
+**For any agent that runs shell commands:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
+```
+
+**For agents with a "run command" or "execute" tool:**
+```json
+{
+  "command": "curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash",
+  "description": "Install HashPilot structured editing CLI"
+}
+```
+
+**Claude Code:** The installer adds HashPilot commands to `~/.claude/CLAUDE.md` automatically.
+
+**OpenCode:** The installer adds the skill at `~/.config/opencode/skills/hashpilot/` and subagent at `~/.config/opencode/agent/hashpilot.md`.
+
+**Pi:** The installer adds the extension at `~/.pi/agent/extensions/hashpilot.ts` with `/hp` slash command.
+
+</details>
 
 ### Upgrade
 
