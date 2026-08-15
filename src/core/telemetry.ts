@@ -59,6 +59,8 @@ export enum ErrorCode {
   LOCK_TIMEOUT = "LOCK_TIMEOUT",
   /** A failure that carried no code of its own. Better than an empty `error.code`. */
   UNKNOWN = "UNKNOWN",
+  /** Uncaught internal error — a bug in HashPilot. */
+  INTERNAL_ERROR = "INTERNAL_ERROR",
 }
 
 export interface TelemetryEvent {

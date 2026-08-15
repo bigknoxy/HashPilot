@@ -97,6 +97,7 @@ const INVOCATIONS: Array<[name: string, args: string[]]> = [
   ["undo", ["undo", "nonexistent-changeset"]],
   ["doctor", ["doctor"]],
   ["config", ["config"]],
+  ["upgrade", ["upgrade", "--dry-run"]],
 ];
 
 describe("the envelope is uniform across every command", () => {

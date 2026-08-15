@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 # Read the version from package.json so the installer can never drift from the
 # released version. Falls back to "unknown" rather than a stale literal.
@@ -62,7 +62,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --force, -f        Overwrite existing install without prompt"
       echo "  --help, -h         Show this help"
       echo ""
-      echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | sh"
+      echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash"
       exit 0
       ;;
     *) err "Unknown option: $1"; exit 1 ;;

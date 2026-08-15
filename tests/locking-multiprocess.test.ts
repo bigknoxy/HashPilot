@@ -7,20 +7,22 @@ import { acquireLock, lockPathFor, pruneStaleLocks, LockAcquireError } from "../
 // suite: the lock only fails to exclude when a second *process* is involved, or
 // when the two callers disagree about the current working directory.
 
-const TEST_DIR = resolve("tests/tmp/locking-mp");
-const NESTED_DIR = join(TEST_DIR, "pkg", "deep");
 const LOCKING_MODULE = resolve("src/core/locking.ts");
 
-function setup() {
-  mkdirSync(NESTED_DIR, { recursive: true });
-}
-function cleanup() {
-  try { rmSync(TEST_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+function makeTestDir(name: string): { dir: string; nested: string; cleanup: () => void } {
+  const dir = resolve("tests/tmp/locking-mp", name);
+  const nested = join(dir, "pkg", "deep");
+  mkdirSync(nested, { recursive: true });
+  return {
+    dir,
+    nested,
+    cleanup: () => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ } },
+  };
 }
 
 /** Run a snippet in a fresh Bun process with a chosen cwd; return its stdout. */
-async function runIn(cwd: string, source: string): Promise<string> {
-  const scriptPath = join(TEST_DIR, `child-${Math.abs(hash(source))}.ts`);
+async function runIn(cwd: string, source: string, testDir: string): Promise<string> {
+  const scriptPath = join(testDir, `child-${Math.abs(hash(source))}.ts`);
   writeFileSync(scriptPath, source);
   const proc = Bun.spawn(["bun", "run", scriptPath], {
     cwd,
@@ -41,21 +43,22 @@ function hash(s: string): number {
 }
 
 describe("lock path is cwd-independent", () => {
-  beforeAll(setup);
+  const { dir, nested, cleanup } = makeTestDir("cwd-independent");
   afterAll(cleanup);
 
   it("resolves to the same lockfile from a nested cwd", async () => {
-    const target = join(TEST_DIR, "shared.txt");
+    const target = join(dir, "shared.txt");
     writeFileSync(target, "x\n");
 
     // Resolve both sides: a cwd-relative return value would compare equal as a
     // *string* while pointing at two different directories on disk.
     const fromRoot = resolve(lockPathFor(target));
     const fromNested = await runIn(
-      NESTED_DIR,
+      nested,
       `import { lockPathFor } from ${JSON.stringify(LOCKING_MODULE)};\n` +
         `import { resolve } from "path";\n` +
         `console.log(resolve(lockPathFor(${JSON.stringify(target)})));\n`,
+      dir,
     );
 
     // A cwd-relative lock directory produced two different paths here, so two
@@ -65,15 +68,15 @@ describe("lock path is cwd-independent", () => {
 });
 
 describe("mutual exclusion across processes", () => {
-  beforeAll(setup);
+  const { dir, nested, cleanup } = makeTestDir("mutual-exclusion");
   afterAll(cleanup);
 
   it("a lock held by another process blocks acquisition here", async () => {
-    const target = join(TEST_DIR, "contended.txt");
+    const target = join(dir, "contended.txt");
     writeFileSync(target, "x\n");
-    const ready = join(TEST_DIR, "ready.flag");
+    const ready = join(dir, "ready.flag");
 
-    const scriptPath = join(TEST_DIR, "holder.ts");
+    const scriptPath = join(dir, "holder.ts");
     writeFileSync(
       scriptPath,
       `import { acquireLock } from ${JSON.stringify(LOCKING_MODULE)};\n` +
@@ -86,7 +89,7 @@ describe("mutual exclusion across processes", () => {
 
     // Deliberately a *different* cwd from ours: exclusion must not depend on it.
     const holder = Bun.spawn(["bun", "run", scriptPath], {
-      cwd: NESTED_DIR,
+      cwd: nested,
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -114,11 +117,11 @@ describe("mutual exclusion across processes", () => {
 });
 
 describe("release is ownership-checked", () => {
-  beforeAll(setup);
+  const { dir, cleanup } = makeTestDir("ownership-checked");
   afterAll(cleanup);
 
   it("does not unlink a lockfile another holder has since acquired", async () => {
-    const target = join(TEST_DIR, "stolen.txt");
+    const target = join(dir, "stolen.txt");
     writeFileSync(target, "x\n");
     const lockPath = lockPathFor(target);
 
@@ -138,11 +141,11 @@ describe("release is ownership-checked", () => {
 });
 
 describe("stale reclaim", () => {
-  beforeAll(setup);
+  const { dir, cleanup } = makeTestDir("stale-reclaim");
   afterAll(cleanup);
 
   it("reclaims an aged lockfile whose PID is dead", async () => {
-    const target = join(TEST_DIR, "crashed.txt");
+    const target = join(dir, "crashed.txt");
     writeFileSync(target, "x\n");
     const lockPath = lockPathFor(target);
     mkdirSync(dirname(lockPath), { recursive: true });
@@ -160,7 +163,7 @@ describe("stale reclaim", () => {
   });
 
   it("does not reclaim a freshly heartbeated lockfile", async () => {
-    const target = join(TEST_DIR, "alive.txt");
+    const target = join(dir, "alive.txt");
     writeFileSync(target, "x\n");
     const lockPath = lockPathFor(target);
     mkdirSync(dirname(lockPath), { recursive: true });
@@ -182,7 +185,7 @@ describe("stale reclaim", () => {
   });
 
   it("pruneStaleLocks removes reclaimable leftovers", async () => {
-    const target = join(TEST_DIR, "leftover.txt");
+    const target = join(dir, "leftover.txt");
     writeFileSync(target, "x\n");
     const lockPath = lockPathFor(target);
     mkdirSync(dirname(lockPath), { recursive: true });

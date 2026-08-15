@@ -112,7 +112,7 @@ looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0
 
 <!-- BEGIN GENERATED: command reference -->
 
-_33 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
+_34 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
 ### Global options
 
@@ -697,6 +697,22 @@ Verify HashPilot installation health
 ```
 structured-edit doctor [options]
 ```
+
+#### `upgrade`
+
+Upgrade HashPilot to the latest version from GitHub
+
+```
+structured-edit upgrade [options]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--channel <channel>` | Release channel (default: main) (default: "main") |
+| `--target <dir>` | Install target directory (default: ~/.agentic-tools) |
+| `--keep-telemetry` | Preserve existing telemetry on upgrade |
+| `--force` | Skip confirmation prompt |
+| `--dry-run` | Show what would be done without executing |
 
 #### `route`
 

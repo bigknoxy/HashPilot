@@ -3,6 +3,7 @@ import { Command } from "commander";
 // Single source of truth for the version. Bun inlines this JSON import at build
 // time, so dist/ carries the real version instead of a hardcoded literal.
 import pkg from "../package.json" with { type: "json" };
+import { join } from "path";
 import {
   readMany,
   readHash,
@@ -984,6 +985,74 @@ program
     }
     finish(report);
     console.error(summaryParts.join("\n"));
+  });
+
+program
+  .command("upgrade")
+  .description("Upgrade HashPilot to the latest version from GitHub")
+  .option("--channel <channel>", "Release channel (default: main)", "main")
+  .option("--target <dir>", "Install target directory (default: ~/.agentic-tools)")
+  .option("--keep-telemetry", "Preserve existing telemetry on upgrade")
+  .option("--force", "Skip confirmation prompt")
+  .option("--dry-run", "Show what would be done without executing")
+  .action(async (opts) => {
+    const channel = opts.channel;
+    const targetDir = opts.target || join(process.env.HOME || "/root", ".agentic-tools");
+    const keepTelemetry = opts.keepTelemetry;
+    const force = opts.force;
+    const dryRun = opts.dryRun;
+
+    const installUrl = `https://raw.githubusercontent.com/bigknoxy/HashPilot/${channel}/scripts/install.sh`;
+    console.error(`Upgrading HashPilot from ${channel}...`);
+    console.error(`Target: ${targetDir}`);
+
+    if (dryRun) {
+      finish({ success: true, message: "Dry run - would upgrade", dryRun: true, channel, targetDir, keepTelemetry, force });
+      console.error("Dry run - would upgrade");
+      return;
+    }
+
+    try {
+      const response = await fetch(installUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download install script: ${response.status} ${response.statusText}`);
+      }
+      const script = await response.text();
+
+      // Write script to temp file and execute
+      const tmpScript = join(targetDir, `.hashpilot-upgrade-${Date.now()}.sh`);
+      writeFileSync(tmpScript, script, { mode: 0o755 });
+
+      const args = ["--target", targetDir];
+      if (keepTelemetry) args.push("--keep-telemetry");
+      if (force) args.push("--force");
+
+      const proc = Bun.spawn(["bash", tmpScript, ...args], {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}` },
+      });
+
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+
+      try { rmSync(tmpScript); } catch {}
+
+      if (stdout) console.error(stdout.trim());
+      if (stderr) console.error(stderr.trim());
+
+      if (exitCode !== 0) {
+        finish({ success: false, error: `Upgrade failed with exit code ${exitCode}` }, ExitCode.INTERNAL);
+        return;
+      }
+
+      finish({ success: true, message: "Upgrade completed successfully" });
+      console.error("Upgrade completed successfully");
+    } catch (e: any) {
+      finish({ success: false, error: e.message }, ExitCode.INTERNAL);
+      console.error(`Upgrade failed: ${e.message}`);
+    }
   });
 
 program

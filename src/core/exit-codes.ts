@@ -37,6 +37,7 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   [ErrorCode.DUPLICATE_MATCH]: ExitCode.EDIT_FAILED,
   [ErrorCode.UNSUPPORTED_LANGUAGE]: ExitCode.EDIT_FAILED,
   [ErrorCode.VERIFY_FAILED]: ExitCode.VERIFY_FAILED,
+  [ErrorCode.INTERNAL_ERROR]: ExitCode.INTERNAL,
 };
 
 /** Shape every command result is inspected through. All fields optional — results vary by command. */
