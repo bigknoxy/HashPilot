@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
 import { Type } from "@sinclair/typebox"
 
-const STRUCTURED_EDIT = "structured-edit"
+const HASHPILOT_BIN = "hashpilot"
 
 const MAX_BYTES = 50 * 1024
 
@@ -11,7 +11,7 @@ function truncate(value: string): string {
 }
 
 async function runSE(args: string[], pi: ExtensionAPI, signal: AbortSignal, cwd?: string): Promise<{ exitCode: number; output: string }> {
-  const result = await pi.exec(STRUCTURED_EDIT, args, { cwd, signal })
+  const result = await pi.exec(HASHPILOT_BIN, args, { cwd, signal })
   const output = result.stdout || result.stderr || ""
   return { exitCode: result.code, output: truncate(output) }
 }
@@ -37,7 +37,7 @@ export default function (pi: ExtensionAPI) {
       return {
         isError: exitCode !== 0,
         content: [{ type: "text", text: output || "(no output)" }],
-        details: { exitCode, command: `${STRUCTURED_EDIT} ${args.join(" ")}` },
+        details: { exitCode, command: `${HASHPILOT_BIN} ${args.join(" ")}` },
       }
     },
   })
@@ -68,7 +68,7 @@ export default function (pi: ExtensionAPI) {
       return {
         isError: exitCode !== 0,
         content: [{ type: "text", text: output || "(no output)" }],
-        details: { exitCode, command: `${STRUCTURED_EDIT} ${args.join(" ")}` },
+        details: { exitCode, command: `${HASHPILOT_BIN} ${args.join(" ")}` },
       }
     },
   })
@@ -267,14 +267,14 @@ export default function (pi: ExtensionAPI) {
     async handler(args, _ctx) {
       const parts = (args || "").trim().split(/\s+/)
       if (parts[0] === "route" && parts[1] && parts[2]) {
-        const proc = await pi.exec(STRUCTURED_EDIT, ["route", parts[1], parts[2]], {})
+        const proc = await pi.exec(HASHPILOT_BIN, ["route", parts[1], parts[2]], {})
         return proc.stdout || proc.stderr || "(no output)"
       }
       if (parts[0] === "telemetry") {
-        const proc = await pi.exec(STRUCTURED_EDIT, ["telemetry", "summary"], {})
+        const proc = await pi.exec(HASHPILOT_BIN, ["telemetry", "summary"], {})
         return proc.stdout || proc.stderr || "(no output)"
       }
-      const proc = await pi.exec(STRUCTURED_EDIT, ["--version"], {})
+      const proc = await pi.exec(HASHPILOT_BIN, ["--version"], {})
       return `HashPilot v${proc.stdout?.trim() || "unknown"}\n\nCommands: route <file> <op> | telemetry`
     },
   })

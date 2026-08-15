@@ -88,7 +88,7 @@ bash scripts/install.sh
 The installer handles all of these automatically:
 - Copies HashPilot Core to `~/.agentic-tools/structured-editing`
 - Installs dependencies via `bun install`
-- Creates the `structured-edit` CLI launcher
+- Creates the `hashpilot` CLI launcher
 - Adds `~/.agentic-tools/bin` to your PATH (via shell rc file)
 - Installs Claude Code integration (appends to `~/.claude/CLAUDE.md`)
 - Installs OpenCode skill + agent
@@ -101,7 +101,7 @@ The installer handles all of these automatically:
 After installation, verify with:
 
 ```bash
-structured-edit doctor
+hashpilot doctor
 ```
 
 This checks core files, CLI, PATH, config, and all adapter integrations.
@@ -145,82 +145,82 @@ Override priority (highest wins): `HASHPILOT_ROUTE_POLICY` env var > `--config` 
 
 View current config:
 ```bash
-structured-edit config
+hashpilot config
 ```
 
 ## Quick Start
 
 ```bash
 # Read files with hashes
-structured-edit read-many src/core/read.ts src/core/hash-edit.ts
+hashpilot read-many src/core/read.ts src/core/hash-edit.ts
 
 # Read a specific line with hash and context
-structured-edit read-hash src/core/read.ts 10
+hashpilot read-hash src/core/read.ts 10
 
 # Search across paths
-structured-edit grep-many "function\\s+\\w+" src/
+hashpilot grep-many "function\\s+\\w+" src/
 
 # Replace content using hash anchor
 # First read the hash, then replace
-HASH=$(structured-edit read-many myfile.ts | jq -r '.[0].hash')
-structured-edit replace-hash myfile.ts "$HASH" "// new content"
+HASH=$(hashpilot read-many myfile.ts | jq -r '.[0].hash')
+hashpilot replace-hash myfile.ts "$HASH" "// new content"
 
 # Replace a specific line range
-structured-edit replace-hash myfile.ts "$HASH" "new content" --range 5:10
+hashpilot replace-hash myfile.ts "$HASH" "new content" --range 5:10
 
 # Rename a symbol (TypeScript/TSX)
-structured-edit ast rename-symbol myfile.ts oldName newName
+hashpilot ast rename-symbol myfile.ts oldName newName
 
 # Replace a function body
-structured-edit ast replace-body myfile.ts myFunction "return 42;"
+hashpilot ast replace-body myfile.ts myFunction "return 42;"
 
 # Add/remove imports
-structured-edit ast add-import myfile.ts "{ Foo } from './bar'"
-structured-edit ast remove-import myfile.ts './bar'
+hashpilot ast add-import myfile.ts "{ Foo } from './bar'"
+hashpilot ast remove-import myfile.ts './bar'
 
 # Find symbols
-structured-edit ast find-symbols myfile.ts
+hashpilot ast find-symbols myfile.ts
 
 # Show supported AST languages, operations, and limitations
-structured-edit ast capabilities
+hashpilot ast capabilities
 
 # Verify changes (run formatter + linter + tests)
-structured-edit verify-changes myfile.ts --formatter prettier --linter eslint
+hashpilot verify-changes myfile.ts --formatter prettier --linter eslint
 
 # Check routing decision with detailed explanation
-structured-edit route myfile.ts rename-symbol
-structured-edit route myfile.ts add-import --policy '{"operationOverrides":{"add-import":"diff"}}'
+hashpilot route myfile.ts rename-symbol
+hashpilot route myfile.ts add-import --policy '{"operationOverrides":{"add-import":"diff"}}'
 
 # View or test policy config
-structured-edit config
+hashpilot config
 
 # View telemetry
-structured-edit telemetry summary
-structured-edit telemetry show -n 50
-structured-edit telemetry health -w 7
-structured-edit telemetry sessions
-structured-edit telemetry export --from 2026-01-01
+hashpilot telemetry summary
+hashpilot telemetry show -n 50
+hashpilot telemetry health -w 7
+hashpilot telemetry sessions
+hashpilot telemetry export --from 2026-01-01
 
 # Telemetry health with trend comparison
-structured-edit telemetry health -w 7 --trend
+hashpilot telemetry health -w 7 --trend
 
 # Generate and apply unified diffs
-structured-edit diff generate myfile.ts "$(cat old.ts)" "$(cat new.ts)"
-structured-edit diff apply myfile.ts --patch changes.patch
+hashpilot diff generate myfile.ts "$(cat old.ts)" "$(cat new.ts)"
+hashpilot diff apply myfile.ts --patch changes.patch
 
 # Batch edit across files
-structured-edit batch add-import src/*.ts --import-spec "{ z } from zod"
+hashpilot batch add-import src/*.ts --import-spec "{ z } from zod"
 
 # Route decisions and config
-structured-edit route myfile.ts add-import --policy '{"operationOverrides":{"add-import":"diff"}}'
-structured-edit config
+hashpilot route myfile.ts add-import --policy '{"operationOverrides":{"add-import":"diff"}}'
+hashpilot config
 
 # Edit history (provenance)
-structured-edit provenance query myfile.ts --human
-structured-edit provenance changeset <changeSetId> --human
+hashpilot provenance query myfile.ts --human
+hashpilot provenance changeset <changeSetId> --human
 
 # Intent-based multi-step editing
-structured-edit intent '{"operation":"add-parameter","symbol":"myFunc","param":{"name":"x"}}' --dry-run
+hashpilot intent '{"operation":"add-parameter","symbol":"myFunc","param":{"name":"x"}}' --dry-run
 ```
 
 ## Running Tests
@@ -262,7 +262,7 @@ bash scripts/uninstall.sh
 
 This removes:
 - HashPilot Core (`~/.agentic-tools/structured-editing`)
-- CLI launcher (`~/.agentic-tools/bin/structured-edit`)
+- CLI launcher (`~/.agentic-tools/bin/hashpilot`)
 - Claude integration (removes section from `~/.claude/CLAUDE.md`)
 - OpenCode skill and agent
 - Pi extension and skill
@@ -293,7 +293,7 @@ bash scripts/uninstall.sh --force
 ~/.agentic-tools/
   manifest.json             # Managed file inventory (installer writes, uninstaller reads)
   bin/
-    structured-edit         # CLI launcher (bash script)
+    hashpilot         # CLI launcher (bash script)
   structured-editing/       # Core source + dependencies
     package.json
     tsconfig.json
@@ -380,7 +380,7 @@ HashPilot maintains a manifest at `~/.agentic-tools/manifest.json`. This JSON fi
 
 ## Troubleshooting
 
-- **"command not found"**: Ensure `~/.agentic-tools/bin` is in your PATH (run `structured-edit doctor` to check)
+- **"command not found"**: Ensure `~/.agentic-tools/bin` is in your PATH (run `hashpilot doctor` to check)
 - **"Module not found"**: Run `cd ~/.agentic-tools/structured-editing && bun install`
 - **Installer fails**: Verify bun is installed (`bun --version`), check `~/.agentic-tools/` is writable
 - **Tree-sitter errors**:

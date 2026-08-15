@@ -7,12 +7,12 @@
     "bun": ">=1.2.0"
   },
   "bin": {
-    "structured-edit": "./src/cli-node.cjs"
+    "hashpilot": "./src/cli-node.cjs"
   },
   "scripts": {
     "test": "bun test",
     "build": "bun build src/cli.ts --outdir dist --target bun",
-    "install-cli": "mkdir -p ~/.agentic-tools/bin && ln -sf $(pwd)/src/cli-node.cjs ~/.agentic-tools/bin/structured-edit",
+    "install-cli": "mkdir -p ~/.agentic-tools/bin && ln -sf $(pwd)/src/cli-node.cjs ~/.agentic-tools/bin/hashpilot",
     "semantic-release": "semantic-release",
     "gen:cli-quickref": "bun run scripts/gen-cli-quickref.ts",
     "gen:cli-quickref:check": "bun run scripts/gen-cli-quickref.ts --check",

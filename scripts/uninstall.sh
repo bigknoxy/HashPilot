@@ -138,7 +138,7 @@ rmdir "${HOME}/.pi/agent/skills" 2>/dev/null || true
 
 # ── Core, bin, telemetry ─────────────────────────────────────────────────
 log "Removing Core files..."
-remove_file "$TARGET_DIR/bin/structured-edit" "CLI launcher"
+remove_file "$TARGET_DIR/bin/hashpilot" "CLI launcher"
 rmdir "$TARGET_DIR/bin" 2>/dev/null || true
 
 if [[ "$KEEP_CONFIG" == "true" ]]; then

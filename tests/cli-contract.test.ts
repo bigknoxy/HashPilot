@@ -156,7 +156,7 @@ describe("docs/CLI-QUICKREF.md", () => {
       .filter((c): c is string => Boolean(c) && c !== "help");
     expect(commands.length).toBeGreaterThan(10);
     for (const cmd of commands) {
-      expect(doc).toContain(`structured-edit ${cmd}`);
+      expect(doc).toContain(`hashpilot ${cmd}`);
     }
   });
 

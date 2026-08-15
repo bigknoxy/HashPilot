@@ -1,6 +1,6 @@
 # HashPilot — Adapter Contract
 
-This document defines the machine-readable contract that coding agents use to interact with HashPilot. All commands are invoked via the `structured-edit` CLI and return JSON on stdout.
+This document defines the machine-readable contract that coding agents use to interact with HashPilot. All commands are invoked via the `hashpilot` CLI and return JSON on stdout.
 
 ## Response envelope (apiVersion 1)
 
@@ -135,7 +135,7 @@ Read multiple files with content hashes.
 
 **Invocation:**
 ```
-structured-edit read-many <file1> [file2] ...
+hashpilot read-many <file1> [file2] ...
 ```
 
 **Output:**
@@ -161,7 +161,7 @@ Read a specific line with its hash and surrounding context.
 
 **Invocation:**
 ```
-structured-edit read-hash <file> <line-number> [-c <context-lines>]
+hashpilot read-hash <file> <line-number> [-c <context-lines>]
 ```
 
 **Output:**
@@ -193,7 +193,7 @@ Search a regex pattern across paths.
 
 **Invocation:**
 ```
-structured-edit grep-many <pattern> <path1> [path2] ... [-i] [--file-pattern <glob>] [--max-results <n>]
+hashpilot grep-many <pattern> <path1> [path2] ... [-i] [--file-pattern <glob>] [--max-results <n>]
 ```
 
 **Output:**
@@ -222,7 +222,7 @@ Look up symbol definitions across paths.
 
 **Invocation:**
 ```
-structured-edit symbol-lookup-many <path1> [path2] ... --names name1,name2
+hashpilot symbol-lookup-many <path1> [path2] ... --names name1,name2
 ```
 
 **Output:**
@@ -245,7 +245,7 @@ Replace file content identified by hash anchor.
 
 **Invocation:**
 ```
-structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end] [--dry-run]
+hashpilot replace-hash <file> <old-hash> <new-content> [--range start:end] [--dry-run]
 ```
 
 - `<new-content>` can be `@filepath` to read from a file
@@ -328,7 +328,7 @@ Show all supported AST languages, operations per language, and known limitations
 
 **Invocation:**
 ```
-structured-edit ast capabilities
+hashpilot ast capabilities
 ```
 
 **Output:**
@@ -351,7 +351,7 @@ List symbols in a file.
 
 **Invocation:**
 ```
-structured-edit ast find-symbols <file>
+hashpilot ast find-symbols <file>
 ```
 
 **Output:**
@@ -376,7 +376,7 @@ Rename all references to a symbol.
 
 **Invocation:**
 ```
-structured-edit ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 **Output:**
@@ -398,7 +398,7 @@ Replace a function/method body.
 
 **Invocation:**
 ```
-structured-edit ast replace-body <file> <symbol-name> <new-body> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast replace-body <file> <symbol-name> <new-body> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<new-body>` can be `@filepath` to read from a file.
@@ -422,7 +422,7 @@ Add an import statement.
 
 **Invocation:**
 ```
-structured-edit ast add-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast add-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<import-spec>` examples: `'{ Foo } from ./bar'`, `'* as React from react'`
@@ -435,7 +435,7 @@ Remove an import line.
 
 **Invocation:**
 ```
-structured-edit ast remove-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast remove-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 ---
@@ -446,8 +446,8 @@ Insert content before or after a named symbol.
 
 **Invocation:**
 ```
-structured-edit ast insert-before <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
-structured-edit ast insert-after <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast insert-before <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast insert-after <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 ---
@@ -458,7 +458,7 @@ Generate a unified diff between old and new content.
 
 **Invocation:**
 ```
-structured-edit diff generate <file> <old-content> <new-content> [-c <context-lines>]
+hashpilot diff generate <file> <old-content> <new-content> [-c <context-lines>]
 ```
 
 `<old-content>` and `<new-content>` can be `@filepath` to read from files.
@@ -473,7 +473,7 @@ Apply a unified diff patch to a file.
 
 **Invocation:**
 ```
-structured-edit diff apply <file> [--patch <file>] [--dry-run] [-f <fuzzy>] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot diff apply <file> [--patch <file>] [--dry-run] [-f <fuzzy>] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 - `--patch <file>` — patch file to apply (use `-` for stdin)
@@ -498,7 +498,7 @@ Run formatter, linter, typechecker, and tests on changed files. Supports auto-de
 
 **Invocation:**
 ```
-structured-edit verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--typecheck <cmd>] [--test-filter <pattern>] [--test-runner <runner>] [--auto-detect] [--revert-on-failure] [--timeout <ms>] [--formatter-args ...] [--linter-args ...] [--test-args ...]
+hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--typecheck <cmd>] [--test-filter <pattern>] [--test-runner <runner>] [--auto-detect] [--revert-on-failure] [--timeout <ms>] [--formatter-args ...] [--linter-args ...] [--test-args ...]
 ```
 
 **Options:**
@@ -537,7 +537,7 @@ Auto-routed structured edit through AST → Hash → Diff pipeline. One command 
 
 **Invocation:**
 ```
-structured-edit route-edit <file> <operation> [options...]
+hashpilot route-edit <file> <operation> [options...]
 ```
 
 **Operations:** `rename-symbol`, `replace-body`, `add-import`, `remove-import`, `insert-before`, `insert-after`, `replace-hash`, `replace-content`
@@ -561,7 +561,7 @@ Apply the same edit to multiple files in parallel (or serial with `--serial`).
 
 **Invocation:**
 ```
-structured-edit batch <operation> <files...> [options...]
+hashpilot batch <operation> <files...> [options...]
 ```
 
 Accepts the same options as `route-edit`, plus `--serial` for sequential execution.
@@ -602,7 +602,7 @@ Execute an editing intent — one command, full blast radius. Parses a structure
 
 **Invocation:**
 ```
-structured-edit intent '<json>' [--project-root <dir>] [--dry-run] [--yes] [--no-verify] [--no-revert] [--timeout <ms>] [--actor <name>] [--task-id <id>] [--reason <text>] [--context <text>]
+hashpilot intent '<json>' [--project-root <dir>] [--dry-run] [--yes] [--no-verify] [--no-revert] [--timeout <ms>] [--actor <name>] [--task-id <id>] [--reason <text>] [--context <text>]
 ```
 
 **Intent format (JSON):**
@@ -657,7 +657,7 @@ Show edit history for a file — like `git blame` for agent edits.
 
 **Invocation:**
 ```
-structured-edit provenance query <file> [<line-number>] [--human] [--fuzzy] [--limit <n>]
+hashpilot provenance query <file> [<line-number>] [--human] [--fuzzy] [--limit <n>]
 ```
 
 - `--human` — human-readable table format
@@ -687,7 +687,7 @@ Show all edits belonging to a changeSet (multi-step edit group).
 
 **Invocation:**
 ```
-structured-edit provenance changeset <changeSetId> [--human]
+hashpilot provenance changeset <changeSetId> [--human]
 ```
 
 ---
@@ -698,13 +698,13 @@ View or manage telemetry.
 
 **Invocation:**
 ```
-structured-edit telemetry show [-n <limit>]
-structured-edit telemetry summary
-structured-edit telemetry health [-w <days>] [--trend]
-structured-edit telemetry sessions
-structured-edit telemetry export [--from <date>] [--to <date>] [--session <id>]
-structured-edit telemetry prune [--older-than <days>]
-structured-edit telemetry clear
+hashpilot telemetry show [-n <limit>]
+hashpilot telemetry summary
+hashpilot telemetry health [-w <days>] [--trend]
+hashpilot telemetry sessions
+hashpilot telemetry export [--from <date>] [--to <date>] [--session <id>]
+hashpilot telemetry prune [--older-than <days>]
+hashpilot telemetry clear
 ```
 
 **`telemetry show`** — Show recent telemetry events (default 20).
@@ -725,7 +725,7 @@ Show which edit route would be chosen, with detailed explanation including polic
 
 **Invocation:**
 ```
-structured-edit route <file> <operation> [--policy <json>] [--no-default-config]
+hashpilot route <file> <operation> [--policy <json>] [--no-default-config]
 ```
 
 **`--policy <json>`** — inline policy JSON for testing override behavior.
@@ -771,7 +771,7 @@ Show the current HashPilot configuration after merging global, project, CLI, and
 
 **Invocation:**
 ```
-structured-edit config [--config <path>]
+hashpilot config [--config <path>]
 ```
 
 **Output:**
@@ -793,7 +793,7 @@ Verify the full user-scope HashPilot installation. Checks core files, CLI on PAT
 
 **Invocation:**
 ```
-structured-edit doctor
+hashpilot doctor
 ```
 
 **Output (JSON):**
@@ -830,9 +830,9 @@ View or manage telemetry.
 
 **Invocation:**
 ```
-structured-edit telemetry show [-n <limit>]
-structured-edit telemetry summary
-structured-edit telemetry clear
+hashpilot telemetry show [-n <limit>]
+hashpilot telemetry summary
+hashpilot telemetry clear
 ```
 
 **Event schema:**
@@ -862,7 +862,7 @@ Show an operational health report with per-language stats, failure breakdowns, a
 
 **Invocation:**
 ```
-structured-edit telemetry health [-w <days>] [--trend]
+hashpilot telemetry health [-w <days>] [--trend]
 ```
 
 - `-w, --window <days>` — time window in days (default 7)

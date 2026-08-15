@@ -11,3 +11,13 @@ logs/
 
 # Advisory lock files — process-local, never shared.
 .hashpilot/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Local screenshot artifacts
+desktop-*.png
+mobile-*.png
+
+# Local task tracking
+tasks/

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Node-parseable entry point for the `structured-edit` binary.
+// Node-parseable entry point for the `hashpilot` binary.
 //
 // HashPilot runs on Bun (src/cli.ts has a `#!/usr/bin/env bun` shebang and uses
 // Bun-only APIs). Pointing `bin` straight at the TypeScript source means
@@ -26,7 +26,7 @@ var res = spawnSync("bun", ["run", CLI].concat(process.argv.slice(2)), {
 
 if (res.error && res.error.code === "ENOENT") {
   process.stderr.write(
-    "structured-edit requires Bun (>= 1.2.0), which was not found on your PATH.\n" +
+    "hashpilot requires Bun (>= 1.2.0), which was not found on your PATH.\n" +
       "\n" +
       "  Install it:  curl -fsSL https://bun.sh/install | bash\n" +
       "  Then reopen your shell and re-run this command.\n" +
@@ -37,7 +37,7 @@ if (res.error && res.error.code === "ENOENT") {
 }
 
 if (res.error) {
-  process.stderr.write("structured-edit: failed to launch Bun: " + res.error.message + "\n");
+  process.stderr.write("hashpilot: failed to launch Bun: " + res.error.message + "\n");
   process.exit(70);
 }
 

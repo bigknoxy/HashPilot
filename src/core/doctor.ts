@@ -6,7 +6,7 @@ const HOME = process.env.HOME || "/root";
 const AGENTIC_TOOLS = join(HOME, ".agentic-tools");
 const CORE_DIR = join(AGENTIC_TOOLS, "structured-editing");
 const BIN_DIR = join(AGENTIC_TOOLS, "bin");
-const CLI_LAUNCHER = join(BIN_DIR, "structured-edit");
+const CLI_LAUNCHER = join(BIN_DIR, "hashpilot");
 const LOG_DIR = join(AGENTIC_TOOLS, "logs");
 const MANIFEST = join(AGENTIC_TOOLS, "manifest.json");
 const CONFIG_DIR = join(HOME, ".config", "hashpilot");
@@ -105,7 +105,7 @@ export function doctor(): DoctorReport {
 
 function checkCLIExecutable(): DoctorCheck {
   try {
-    const proc = Bun.spawnSync(["structured-edit", "--version"], {
+    const proc = Bun.spawnSync(["hashpilot", "--version"], {
       env: { ...process.env, PATH: `${BIN_DIR}:${process.env.PATH || ""}` },
     });
     if (proc.exitCode === 0) {

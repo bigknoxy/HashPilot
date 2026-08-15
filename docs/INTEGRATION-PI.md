@@ -5,7 +5,7 @@
 HashPilot integrates with Pi in two ways:
 
 1. **Native Extension** (recommended) — Custom tools registered in Pi's tool system, available in every session
-2. **CLI Mode** — Direct shell commands via `structured-edit`
+2. **CLI Mode** — Direct shell commands via `hashpilot`
 
 ## Mode 1: Native Pi Extension (Recommended)
 
@@ -35,9 +35,9 @@ The `hashpilot` skill at `~/.pi/agent/skills/hashpilot/SKILL.md` provides routin
 
 ### How It Works
 
-The extension calls `structured-edit` CLI under the hood via `pi.exec()`. Each tool:
+The extension calls `hashpilot` CLI under the hood via `pi.exec()`. Each tool:
 1. Validates parameters using TypeBox schemas
-2. Calls the appropriate `structured-edit` command
+2. Calls the appropriate `hashpilot` command
 3. Parses JSON output
 4. Returns structured results to the LLM
 
@@ -49,42 +49,42 @@ The `hashpilot_enabled` flag controls whether tools appear in Pi's Available Too
 
 ## Mode 2: CLI Direct Usage
 
-If the extension isn't loaded, Pi can call `structured-edit` directly via shell:
+If the extension isn't loaded, Pi can call `hashpilot` directly via shell:
 
 ```bash
 # Read files with hashes
-structured-edit read-many src/main.ts src/worker.ts
+hashpilot read-many src/main.ts src/worker.ts
 
 # Read a line with context
-structured-edit read-hash src/main.ts 42
+hashpilot read-hash src/main.ts 42
 
 # Hash-anchored replacement
-HASH=$(structured-edit read-many src/config.py | jq -r '.[0].hash')
-structured-edit replace-hash src/config.py "$HASH" "new content"
+HASH=$(hashpilot read-many src/config.py | jq -r '.[0].hash')
+hashpilot replace-hash src/config.py "$HASH" "new content"
 
 # AST operations (TypeScript, TSX, JavaScript, Python, Go, Rust)
-structured-edit ast find-symbols src/main.ts
-structured-edit ast rename-symbol src/main.ts oldFunc newFunc
-structured-edit ast replace-body src/main.ts myFunc 'return 42;'
-structured-edit ast add-import src/app.ts '{ Router } from express'
-structured-edit ast remove-import src/app.ts './bar'
+hashpilot ast find-symbols src/main.ts
+hashpilot ast rename-symbol src/main.ts oldFunc newFunc
+hashpilot ast replace-body src/main.ts myFunc 'return 42;'
+hashpilot ast add-import src/app.ts '{ Router } from express'
+hashpilot ast remove-import src/app.ts './bar'
 
 # Generate and apply unified diffs
-structured-edit diff generate src/main.ts "$(cat old.ts)" "$(cat new.ts)"
-structured-edit diff apply src/main.ts --patch changes.patch
+hashpilot diff generate src/main.ts "$(cat old.ts)" "$(cat new.ts)"
+hashpilot diff apply src/main.ts --patch changes.patch
 
 # Route decisions and config
-structured-edit route src/main.ts rename-symbol
-structured-edit config
+hashpilot route src/main.ts rename-symbol
+hashpilot config
 
 # Batch edit across files
-structured-edit batch add-import src/*.ts --import-spec "{ z } from zod" --dry-run
+hashpilot batch add-import src/*.ts --import-spec "{ z } from zod" --dry-run
 
 # Edit provenance
-structured-edit provenance query src/main.ts --human
+hashpilot provenance query src/main.ts --human
 
 # Verify changes (with auto-detection)
-structured-edit verify-changes src/main.ts --auto-detect
+hashpilot verify-changes src/main.ts --auto-detect
 ```
 
 ## Routing Strategy
@@ -95,15 +95,15 @@ HashPilot uses a strict priority for edit method selection:
 2. **Hash** — For hash-anchored content identification (any file type)
 3. **Diff** — Fallback for unsupported operations
 
-Check routing: `structured-edit route <file> <operation> [--policy <json>]`
+Check routing: `hashpilot route <file> <operation> [--policy <json>]`
 
 For detailed explanation with policy matches, use `--policy` to test override behavior:
 
 ```bash
-structured-edit route src/main.ts rename-symbol
+hashpilot route src/main.ts rename-symbol
 # → { route: "ast", explanation: { reasons: ["Language 'typescript' supports AST operations"], ... } }
 
-structured-edit route src/main.py rename-symbol --policy '{"languageOverrides":{"python":"hash"}}'
+hashpilot route src/main.py rename-symbol --policy '{"languageOverrides":{"python":"hash"}}'
 # → { route: "hash", explanation: { policyApplied: true, ... } }
 ```
 
@@ -129,14 +129,14 @@ Example project config (`.hashpilot.json`):
 }
 ```
 
-View current merged config: `structured-edit config`
+View current merged config: `hashpilot config`
 
 ## Stale Anchor Recovery
 
 HashPilot has **auto-recovery** for stale anchors. When the file has changed since the hash was computed, `replace-hash` auto-recovers by applying the edit to the current content and returning `"retries": 1`. This is always safe for full-file replaces.
 
 If auto-recovery fails or is disabled:
-1. Re-read the file: `structured-edit read-many <file>`
+1. Re-read the file: `hashpilot read-many <file>`
 2. Get the new hash from the response
 3. Retry `replace-hash` with the updated hash
 
@@ -147,14 +147,14 @@ The native `hashpilot_replace_hash` tool surfaces stale-anchor status in its res
 All operations are logged to `~/.agentic-tools/logs/telemetry.jsonl`.
 
 ```bash
-structured-edit telemetry summary       # Operation counts and timing
-structured-edit telemetry show -n 50    # Last 50 events
-structured-edit telemetry health -w 7   # Health report with per-language stats and warnings
-structured-edit telemetry health -w 7 --trend  # Compare to previous window
-structured-edit telemetry sessions      # List session-level summaries
-structured-edit telemetry export --from 2026-01-01  # Export events as NDJSON
-structured-edit telemetry prune --older-than 30  # Delete old rotated files
-structured-edit telemetry clear         # Clear log
+hashpilot telemetry summary       # Operation counts and timing
+hashpilot telemetry show -n 50    # Last 50 events
+hashpilot telemetry health -w 7   # Health report with per-language stats and warnings
+hashpilot telemetry health -w 7 --trend  # Compare to previous window
+hashpilot telemetry sessions      # List session-level summaries
+hashpilot telemetry export --from 2026-01-01  # Export events as NDJSON
+hashpilot telemetry prune --older-than 30  # Delete old rotated files
+hashpilot telemetry clear         # Clear log
 ```
 
 ## When to Use HashPilot Tools vs Raw Commands
@@ -187,7 +187,7 @@ structured-edit telemetry clear         # Clear log
 
 | Issue | Solution |
 |-------|----------|
-| `structured-edit: command not found` | Add `~/.agentic-tools/bin` to PATH in `~/.bashrc` |
+| `hashpilot: command not found` | Add `~/.agentic-tools/bin` to PATH in `~/.bashrc` |
 | `Module not found` errors | Run `bun install` in `~/.agentic-tools/structured-editing/` |
 | Tree-sitter errors | `bun add tree-sitter tree-sitter-typescript` in the structured-editing dir |
 | Pi extension not loading | Check `~/.pi/agent/extensions/hashpilot.ts` exists and has no syntax errors |

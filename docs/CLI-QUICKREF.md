@@ -1,6 +1,6 @@
 # CLI Quick Reference
 
-Copy-paste reference for `structured-edit`, aimed at agents driving the CLI without
+Copy-paste reference for `hashpilot`, aimed at agents driving the CLI without
 prior context. The command tables below are **generated from the CLI's own `--help`**,
 so they cannot drift from what the binary accepts.
 
@@ -22,8 +22,8 @@ Each of these cost a real agent a wasted round-trip. Every claim has a test in
 ### Positionals are positional — there is no `--pattern` or `--paths`
 
 ```bash
-structured-edit grep-many '<pattern>' <path>...      # ✅
-structured-edit grep-many --pattern x --paths src    # ❌ unknown option, exit 1
+hashpilot grep-many '<pattern>' <path>...      # ✅
+hashpilot grep-many --pattern x --paths src    # ❌ unknown option, exit 1
 ```
 
 `symbol-lookup-many` is the exception in the search family: paths are positional but
@@ -57,14 +57,14 @@ returning `[]`. Malformed lines are skipped, counted, and reported on stderr
 
 ### The telemetry subcommand is `show`, not `recent`
 
-`structured-edit telemetry show -n 50`. Siblings: `summary`, `health`, `clear`,
+`hashpilot telemetry show -n 50`. Siblings: `summary`, `health`, `clear`,
 `sessions`, `export`, `prune`.
 
 ### Never read an exit code through a pipe
 
 ```bash
-structured-edit doctor | head        # $? is head's status — always 0
-structured-edit doctor >/dev/null 2>&1; echo $?   # ✅ the real code
+hashpilot doctor | head        # $? is head's status — always 0
+hashpilot doctor >/dev/null 2>&1; echo $?   # ✅ the real code
 ```
 
 This masked a genuine exit-70 during review and made a broken build look green.
@@ -112,14 +112,14 @@ looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0
 
 <!-- BEGIN GENERATED: command reference -->
 
-_34 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
+_35 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
 ### Global options
 
-Accepted before the subcommand, e.g. `structured-edit --allowed-root /srv/app read-many f.ts`.
+Accepted before the subcommand, e.g. `hashpilot --allowed-root /srv/app read-many f.ts`.
 
 ```
-structured-edit [options] [command]
+hashpilot [options] [command]
 ```
 
 | Flag | Meaning |
@@ -146,7 +146,7 @@ structured-edit [options] [command]
 Read multiple files, return content + hashes
 
 ```
-structured-edit read-many [options] <files...>
+hashpilot read-many [options] <files...>
 ```
 
 | Positional | Meaning |
@@ -162,7 +162,7 @@ structured-edit read-many [options] <files...>
 Read a line with hash and context
 
 ```
-structured-edit read-hash [options] <file> <line>
+hashpilot read-hash [options] <file> <line>
 ```
 
 | Positional | Meaning |
@@ -180,7 +180,7 @@ structured-edit read-hash [options] <file> <line>
 Search pattern across multiple paths
 
 ```
-structured-edit grep-many [options] <pattern> <paths...>
+hashpilot grep-many [options] <pattern> <paths...>
 ```
 
 | Positional | Meaning |
@@ -200,7 +200,7 @@ structured-edit grep-many [options] <pattern> <paths...>
 Find symbol definitions. Usage: symbol-lookup-many <paths...> --names n1,n2
 
 ```
-structured-edit symbol-lookup-many [options] <paths...>
+hashpilot symbol-lookup-many [options] <paths...>
 ```
 
 | Positional | Meaning |
@@ -217,7 +217,7 @@ structured-edit symbol-lookup-many [options] <paths...>
 Replace content identified by hash anchor
 
 ```
-structured-edit replace-hash [options] <file> <old-hash> <new-content>
+hashpilot replace-hash [options] <file> <old-hash> <new-content>
 ```
 
 | Positional | Meaning |
@@ -241,7 +241,7 @@ structured-edit replace-hash [options] <file> <old-hash> <new-content>
 Show supported AST languages, operations, and limitations
 
 ```
-structured-edit ast capabilities [options]
+hashpilot ast capabilities [options]
 ```
 
 #### `ast find-symbols`
@@ -249,7 +249,7 @@ structured-edit ast capabilities [options]
 List symbols in a file
 
 ```
-structured-edit ast find-symbols [options] <file>
+hashpilot ast find-symbols [options] <file>
 ```
 
 | Positional | Meaning |
@@ -261,7 +261,7 @@ structured-edit ast find-symbols [options] <file>
 Rename a symbol across a file
 
 ```
-structured-edit ast rename-symbol [options] <file> <old-name> <new-name>
+hashpilot ast rename-symbol [options] <file> <old-name> <new-name>
 ```
 
 | Positional | Meaning |
@@ -283,7 +283,7 @@ structured-edit ast rename-symbol [options] <file> <old-name> <new-name>
 Replace function/method body
 
 ```
-structured-edit ast replace-body [options] <file> <symbol> <new-body>
+hashpilot ast replace-body [options] <file> <symbol> <new-body>
 ```
 
 | Positional | Meaning |
@@ -305,7 +305,7 @@ structured-edit ast replace-body [options] <file> <symbol> <new-body>
 Add an import statement
 
 ```
-structured-edit ast add-import [options] <file> <import-spec>
+hashpilot ast add-import [options] <file> <import-spec>
 ```
 
 | Positional | Meaning |
@@ -326,7 +326,7 @@ structured-edit ast add-import [options] <file> <import-spec>
 Remove an import statement
 
 ```
-structured-edit ast remove-import [options] <file> <import-spec>
+hashpilot ast remove-import [options] <file> <import-spec>
 ```
 
 | Positional | Meaning |
@@ -347,7 +347,7 @@ structured-edit ast remove-import [options] <file> <import-spec>
 Insert content before a symbol
 
 ```
-structured-edit ast insert-before [options] <file> <symbol> <content>
+hashpilot ast insert-before [options] <file> <symbol> <content>
 ```
 
 | Positional | Meaning |
@@ -369,7 +369,7 @@ structured-edit ast insert-before [options] <file> <symbol> <content>
 Insert content after a symbol
 
 ```
-structured-edit ast insert-after [options] <file> <symbol> <content>
+hashpilot ast insert-after [options] <file> <symbol> <content>
 ```
 
 | Positional | Meaning |
@@ -391,7 +391,7 @@ structured-edit ast insert-after [options] <file> <symbol> <content>
 Auto-routed structured edit through AST → Hash → Diff pipeline
 
 ```
-structured-edit route-edit [options] <file> <operation>
+hashpilot route-edit [options] <file> <operation>
 ```
 
 | Positional | Meaning |
@@ -424,7 +424,7 @@ structured-edit route-edit [options] <file> <operation>
 Apply the same edit to multiple files in parallel
 
 ```
-structured-edit batch [options] <operation> <files...>
+hashpilot batch [options] <operation> <files...>
 ```
 
 | Positional | Meaning |
@@ -458,7 +458,7 @@ structured-edit batch [options] <operation> <files...>
 Execute an editing intent — one command, full blast radius
 
 ```
-structured-edit intent [options] <intent>
+hashpilot intent [options] <intent>
 ```
 
 | Positional | Meaning |
@@ -484,7 +484,7 @@ structured-edit intent [options] <intent>
 Generate a unified diff between old and new content
 
 ```
-structured-edit diff generate [options] <file> <old-content> <new-content>
+hashpilot diff generate [options] <file> <old-content> <new-content>
 ```
 
 | Positional | Meaning |
@@ -503,7 +503,7 @@ structured-edit diff generate [options] <file> <old-content> <new-content>
 Apply a unified diff patch to a file
 
 ```
-structured-edit diff apply [options] <file>
+hashpilot diff apply [options] <file>
 ```
 
 | Positional | Meaning |
@@ -525,7 +525,7 @@ structured-edit diff apply [options] <file>
 Run formatter, linter, typechecker, and tests on changed files
 
 ```
-structured-edit verify-changes [options] <files...>
+hashpilot verify-changes [options] <files...>
 ```
 
 | Positional | Meaning |
@@ -553,7 +553,7 @@ structured-edit verify-changes [options] <files...>
 Show recent telemetry events
 
 ```
-structured-edit telemetry show [options]
+hashpilot telemetry show [options]
 ```
 
 | Flag | Meaning |
@@ -565,7 +565,7 @@ structured-edit telemetry show [options]
 Show telemetry summary
 
 ```
-structured-edit telemetry summary [options]
+hashpilot telemetry summary [options]
 ```
 
 #### `telemetry health`
@@ -573,7 +573,7 @@ structured-edit telemetry summary [options]
 Show telemetry health report with per-language stats and threshold warnings
 
 ```
-structured-edit telemetry health [options]
+hashpilot telemetry health [options]
 ```
 
 | Flag | Meaning |
@@ -586,7 +586,7 @@ structured-edit telemetry health [options]
 Clear telemetry log
 
 ```
-structured-edit telemetry clear [options]
+hashpilot telemetry clear [options]
 ```
 
 #### `telemetry sessions`
@@ -594,7 +594,7 @@ structured-edit telemetry clear [options]
 List session summaries
 
 ```
-structured-edit telemetry sessions [options]
+hashpilot telemetry sessions [options]
 ```
 
 #### `telemetry export`
@@ -602,7 +602,7 @@ structured-edit telemetry sessions [options]
 Export telemetry events as NDJSON
 
 ```
-structured-edit telemetry export [options]
+hashpilot telemetry export [options]
 ```
 
 | Flag | Meaning |
@@ -617,7 +617,7 @@ structured-edit telemetry export [options]
 Delete old rotated telemetry files
 
 ```
-structured-edit telemetry prune [options]
+hashpilot telemetry prune [options]
 ```
 
 | Flag | Meaning |
@@ -629,7 +629,7 @@ structured-edit telemetry prune [options]
 Show edit history for a file (like git blame for agent edits)
 
 ```
-structured-edit provenance query [options] <file> [line]
+hashpilot provenance query [options] <file> [line]
 ```
 
 | Positional | Meaning |
@@ -649,7 +649,7 @@ structured-edit provenance query [options] <file> [line]
 Show all edits in a changeSet
 
 ```
-structured-edit provenance changeset [options] <changeSetId>
+hashpilot provenance changeset [options] <changeSetId>
 ```
 
 | Positional | Meaning |
@@ -665,7 +665,7 @@ structured-edit provenance changeset [options] <changeSetId>
 List undoable changeSets, newest first
 
 ```
-structured-edit changesets [options]
+hashpilot changesets [options]
 ```
 
 | Flag | Meaning |
@@ -677,7 +677,7 @@ structured-edit changesets [options]
 Restore every file in a changeSet to its pre-edit contents
 
 ```
-structured-edit undo [options] [changeSetId]
+hashpilot undo [options] [changeSetId]
 ```
 
 | Positional | Meaning |
@@ -695,7 +695,7 @@ structured-edit undo [options] [changeSetId]
 Verify HashPilot installation health
 
 ```
-structured-edit doctor [options]
+hashpilot doctor [options]
 ```
 
 #### `upgrade`
@@ -703,7 +703,7 @@ structured-edit doctor [options]
 Upgrade HashPilot to the latest version from GitHub
 
 ```
-structured-edit upgrade [options]
+hashpilot upgrade [options]
 ```
 
 | Flag | Meaning |
@@ -714,12 +714,28 @@ structured-edit upgrade [options]
 | `--force` | Skip confirmation prompt |
 | `--dry-run` | Show what would be done without executing |
 
+#### `uninstall`
+
+Remove HashPilot and all its components from the system
+
+```
+hashpilot uninstall [options]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--keep-config` | Preserve config and telemetry data |
+| `--force` | Skip confirmation prompt (auto-detected when piped) |
+| `--dry-run` | Show what would be removed without deleting anything |
+| `--target <dir>` | Install target directory (default: ~/.agentic-tools) |
+| `--json` | Output as JSON (default: true) |
+
 #### `route`
 
 Show which edit route would be chosen (with detailed explanation)
 
 ```
-structured-edit route [options] <file> <operation>
+hashpilot route [options] <file> <operation>
 ```
 
 | Positional | Meaning |
@@ -737,7 +753,7 @@ structured-edit route [options] <file> <operation>
 Show current HashPilot configuration
 
 ```
-structured-edit config [options]
+hashpilot config [options]
 ```
 
 | Flag | Meaning |

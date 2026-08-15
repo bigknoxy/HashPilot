@@ -29,7 +29,7 @@ bun test tests/hash-edit.test.ts     # Single test file
 bun test -t "test name pattern"      # Filter by test name
 ```
 
-The smoke test (`bash tests/smoke.sh`) requires the CLI to be installed (`structured-edit` on PATH); run it whenever CLI behavior changes. CI uses semantic-release for automated versioning and publishing, so commits must use Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) — the prefix drives the release.
+The smoke test (`bash tests/smoke.sh`) requires the CLI to be installed (`hashpilot` on PATH); run it whenever CLI behavior changes. CI uses semantic-release for automated versioning and publishing, so commits must use Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`) — the prefix drives the release.
 
 Style: strict TypeScript, ES modules, two-space indent; camelCase values, PascalCase types, kebab-case CLI subcommands.
 
@@ -37,7 +37,7 @@ Style: strict TypeScript, ES modules, two-space indent; camelCase values, Pascal
 
 ## Architecture
 
-HashPilot is a global, tool-agnostic structured editing core for coding agents. It exposes a single CLI binary (`structured-edit`) that agents invoke for safe, syntax-aware file edits.
+HashPilot is a global, tool-agnostic structured editing core for coding agents. It exposes a single CLI binary (`hashpilot`) that agents invoke for safe, syntax-aware file edits.
 
 ### Three-tier edit hierarchy
 
