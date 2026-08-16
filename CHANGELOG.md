@@ -1,3 +1,10 @@
+## [4.0.2](https://github.com/bigknoxy/HashPilot/compare/v4.0.1...v4.0.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* use v4.0.0 as initial version to avoid flash of v0.0.0 ([926509b](https://github.com/bigknoxy/HashPilot/commit/926509bc3c9e20853b7be4471ed39e5598532dc5))
+
 ## [4.0.1](https://github.com/bigknoxy/HashPilot/compare/v4.0.0...v4.0.1) (2026-08-16)
 
 
