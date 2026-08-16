@@ -823,6 +823,45 @@ A standalone version is also available: `scripts/doctor.sh` (works without CLI o
 
 ---
 
+### upgrade
+
+Upgrade HashPilot to the latest version from GitHub. Downloads and runs `scripts/install.sh` from the specified release channel.
+
+**Invocation:**
+```
+hashpilot upgrade [--channel <channel>] [--target <dir>] [--keep-telemetry] [--force] [--dry-run]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--channel <channel>` | Release channel (default: `main`) |
+| `--target <dir>` | Install target directory (default: `~/.agentic-tools`) |
+| `--keep-telemetry` | Preserve existing telemetry on upgrade |
+| `--force` | Skip confirmation prompt |
+| `--dry-run` | Show what would be done without executing |
+
+**Exit code:** `0` on success, `70` on failure.
+
+### uninstall
+
+Remove HashPilot and all its components from the system. Downloads and runs `scripts/uninstall.sh`.
+
+**Invocation:**
+```
+hashpilot uninstall [--keep-config] [--force] [--dry-run] [--target <dir>]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--keep-config` | Preserve config and telemetry data |
+| `--force` | Skip confirmation prompt (auto-detected when piped) |
+| `--dry-run` | Show what would be removed without deleting anything |
+| `--target <dir>` | Install target directory (default: `~/.agentic-tools`) |
+
+**Output (dry-run):** JSON object with `components` array listing what would be removed (or preserved with `--keep-config`).
+
+**Exit code:** `0` on success, `70` on failure.
+
 
 ### telemetry
 

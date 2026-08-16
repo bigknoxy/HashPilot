@@ -129,6 +129,15 @@ hashpilot upgrade          # upgrade to latest from main
 hashpilot upgrade --dry-run  # preview what would happen
 ```
 
+### Uninstall
+
+```bash
+hashpilot uninstall              # remove everything (prompts for confirmation)
+hashpilot uninstall --keep-config  # remove binaries, keep config + telemetry
+hashpilot uninstall --dry-run    # preview what would be removed
+hashpilot uninstall --force      # skip confirmation prompt
+```
+
 ### Runtime support matrix
 
 HashPilot is Bun-only today. The core uses Bun APIs and ships as TypeScript source, so

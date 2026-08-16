@@ -139,6 +139,8 @@ rmdir "${HOME}/.pi/agent/skills" 2>/dev/null || true
 # ── Core, bin, telemetry ─────────────────────────────────────────────────
 log "Removing Core files..."
 remove_file "$TARGET_DIR/bin/hashpilot" "CLI launcher"
+# Also remove stale symlink from old binary name (pre-3.1 installs).
+remove_file "$TARGET_DIR/bin/structured-edit" "stale CLI launcher (old name)"
 rmdir "$TARGET_DIR/bin" 2>/dev/null || true
 
 if [[ "$KEEP_CONFIG" == "true" ]]; then

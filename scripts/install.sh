@@ -193,6 +193,12 @@ LAUNCHER
 chmod +x "$TARGET_DIR/bin/hashpilot"
 detail "Launcher created at $TARGET_DIR/bin/hashpilot"
 
+# Remove stale symlink from the old binary name (pre-3.1 installs).
+if [ -L "$TARGET_DIR/bin/structured-edit" ]; then
+  rm -f "$TARGET_DIR/bin/structured-edit"
+  detail "Removed stale symlink: $TARGET_DIR/bin/structured-edit"
+fi
+
 # ── Configure PATH ───────────────────────────────────────────────────────
 log "Adding PATH entry..."
 

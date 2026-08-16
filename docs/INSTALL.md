@@ -251,6 +251,15 @@ The installer detects the existing install, upgrades core files, preserves your 
 To completely remove HashPilot:
 
 ```bash
+hashpilot uninstall              # prompts for confirmation
+hashpilot uninstall --force      # skip prompt (non-interactive auto-detected)
+hashpilot uninstall --keep-config  # keep config + telemetry
+hashpilot uninstall --dry-run    # preview only
+```
+
+Or via the standalone script:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh | sh -s -- -f
 ```
 
