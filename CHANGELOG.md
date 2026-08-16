@@ -1,3 +1,53 @@
+# [4.0.0](https://github.com/bigknoxy/HashPilot/compare/v3.0.8...v4.0.0) (2026-08-16)
+
+
+* feat!: rename CLI from structured-edit to hashpilot + add uninstall command ([5fc0ac0](https://github.com/bigknoxy/HashPilot/commit/5fc0ac0cacb13eb4cee5ba915bbd4c1e1d28a77d))
+
+
+### Bug Fixes
+
+* add migration cleanup for old symlink + document uninstall in adapter contract ([5d02970](https://github.com/bigknoxy/HashPilot/commit/5d029708b22b8d75e9687b99cafe56124401e707))
+* improve uninstall dry-run output and add directory creation guard ([90ab1a6](https://github.com/bigknoxy/HashPilot/commit/90ab1a6ef87182cbfb3c97208d8095a3e7614efa))
+
+
+### BREAKING CHANGES
+
+* The CLI binary is now 'hashpilot' instead of 'structured-edit'.
+Update any scripts, aliases, or agent prompts that invoke 'structured-edit' to
+use 'hashpilot'. All subcommands, flags, output shapes, and exit codes are
+unchanged. The on-disk install directory remains
+'~/.agentic-tools/structured-editing/' for upgrade compatibility.
+
+New: 'hashpilot uninstall' command with --keep-config, --force, and --dry-run
+options. Delegates to scripts/uninstall.sh, mirroring the upgrade command
+pattern.
+
+Changes:
+- src/cli.ts: program.name('hashpilot'), recovery hint strings, new uninstall
+  command, existsSync import
+- src/cli-node.cjs: error messages and comments updated
+- src/core/doctor.ts: CLI_LAUNCHER path and spawnSync command name
+- src/core/hash-edit.ts: recovery hint string
+- package.json: bin name and install-cli symlink path
+- scripts/install.sh, doctor.sh, uninstall.sh: all CLI references
+- tests/smoke.sh, cli-contract.test.ts, envelope.test.ts: command invocations
+  and uninstall coverage
+- templates/: all 5 adapter templates (claude, opencode, pi)
+- docs/: all 7 doc files (CLI-QUICKREF, ADAPTER-CONTRACT, INSTALL, ARCHITECTURE,
+  INTEGRATION-CLAUDE/OPENCODE/PI)
+- README.md, CLAUDE.md, index.html: all references
+- .github/workflows/ci.yml: doctor invocations
+- .claude/settings.local.json: permission entries
+- scripts/gen-cli-quickref.ts: hardcoded example string
+- schema/hashpilot-envelope.schema.json: description text
+
+Verification:
+- bun test: 598 pass / 0 fail
+- bun run lint:docs: passes (CLI-QUICKREF regenerated, ROADMAP consistent)
+- bash -n on all shell scripts: passes
+- grep sweep: zero 'structured-edit' hits (excluding historical docs and
+  generated dist/)
+
 ## [3.0.8](https://github.com/bigknoxy/HashPilot/compare/v3.0.7...v3.0.8) (2026-08-15)
 
 
