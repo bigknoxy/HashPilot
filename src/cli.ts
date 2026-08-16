@@ -4,7 +4,7 @@ import { Command } from "commander";
 // time, so dist/ carries the real version instead of a hardcoded literal.
 import pkg from "../package.json" with { type: "json" };
 import { join } from "path";
-import { writeFileSync, rmSync } from "fs";
+import { writeFileSync, rmSync, existsSync, mkdirSync } from "fs";
 import {
   readMany,
   readHash,
@@ -105,7 +105,7 @@ function parseIntFlag(raw: string | undefined, name: string, fallback: number): 
 }
 
 program
-  .name("structured-edit")
+  .name("hashpilot")
   .description("HashPilot — Structured Editing Core for Coding Agents")
   .version(VERSION)
   .option("--allow-outside-root", "Permit writes outside the project root (credentials and system paths stay blocked)")
@@ -915,7 +915,7 @@ provCmd
           errorCode: ErrorCode.FILE_NOT_FOUND,
           changeSetId,
           message: `No edits found for changeSet: ${changeSetId}`,
-          recovery: "structured-edit telemetry sessions",
+          recovery: "hashpilot telemetry sessions",
         },
         ExitCode.USAGE,
       );
@@ -958,7 +958,7 @@ program
         opts.last
           ? "No changeSets have been recorded yet."
           : "Provide a changeSet ID, or pass --last.",
-        { recovery: "structured-edit changesets" },
+        { recovery: "hashpilot changesets" },
       );
     }
     // The undo's own write must not be snapshotted as a new changeSet — that
@@ -1057,6 +1057,104 @@ program
   });
 
 program
+  .command("uninstall")
+  .description("Remove HashPilot and all its components from the system")
+  .option("--keep-config", "Preserve config and telemetry data")
+  .option("--force", "Skip confirmation prompt (auto-detected when piped)")
+  .option("--dry-run", "Show what would be removed without deleting anything")
+  .option("--target <dir>", "Install target directory (default: ~/.agentic-tools)")
+  .option("--json", "Output as JSON", true)
+  .action(async (opts) => {
+    const targetDir = opts.target || join(process.env.HOME || "/root", ".agentic-tools");
+
+    if (opts.dryRun) {
+      const components: string[] = [];
+      const keep = Boolean(opts.keepConfig);
+      const kept = (label: string) => keep ? `${label} [preserved by --keep-config]` : label;
+      if (existsSync(join(targetDir, "bin", "hashpilot"))) components.push(`CLI launcher: ${targetDir}/bin/hashpilot`);
+      if (existsSync(join(targetDir, "structured-editing"))) components.push(`Core source: ${targetDir}/structured-editing`);
+      components.push(kept(`Telemetry logs: ${targetDir}/logs`));
+      if (existsSync(join(targetDir, "manifest.json"))) components.push(`Manifest: ${targetDir}/manifest.json`);
+      components.push(kept("Config: ~/.config/hashpilot/config.json"));
+      if (existsSync(join(process.env.HOME || "/root", ".claude", "CLAUDE.md")))
+        components.push("Claude integration: ~/.claude/CLAUDE.md (section removal)");
+      if (existsSync(join(process.env.HOME || "/root", ".config", "opencode", "skills", "hashpilot", "SKILL.md")))
+        components.push("OpenCode skill: ~/.config/opencode/skills/hashpilot/SKILL.md");
+      if (existsSync(join(process.env.HOME || "/root", ".config", "opencode", "agent", "hashpilot.md")))
+        components.push("OpenCode agent: ~/.config/opencode/agent/hashpilot.md");
+      if (existsSync(join(process.env.HOME || "/root", ".pi", "agent", "extensions", "hashpilot.ts")))
+        components.push("Pi extension: ~/.pi/agent/extensions/hashpilot.ts");
+      if (existsSync(join(process.env.HOME || "/root", ".pi", "agent", "skills", "hashpilot", "SKILL.md")))
+        components.push("Pi skill: ~/.pi/agent/skills/hashpilot/SKILL.md");
+      finish({
+        success: true,
+        dryRun: true,
+        keepConfig: Boolean(opts.keepConfig),
+        targetDir,
+        components: components.length > 0 ? components : ["Nothing to remove — no HashPilot installation detected."],
+      });
+      return;
+    }
+
+    const uninstallUrl = `https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/uninstall.sh`;
+    console.error(`Uninstalling HashPilot from ${targetDir}...`);
+
+    if (!opts.force && process.stdin.isTTY) {
+      console.error("This will remove HashPilot and all its components.");
+      console.error(`  Target: ${targetDir}`);
+      console.error(`  Keep config: ${Boolean(opts.keepConfig)}`);
+      console.error("  Pass --force to skip this prompt.");
+    }
+
+    try {
+      const response = await fetch(uninstallUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download uninstall script: ${response.status} ${response.statusText}`);
+      }
+      const script = await response.text();
+
+      const tmpScript = join(targetDir, `.hashpilot-uninstall-${Date.now()}.sh`);
+      try { mkdirSync(join(targetDir), { recursive: true }); } catch {}
+      writeFileSync(tmpScript, script, { mode: 0o755 });
+
+      const args: string[] = [];
+      if (opts.target) args.push("--target", opts.target);
+      if (opts.keepConfig) args.push("--keep-config");
+      if (opts.force || !process.stdin.isTTY) args.push("--force");
+
+      const proc = Bun.spawn(["bash", tmpScript, ...args], {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          HASHPILOT_DIR: targetDir,
+          PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}`,
+        },
+      });
+
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+
+      try { rmSync(tmpScript); } catch {}
+
+      if (stdout) console.error(stdout.trim());
+      if (stderr) console.error(stderr.trim());
+
+      if (exitCode !== 0) {
+        finish({ success: false, error: `Uninstall failed with exit code ${exitCode}` }, ExitCode.INTERNAL);
+        return;
+      }
+
+      finish({ success: true, message: "HashPilot uninstalled successfully" });
+      console.error("Uninstall completed successfully");
+    } catch (e: any) {
+      finish({ success: false, error: e.message }, ExitCode.INTERNAL);
+      console.error(`Uninstall failed: ${e.message}`);
+    }
+  });
+
+program
   .command("route")
   .description("Show which edit route would be chosen (with detailed explanation)")
   .argument("<file>", "File path")
@@ -1109,7 +1207,7 @@ function reportInternalError(err: unknown): void {
         errorCode: ErrorCode.READ_FAILED,
         path: err.file,
         message,
-        recovery: "Check that the telemetry log is readable, or run `structured-edit telemetry clear`.",
+        recovery: "Check that the telemetry log is readable, or run `hashpilot telemetry clear`.",
       },
       ExitCode.IO,
     );

@@ -531,7 +531,7 @@ body { overflow-x: hidden; }
       <img src="https://img.shields.io/badge/tests-96%25_coverage-brightgreen" alt="Tests">
     </div>
     <h1>HashPilot</h1>
-    <div class="tagline">structured-edit CLI · v1.3.1</div>
+    <div class="tagline">hashpilot CLI · v1.3.1</div>
     <p class="sub">
       <strong>AI agents edit code blind.</strong> HashPilot gives them cryptographic certainty.
       Every edit anchored by SHA-256 hash — not a line number or fuzzy text match.
@@ -707,14 +707,14 @@ body { overflow-x: hidden; }
 
   <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 16px; margin-top: 32px;">Your First Edit</h3>
 <pre><code># 1. Read a file — get its content hash
-<span style="color: var(--accent);">structured-edit read-many src/main.ts</span>
+<span style="color: var(--accent);">hashpilot read-many src/main.ts</span>
 
 # 2. Edit by hash — target the exact content
 HASH="abc123..."  <span style="color: var(--text-dim);"># from read-many output</span>
-<span style="color: var(--accent);">structured-edit replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5</span>
+<span style="color: var(--accent);">hashpilot replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5</span>
 
 # 3. Verify nothing broke
-<span style="color: var(--accent);">structured-edit verify-changes src/main.ts --auto-detect</span></code></pre>
+<span style="color: var(--accent);">hashpilot verify-changes src/main.ts --auto-detect</span></code></pre>
 </div>
 </section>
 
@@ -809,7 +809,7 @@ HASH="abc123..."  <span style="color: var(--text-dim);"># from read-many output<
   <div class="feature-grid integrations-grid">
     <div class="feature-card">
       <h3>Claude Code</h3>
-      <p>HashPilot section injected into <code style="font-size: 0.8rem;">~/.claude/CLAUDE.md</code>. Claude uses <code style="font-size: 0.8rem;">structured-edit</code> commands as shell tools.</p>
+      <p>HashPilot section injected into <code style="font-size: 0.8rem;">~/.claude/CLAUDE.md</code>. Claude uses <code style="font-size: 0.8rem;">hashpilot</code> commands as shell tools.</p>
     </div>
     <div class="feature-card">
       <h3>OpenCode</h3>

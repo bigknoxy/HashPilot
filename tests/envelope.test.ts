@@ -98,6 +98,7 @@ const INVOCATIONS: Array<[name: string, args: string[]]> = [
   ["doctor", ["doctor"]],
   ["config", ["config"]],
   ["upgrade", ["upgrade", "--dry-run"]],
+  ["uninstall", ["uninstall", "--dry-run"]],
 ];
 
 describe("the envelope is uniform across every command", () => {

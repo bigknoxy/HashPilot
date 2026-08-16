@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/bigknoxy/HashPilot/schema/hashpilot-envelope.schema.json",
   "title": "HashPilot CLI envelope",
-  "description": "The single JSON shape every structured-edit command writes to stdout.",
+  "description": "The single JSON shape every hashpilot command writes to stdout.",
   "type": "object",
   "required": ["apiVersion", "ok", "command", "data", "error", "warnings"],
   "additionalProperties": false,

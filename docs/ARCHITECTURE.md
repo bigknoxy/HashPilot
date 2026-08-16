@@ -36,7 +36,7 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        structured-edit CLI                        │
+│                        hashpilot CLI                        │
 │                    (Commander-based, Bun runtime)                  │
 ├───────────┬───────────┬──────────┬──────────┬────────────────────┤
 │   Read    │    AST    │   Hash   │   Diff   │  Verify + Batch    │
@@ -301,7 +301,7 @@ sequenceDiagram
 - Verifies: core files exist, CLI is on PATH, config is valid
 - Checks adapter integrations: Claude Code, OpenCode, Pi
 - Reports: installation status, missing components, version info
-- Single command: `structured-edit doctor`
+- Single command: `hashpilot doctor`
 
 #### `src/batch-edit.ts` — Batch Editing
 - `editMany(operation, files)`: Same edit applied to many files in parallel
@@ -464,7 +464,7 @@ HashPilot integrates with three coding agent platforms via the [Adapter Contract
 | **OpenCode** | Skill + subagent | `~/.config/opencode/skills/hashpilot/` + `~/.config/opencode/agent/hashpilot.md` |
 | **Pi** | Native extension | `~/.pi/agent/extensions/hashpilot.ts` + 7 custom tools |
 
-Each adapter teaches the agent to use `structured-edit` commands instead of raw file editing.
+Each adapter teaches the agent to use `hashpilot` commands instead of raw file editing.
 
 ---
 

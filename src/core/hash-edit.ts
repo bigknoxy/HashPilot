@@ -293,7 +293,7 @@ async function applyReplacement(
           message:
             `Edit was discarded: the result does not parse (syntax error at line ${after.line}:${after.column} — ${after.nodeType}). ` +
             `The file parsed cleanly before, so this replacement would have corrupted it.`,
-          recovery: `structured-edit read-hash ${filePath} ${after.line} — re-read around the break, or pass --allow-parse-errors to write anyway.`,
+          recovery: `hashpilot read-hash ${filePath} ${after.line} — re-read around the break, or pass --allow-parse-errors to write anyway.`,
         };
       }
     }

@@ -11,7 +11,7 @@ description: HashPilot structured editing — prefers AST edits for TypeScript, 
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
 ```
 
-This installs the `structured-edit` CLI and registers the Pi extension with `/hp` slash command.
+This installs the `hashpilot` CLI and registers the Pi extension with `/hp` slash command.
 
 ---
 

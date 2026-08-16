@@ -56,30 +56,30 @@ else
 fi
 
 # 4. CLI launcher
-if [[ -x "$TARGET_DIR/bin/structured-edit" ]]; then
-  pass "cli-launcher" "Found: $TARGET_DIR/bin/structured-edit"
+if [[ -x "$TARGET_DIR/bin/hashpilot" ]]; then
+  pass "cli-launcher" "Found: $TARGET_DIR/bin/hashpilot"
 else
-  fail "cli-launcher" "Missing: $TARGET_DIR/bin/structured-edit"
+  fail "cli-launcher" "Missing: $TARGET_DIR/bin/hashpilot"
 fi
 
 # 5. CLI on PATH
-if command -v structured-edit &>/dev/null; then
-  CLI_PATH=$(command -v structured-edit)
+if command -v hashpilot &>/dev/null; then
+  CLI_PATH=$(command -v hashpilot)
   pass "cli-on-path" "Found at: $CLI_PATH"
 else
-  warn "cli-on-path" "structured-edit not on PATH — add $TARGET_DIR/bin to PATH"
+  warn "cli-on-path" "hashpilot not on PATH — add $TARGET_DIR/bin to PATH"
 fi
 
 # 6. CLI executable
-if command -v structured-edit &>/dev/null; then
-  VER=$(structured-edit --version 2>/dev/null || echo "error")
+if command -v hashpilot &>/dev/null; then
+  VER=$(hashpilot --version 2>/dev/null || echo "error")
   if [[ "$VER" != "error" ]]; then
     pass "cli-executable" "CLI works: $VER"
   else
     fail "cli-executable" "CLI failed to run"
   fi
-elif [[ -x "$TARGET_DIR/bin/structured-edit" ]]; then
-  VER=$("$TARGET_DIR/bin/structured-edit" --version 2>/dev/null || echo "error")
+elif [[ -x "$TARGET_DIR/bin/hashpilot" ]]; then
+  VER=$("$TARGET_DIR/bin/hashpilot" --version 2>/dev/null || echo "error")
   if [[ "$VER" != "error" ]]; then
     pass "cli-executable" "CLI works: $VER"
   else

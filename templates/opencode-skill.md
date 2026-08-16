@@ -11,7 +11,7 @@ description: HashPilot structured editing core for coding agents. Provides hash-
 curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
 ```
 
-This installs the `structured-edit` CLI and registers the OpenCode skill + subagent.
+This installs the `hashpilot` CLI and registers the OpenCode skill + subagent.
 
 ---
 
@@ -27,7 +27,7 @@ HashPilot is a global, tool-agnostic structured editing system that improves cod
 
 ## When NOT to Use This Skill
 
-- **Creating new files**: Use direct write/edit instead (structured-edit edits existing files)
+- **Creating new files**: Use direct write/edit instead (hashpilot edits existing files)
 - **Deleting files/directories**: Use raw bash (`rm`, `rmdir`)
 - **Renaming/moving files**: Use raw bash (`mv`, `git mv`)
 - **Simple single-line edits in non-critical files**: Direct edit is cheaper and just as safe
@@ -36,11 +36,11 @@ HashPilot is a global, tool-agnostic structured editing system that improves cod
 
 ## Prerequisites
 
-HashPilot must be installed at `~/.agentic-tools/structured-editing/` with the CLI at `~/.agentic-tools/bin/structured-edit`.
+HashPilot must be installed at `~/.agentic-tools/structured-editing/` with the CLI at `~/.agentic-tools/bin/hashpilot`.
 
 Verify installation:
 ```bash
-structured-edit --version
+hashpilot --version
 ```
 
 If not installed, see `~/.agentic-tools/structured-editing/docs/INSTALL.md`.
@@ -53,14 +53,14 @@ Always prefer the highest-confidence route:
 2. **Hash route** — For all other edits where you have a content hash
 3. **Diff route** — Fallback for unsupported operations
 
-Check routing: `structured-edit route <file> <operation>`
+Check routing: `hashpilot route <file> <operation>`
 
 ## Core Commands
 
 ### read-many — Batch read files with hashes
 
 ```bash
-structured-edit read-many <file1> [file2] ...
+hashpilot read-many <file1> [file2] ...
 ```
 
 Returns the standard envelope; `data` is an array of `{ path, content, hash, lines }`.
@@ -70,7 +70,7 @@ Store `hash` for subsequent `replace-hash` calls.
 
 ```bash
 # Read multiple files
-result=$(structured-edit read-many src/api.ts src/utils.ts src/config.ts)
+result=$(hashpilot read-many src/api.ts src/utils.ts src/config.ts)
 # Extract hash for later editing
 hash=$(echo "$result" | jq -r '.data[] | select(.path | contains("api.ts")) | .hash')
 ```
@@ -78,7 +78,7 @@ hash=$(echo "$result" | jq -r '.data[] | select(.path | contains("api.ts")) | .h
 ### read-hash — Read line with context hash
 
 ```bash
-structured-edit read-hash <file> <line-number> [-c <context-lines>]
+hashpilot read-hash <file> <line-number> [-c <context-lines>]
 ```
 
 Returns `lineHash`, `contextHash`, `contextBefore`, `contextAfter`. Use `contextHash` for anchoring edits to specific line ranges.
@@ -86,19 +86,19 @@ Returns `lineHash`, `contextHash`, `contextBefore`, `contextAfter`. Use `context
 ### grep-many — Search across paths
 
 ```bash
-structured-edit grep-many <pattern> <paths...> [-i] [--file-pattern <glob>] [--max-results <n>]
+hashpilot grep-many <pattern> <paths...> [-i] [--file-pattern <glob>] [--max-results <n>]
 ```
 
 ### symbol-lookup-many — Find symbol definitions
 
 ```bash
-structured-edit symbol-lookup-many <paths...> --names name1,name2
+hashpilot symbol-lookup-many <paths...> --names name1,name2
 ```
 
 ### replace-hash — Hash-anchored content replacement
 
 ```bash
-structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end] [--dry-run]
+hashpilot replace-hash <file> <old-hash> <new-content> [--range start:end] [--dry-run]
 ```
 
 **Critical**: If result shows `"stale": true`, the file changed since the hash was computed. Re-read the file and retry with the new hash.
@@ -112,7 +112,7 @@ structured-edit replace-hash <file> <old-hash> <new-content> [--range start:end]
 ### find-symbols — List all symbols
 
 ```bash
-structured-edit ast find-symbols <file>
+hashpilot ast find-symbols <file>
 ```
 
 Returns array of `{name, kind, startRow, endRow, startCol, endCol}`.
@@ -120,13 +120,13 @@ Returns array of `{name, kind, startRow, endRow, startCol, endCol}`.
 ### rename-symbol — Rename all references
 
 ```bash
-structured-edit ast rename-symbol <file> <old-name> <new-name> [--dry-run]
+hashpilot ast rename-symbol <file> <old-name> <new-name> [--dry-run]
 ```
 
 ### replace-body — Replace function/method body
 
 ```bash
-structured-edit ast replace-body <file> <symbol-name> <new-body> [--dry-run]
+hashpilot ast replace-body <file> <symbol-name> <new-body> [--dry-run]
 ```
 
 Body can be `@filepath` to read from a file.
@@ -134,30 +134,30 @@ Body can be `@filepath` to read from a file.
 ### add-import — Add import statement
 
 ```bash
-structured-edit ast add-import <file> '<import-spec>' [--dry-run]
+hashpilot ast add-import <file> '<import-spec>' [--dry-run]
 ```
 
 Examples:
-- `structured-edit ast add-import src/app.ts '{ Router } from express'`
-- `structured-edit ast add-import src/app.ts '* as React from react'`
+- `hashpilot ast add-import src/app.ts '{ Router } from express'`
+- `hashpilot ast add-import src/app.ts '* as React from react'`
 
 ### remove-import — Remove import line
 
 ```bash
-structured-edit ast remove-import <file> '<import-spec>' [--dry-run]
+hashpilot ast remove-import <file> '<import-spec>' [--dry-run]
 ```
 
 ### insert-before / insert-after — Insert content relative to a symbol
 
 ```bash
-structured-edit ast insert-before <file> <symbol-name> <content> [--dry-run]
-structured-edit ast insert-after <file> <symbol-name> <content> [--dry-run]
+hashpilot ast insert-before <file> <symbol-name> <content> [--dry-run]
+hashpilot ast insert-after <file> <symbol-name> <content> [--dry-run]
 ```
 
 ## verify-changes — Bundle formatter + linter + tests
 
 ```bash
-structured-edit verify-changes <files...> [--formatter <cmd>] [--linter <cmd>] [--test-filter <pattern>]
+hashpilot verify-changes <files...> [--formatter <cmd>] [--linter <cmd>] [--test-filter <pattern>]
 ```
 
 Returns `{overall: "pass"|"fail"|"partial", formatter, linter, tests, fileHashes}`.
@@ -165,9 +165,9 @@ Returns `{overall: "pass"|"fail"|"partial", formatter, linter, tests, fileHashes
 ## Telemetry
 
 ```bash
-structured-edit telemetry show [-n <limit>]
-structured-edit telemetry summary
-structured-edit telemetry clear
+hashpilot telemetry show [-n <limit>]
+hashpilot telemetry summary
+hashpilot telemetry clear
 ```
 
 ## Workflow Patterns
@@ -176,21 +176,21 @@ structured-edit telemetry clear
 
 ```bash
 # 1. Find the symbol
-structured-edit ast find-symbols src/api.ts
+hashpilot ast find-symbols src/api.ts
 # 2. Rename
-structured-edit ast rename-symbol src/api.ts oldName newName
+hashpilot ast rename-symbol src/api.ts oldName newName
 # 3. Verify
-structured-edit verify-changes src/api.ts --formatter prettier --linter eslint
+hashpilot verify-changes src/api.ts --formatter prettier --linter eslint
 ```
 
 ### Pattern 2: Hash-anchored edit (any file)
 
 ```bash
 # 1. Read file with hash
-data=$(structured-edit read-many config.yaml)
+data=$(hashpilot read-many config.yaml)
 hash=$(echo "$data" | jq -r '.[0].hash')
 # 2. Edit with hash anchor
-structured-edit replace-hash config.yaml "$hash" "new: content"
+hashpilot replace-hash config.yaml "$hash" "new: content"
 # 3. On stale hash: re-read and retry
 ```
 
@@ -198,10 +198,10 @@ structured-edit replace-hash config.yaml "$hash" "new: content"
 
 ```bash
 # 1. Batch read
-structured-edit read-many src/a.ts src/b.ts src/c.ts
+hashpilot read-many src/a.ts src/b.ts src/c.ts
 # 2. Extract hash for target file
 # 3. Replace targeted range
-structured-edit replace-hash src/b.ts "$hash" "replacement content" --range 10:15
+hashpilot replace-hash src/b.ts "$hash" "replacement content" --range 10:15
 ```
 
 ## Error Recovery

@@ -17,7 +17,7 @@ Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzz
 
 ## What This Is
 
-HashPilot is a CLI (`structured-edit`) and editing protocol that replaces fuzzy text editing with precision operations:
+HashPilot is a CLI (`hashpilot`) and editing protocol that replaces fuzzy text editing with precision operations:
 
 - **Hash-anchored replacement** — target content by its cryptographic fingerprint
 - **AST-aware refactoring** — rename symbols, replace function bodies, manage imports (TypeScript, JS, Python, Go, Rust)
@@ -125,8 +125,17 @@ curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/ins
 ### Upgrade
 
 ```bash
-structured-edit upgrade          # upgrade to latest from main
-structured-edit upgrade --dry-run  # preview what would happen
+hashpilot upgrade          # upgrade to latest from main
+hashpilot upgrade --dry-run  # preview what would happen
+```
+
+### Uninstall
+
+```bash
+hashpilot uninstall              # remove everything (prompts for confirmation)
+hashpilot uninstall --keep-config  # remove binaries, keep config + telemetry
+hashpilot uninstall --dry-run    # preview what would be removed
+hashpilot uninstall --force      # skip confirmation prompt
 ```
 
 ### Runtime support matrix
@@ -138,32 +147,32 @@ there is no Node-compatible build yet.
 |---------|-----------|-------|
 | Bun ≥ 1.2 | ✅ | The only supported runtime. Enforced by `engines.bun`. |
 | Bun < 1.2 | ❌ | `npm`/`bun` warn at install time via `engines`. |
-| Node.js (any version) | ❌ | `structured-edit` exits **127** with an install message pointing at https://bun.sh. |
+| Node.js (any version) | ❌ | `hashpilot` exits **127** with an install message pointing at https://bun.sh. |
 
-The `structured-edit` binary is a small CommonJS shim (`src/cli-node.cjs`) that any Node can
+The `hashpilot` binary is a small CommonJS shim (`src/cli-node.cjs`) that any Node can
 parse. It hands off to Bun and forwards Bun's exit status unchanged, so a Node-only machine
 gets one actionable line instead of a syntax-error stack trace.
 
 ```bash
 # Verify it works
-structured-edit doctor
+hashpilot doctor
 
 # See your merged config
-structured-edit config
+hashpilot config
 ```
 
 ### Your First Edit
 
 ```bash
 # 1. Read a file — get its content hash
-structured-edit read-many src/main.ts
+hashpilot read-many src/main.ts
 
 # 2. Edit by hash — target the exact content
 HASH="abc123..."  # from read-many output
-structured-edit replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5
+hashpilot replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5
 
 # 3. Verify nothing broke
-structured-edit verify-changes src/main.ts --auto-detect
+hashpilot verify-changes src/main.ts --auto-detect
 ```
 
 ---
@@ -384,8 +393,8 @@ By default HashPilot only writes inside the project root (the nearest ancestor
 containing `.git`). Anything else fails with `PATH_DENIED` and exit code `1`.
 
 ```bash
-structured-edit --allowed-root /srv/generated ast rename-symbol ...   # widen for one run
-structured-edit --allow-outside-root ...                              # disable containment
+hashpilot --allowed-root /srv/generated ast rename-symbol ...   # widen for one run
+hashpilot --allow-outside-root ...                              # disable containment
 ```
 
 ```json
@@ -408,7 +417,7 @@ ever sent off the machine.
 **Turning it off** — highest priority first:
 
 ```bash
-structured-edit --no-telemetry ast rename-symbol ...   # one invocation
+hashpilot --no-telemetry ast rename-symbol ...   # one invocation
 export HASHPILOT_TELEMETRY=0                           # whole shell (also: false, off, no)
 ```
 
@@ -447,7 +456,7 @@ HashPilot installs adapters for the three major coding agent platforms:
 
 | Platform | What Gets Installed |
 |----------|-------------------|
-| **Claude Code** | HashPilot section injected into `~/.claude/CLAUDE.md` teaching Claude to use `structured-edit` commands |
+| **Claude Code** | HashPilot section injected into `~/.claude/CLAUDE.md` teaching Claude to use `hashpilot` commands |
 | **OpenCode** | Skill at `~/.config/opencode/skills/hashpilot/` + subagent at `~/.config/opencode/agent/hashpilot.md` |
 | **Pi** | Native extension at `~/.pi/agent/extensions/hashpilot.ts` with 7 custom tools and `/hp` slash command |
 
@@ -459,7 +468,7 @@ All adapters follow the [Adapter Contract](docs/ADAPTER-CONTRACT.md) — a machi
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   structured-edit CLI                         │
+│                   hashpilot CLI                         │
 │                  (Commander-based, Bun)                       │
 ├─────────┬──────────┬──────────┬──────────┬───────────────────┤
 │   Read  │   AST    │   Hash   │   Diff   │  Verify + Batch   │

@@ -186,12 +186,18 @@ detail "Dependencies installed"
 # ── Create CLI launcher ──────────────────────────────────────────────────
 log "Creating CLI launcher..."
 mkdir -p "$TARGET_DIR/bin"
-cat > "$TARGET_DIR/bin/structured-edit" << 'LAUNCHER'
+cat > "$TARGET_DIR/bin/hashpilot" << 'LAUNCHER'
 #!/bin/bash
 exec bun run "$HOME/.agentic-tools/structured-editing/src/cli.ts" "$@"
 LAUNCHER
-chmod +x "$TARGET_DIR/bin/structured-edit"
-detail "Launcher created at $TARGET_DIR/bin/structured-edit"
+chmod +x "$TARGET_DIR/bin/hashpilot"
+detail "Launcher created at $TARGET_DIR/bin/hashpilot"
+
+# Remove stale symlink from the old binary name (pre-3.1 installs).
+if [ -L "$TARGET_DIR/bin/structured-edit" ]; then
+  rm -f "$TARGET_DIR/bin/structured-edit"
+  detail "Removed stale symlink: $TARGET_DIR/bin/structured-edit"
+fi
 
 # ── Configure PATH ───────────────────────────────────────────────────────
 log "Adding PATH entry..."
@@ -346,7 +352,7 @@ cat > "$MANIFEST_FILE" << MANIFEST
       "source": "${TARGET_DIR}/structured-editing"
     },
     "bin": [
-      "${TARGET_DIR}/bin/structured-edit"
+      "${TARGET_DIR}/bin/hashpilot"
     ],
     "config": [
       "${CONFIG_FILE}"
@@ -381,7 +387,7 @@ fi
 
 # ── Verify ───────────────────────────────────────────────────────────────
 log "Verifying installation..."
-if [ -f "$TARGET_DIR/bin/structured-edit" ]; then
+if [ -f "$TARGET_DIR/bin/hashpilot" ]; then
   detail "CLI launcher: OK"
 else
   err "CLI launcher missing!"
@@ -396,8 +402,8 @@ else
 fi
 
 # Quick smoke test
-if command -v structured-edit &>/dev/null || [ -x "$TARGET_DIR/bin/structured-edit" ]; then
-  VER=$("$TARGET_DIR/bin/structured-edit" --version 2>/dev/null || echo "unknown")
+if command -v hashpilot &>/dev/null || [ -x "$TARGET_DIR/bin/hashpilot" ]; then
+  VER=$("$TARGET_DIR/bin/hashpilot" --version 2>/dev/null || echo "unknown")
   detail "CLI version: ${VER}"
 fi
 
@@ -407,10 +413,10 @@ printf "${GREEN} HashPilot v${HASHPILOT_VERSION} installed successfully${NC}\n"
 printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 echo ""
 echo "  Core:     $TARGET_DIR/structured-editing"
-echo "  CLI:      structured-edit"
+echo "  CLI:      hashpilot"
 echo "  Config:   ${CONFIG_FILE}"
 echo "  Manifest: $MANIFEST_FILE"
 echo ""
-echo "  Run 'structured-edit doctor' to verify the installation."
+echo "  Run 'hashpilot doctor' to verify the installation."
 echo "  Restart your shell or run: source $RC_FILE"
 echo ""

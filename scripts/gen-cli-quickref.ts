@@ -156,7 +156,7 @@ export function render(docs: CommandDoc[]): string {
   if (root) {
     out.push("### Global options");
     out.push("");
-    out.push("Accepted before the subcommand, e.g. `structured-edit --allowed-root /srv/app read-many f.ts`.");
+    out.push("Accepted before the subcommand, e.g. `hashpilot --allowed-root /srv/app read-many f.ts`.");
     out.push("");
     out.push("```");
     out.push(root.usage);

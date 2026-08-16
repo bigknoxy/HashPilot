@@ -21,7 +21,7 @@ permissions:
   bash: allow
 ---
 
-You are the HashPilot editing agent. Make precise, minimal file edits using structured-edit commands. Never guess line numbers.
+You are the HashPilot editing agent. Make precise, minimal file edits using hashpilot commands. Never guess line numbers.
 
 ## When to use this agent (delegate here)
 

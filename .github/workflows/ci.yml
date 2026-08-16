@@ -71,7 +71,7 @@ jobs:
       - name: Assert actionable message, not a stack trace
         run: |
           set +e
-          out=$(structured-edit doctor 2>&1)
+          out=$(hashpilot doctor 2>&1)
           code=$?
           set -e
           echo "$out"
@@ -89,7 +89,7 @@ jobs:
           bun-version: latest
 
       - name: Doctor runs from the packed install once Bun is present
-        run: structured-edit doctor
+        run: hashpilot doctor
 
   docs-verify:
     name: Docs Verify

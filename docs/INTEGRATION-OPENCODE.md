@@ -47,15 +47,15 @@ export PATH="$HOME/.agentic-tools/bin:$PATH"
 
 ### Inline skill usage
 
-When OpenCode detects file editing tasks, it will reference the hashpilot skill and use `structured-edit` commands directly via bash tool:
+When OpenCode detects file editing tasks, it will reference the hashpilot skill and use `hashpilot` commands directly via bash tool:
 
 ```bash
 # OpenCode agent using hash-anchored edit
-HASH=$(structured-edit read-many src/config.ts | jq -r '.[0].hash')
-structured-edit replace-hash src/config.ts "$HASH" "new content"
+HASH=$(hashpilot read-many src/config.ts | jq -r '.[0].hash')
+hashpilot replace-hash src/config.ts "$HASH" "new content"
 
 # OpenCode agent using AST edit for TypeScript
-structured-edit ast rename-symbol src/api.ts oldFunc newFunc
+hashpilot ast rename-symbol src/api.ts oldFunc newFunc
 ```
 
 ### Subagent delegation
@@ -107,30 +107,30 @@ The subagent will:
 ## Reference: Complete Command List
 
 ```
-structured-edit read-many <files...>
-structured-edit read-hash <file> <line> [-c <context>]
-structured-edit grep-many <pattern> <paths...>
-structured-edit symbol-lookup-many <paths...> --names n1,n2
-structured-edit replace-hash <file> <hash> <content> [--range s:e] [--dry-run] [--actor] [--task-id] [--reason]
-structured-edit ast find-symbols <file>
-structured-edit ast capabilities
-structured-edit ast rename-symbol <file> <old> <new> [--actor] [--task-id] [--reason]
-structured-edit ast replace-body <file> <symbol> <body> [--actor] [--task-id] [--reason]
-structured-edit ast add-import <file> '<spec>' [--actor] [--task-id] [--reason]
-structured-edit ast remove-import <file> '<spec>' [--actor] [--task-id] [--reason]
-structured-edit ast insert-before <file> <symbol> <content> [--actor] [--task-id] [--reason]
-structured-edit ast insert-after <file> <symbol> <content> [--actor] [--task-id] [--reason]
-structured-edit diff generate <file> <old> <new>
-structured-edit diff apply <file> --patch <file> [--dry-run]
-structured-edit route <file> <op> [--policy <json>]
-structured-edit route-edit <file> <op> [--method <route>] [--dry-run]
-structured-edit batch <op> <files...> [--serial] [--dry-run]
-structured-edit intent '<json>' [--project-root <dir>] [--dry-run]
-structured-edit config
-structured-edit doctor
-structured-edit verify-changes <files...> [--formatter] [--linter] [--typecheck] [--test-filter] [--auto-detect]
-structured-edit provenance query <file> [<line>] [--human]
-structured-edit provenance changeset <changeSetId> [--human]
-structured-edit telemetry [show|summary|health|clear|sessions|export|prune]
-structured-edit telemetry health [-w <days>] [--trend]
+hashpilot read-many <files...>
+hashpilot read-hash <file> <line> [-c <context>]
+hashpilot grep-many <pattern> <paths...>
+hashpilot symbol-lookup-many <paths...> --names n1,n2
+hashpilot replace-hash <file> <hash> <content> [--range s:e] [--dry-run] [--actor] [--task-id] [--reason]
+hashpilot ast find-symbols <file>
+hashpilot ast capabilities
+hashpilot ast rename-symbol <file> <old> <new> [--actor] [--task-id] [--reason]
+hashpilot ast replace-body <file> <symbol> <body> [--actor] [--task-id] [--reason]
+hashpilot ast add-import <file> '<spec>' [--actor] [--task-id] [--reason]
+hashpilot ast remove-import <file> '<spec>' [--actor] [--task-id] [--reason]
+hashpilot ast insert-before <file> <symbol> <content> [--actor] [--task-id] [--reason]
+hashpilot ast insert-after <file> <symbol> <content> [--actor] [--task-id] [--reason]
+hashpilot diff generate <file> <old> <new>
+hashpilot diff apply <file> --patch <file> [--dry-run]
+hashpilot route <file> <op> [--policy <json>]
+hashpilot route-edit <file> <op> [--method <route>] [--dry-run]
+hashpilot batch <op> <files...> [--serial] [--dry-run]
+hashpilot intent '<json>' [--project-root <dir>] [--dry-run]
+hashpilot config
+hashpilot doctor
+hashpilot verify-changes <files...> [--formatter] [--linter] [--typecheck] [--test-filter] [--auto-detect]
+hashpilot provenance query <file> [<line>] [--human]
+hashpilot provenance changeset <changeSetId> [--human]
+hashpilot telemetry [show|summary|health|clear|sessions|export|prune]
+hashpilot telemetry health [-w <days>] [--trend]
 ```
