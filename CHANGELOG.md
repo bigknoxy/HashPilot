@@ -1,3 +1,10 @@
+## [4.0.3](https://github.com/bigknoxy/HashPilot/compare/v4.0.2...v4.0.3) (2026-08-16)
+
+
+### Bug Fixes
+
+* improve UX - piped installs with existing install now proceed by default instead of exiting with error ([2dc7da9](https://github.com/bigknoxy/HashPilot/commit/2dc7da97f23e334413d696d7085259a7a946d9b2))
+
 ## [4.0.2](https://github.com/bigknoxy/HashPilot/compare/v4.0.1...v4.0.2) (2026-08-16)
 
 
