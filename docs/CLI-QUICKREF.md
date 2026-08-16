@@ -698,6 +698,10 @@ Verify HashPilot installation health
 hashpilot doctor [options]
 ```
 
+| Flag | Meaning |
+|------|---------|
+| `--json` | Output as JSON (default: false) |
+
 #### `upgrade`
 
 Upgrade HashPilot to the latest version from GitHub

@@ -793,10 +793,11 @@ Verify the full user-scope HashPilot installation. Checks core files, CLI on PAT
 
 **Invocation:**
 ```
-hashpilot doctor
+hashpilot doctor            # human-readable summary (default)
+hashpilot doctor --json     # machine-readable JSON envelope
 ```
 
-**Output (JSON):**
+**Output (JSON, with `--json`):**
 ```json
 {
   "checks": [

@@ -75,7 +75,7 @@ describe("documented output shapes", () => {
   });
 
   test("doctor returns an object with a checks array under data", () => {
-    const parsed = JSON.parse(run(["doctor"]).stdout);
+    const parsed = JSON.parse(run(["doctor", "--json"]).stdout);
     expect(Array.isArray(parsed.data.checks)).toBe(true);
   });
 });

@@ -95,7 +95,7 @@ const INVOCATIONS: Array<[name: string, args: string[]]> = [
   ["provenance changeset", ["provenance", "changeset", "nonexistent-id"]],
   ["changesets", ["changesets"]],
   ["undo", ["undo", "nonexistent-changeset"]],
-  ["doctor", ["doctor"]],
+  ["doctor", ["doctor", "--json"]],
   ["config", ["config"]],
   ["upgrade", ["upgrade", "--dry-run"]],
   ["uninstall", ["uninstall", "--dry-run"]],

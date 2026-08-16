@@ -971,8 +971,13 @@ program
 program
   .command("doctor")
   .description("Verify HashPilot installation health")
-  .action(() => {
+  .option("--json", "Output as JSON", false)
+  .action((opts) => {
     const report = doctor();
+    if (opts.json) {
+      finish(report);
+      return;
+    }
     const summaryParts: string[] = [];
     const pass = report.checks.filter((c) => c.status === "pass").length;
     const fail = report.checks.filter((c) => c.status === "fail").length;
@@ -984,8 +989,8 @@ program
       const icon = check.status === "pass" ? "✓" : check.status === "fail" ? "✗" : check.status === "warn" ? "!" : "·";
       summaryParts.push(`  ${icon} ${check.name}: ${check.message}`);
     }
-    finish(report);
-    console.error(summaryParts.join("\n"));
+    console.log(summaryParts.join("\n"));
+    process.exitCode = report.healthy ? 0 : 1;
   });
 
 program
