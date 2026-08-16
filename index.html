@@ -531,7 +531,7 @@ body { overflow-x: hidden; }
       <img src="https://img.shields.io/badge/tests-96%25_coverage-brightgreen" alt="Tests">
     </div>
     <h1>HashPilot</h1>
-    <div class="tagline">hashpilot CLI · v1.3.1</div>
+    <div class="tagline" id="cli-version">hashpilot CLI · v0.0.0</div>
     <p class="sub">
       <strong>AI agents edit code blind.</strong> HashPilot gives them cryptographic certainty.
       Every edit anchored by SHA-256 hash — not a line number or fuzzy text match.
@@ -851,7 +851,7 @@ bun test -t "test name"            <span style="color: var(--text-dim);"># Filte
 <footer>
   <div class="container">
     <p>MIT License · <a href="https://github.com/bigknoxy/HashPilot">GitHub</a> ·
-    <a href="https://github.com/bigknoxy/HashPilot/releases">v1.3.1</a> ·
+    <a href="https://github.com/bigknoxy/HashPilot/releases" id="footer-version">v0.0.0</a> ·
     <a href="https://github.com/bigknoxy/HashPilot/issues">Issues</a></p>
     <p style="margin-top: 12px; font-size: 0.8rem;">Designed for AI agents and the developers who love them.</p>
     <p style="margin-top: 8px; font-size: 0.75rem; color: var(--text-dim);">Docs policy: README (landing) + ARCHITECTURE.md (design) are living docs. Every source PR must update one or both. Every deploy is browser-verified.</p>
@@ -908,6 +908,25 @@ bun test -t "test name"            <span style="color: var(--text-dim);"># Filte
       copyToClipboard(btn.getAttribute('data-copy'), btn);
     });
   });
+})();
+
+// Inject latest release version from GitHub API
+(function() {
+  fetch('https://api.github.com/repos/bigknoxy/HashPilot/releases/latest')
+    .then(function(r) { return r.json(); })
+    .then(function(release) {
+      var v = release.tag_name || 'v4.0.0';
+      var el1 = document.getElementById('cli-version');
+      var el2 = document.getElementById('footer-version');
+      if (el1) el1.textContent = 'hashpilot CLI · ' + v;
+      if (el2) el2.textContent = v;
+    })
+    .catch(function() {
+      var el1 = document.getElementById('cli-version');
+      var el2 = document.getElementById('footer-version');
+      if (el1) el1.textContent = 'hashpilot CLI · v4.0.0';
+      if (el2) el2.textContent = 'v4.0.0';
+    });
 })();
 </script>
 </body>
