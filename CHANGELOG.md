@@ -1,3 +1,10 @@
+## [4.0.4](https://github.com/bigknoxy/HashPilot/compare/v4.0.3...v4.0.4) (2026-08-16)
+
+
+### Bug Fixes
+
+* doctor defaults to human summary, --json for machine output ([1e7e533](https://github.com/bigknoxy/HashPilot/commit/1e7e533e42738091dcb319c1b4fdd12396caca6d))
+
 ## [4.0.3](https://github.com/bigknoxy/HashPilot/compare/v4.0.2...v4.0.3) (2026-08-16)
 
 
