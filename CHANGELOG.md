@@ -1,3 +1,10 @@
+## [4.0.1](https://github.com/bigknoxy/HashPilot/compare/v4.0.0...v4.0.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* make version on landing page dynamic via GitHub API ([d6a75bb](https://github.com/bigknoxy/HashPilot/commit/d6a75bbb256543bb57e7f9e2af567df3dd33c2c7))
+
 # [4.0.0](https://github.com/bigknoxy/HashPilot/compare/v3.0.8...v4.0.0) (2026-08-16)
 
 
