@@ -170,6 +170,21 @@ HashPilot has two complementary docs that must always be kept in sync with the c
   preserved. A crash mid-write leaves the original byte-identical, and orphaned
   `.hashpilot-tmp-*` files older than an hour are swept after each write.
 
+#### `src/core/path-normalize.ts` — Path Canonicalization for Comparison (#41)
+- `normalizePath(file)` resolves `./`, `../`, and trailing slashes, then expresses
+  the result **relative to `process.cwd()`** when it lives underneath it, and
+  leaves it absolute otherwise. `pathsEqual(a, b)` is the normalized comparison.
+- Used by `intent.ts` to dedupe plan steps. Without it, the same file reached via
+  `src/a.ts`, `./src/a.ts`, and `/abs/proj/src/a.ts` produced one plan step per
+  spelling, and a reference spelled differently from the definition escaped the
+  `!== definition.file` filter and got renamed twice.
+- **Deliberately separate from `paths.ts`.** That module is the write boundary and
+  must not accumulate comparison helpers — a permissive canonicalizer sitting next
+  to `assertWritable` invites using it where a realpath check is required.
+- **Not interchangeable with lock keys.** Output is cwd-relative, so it is only
+  valid for comparisons made within a single process at a fixed cwd. Persisted or
+  cross-process keys must stay cwd-independent — see `locking.ts` below.
+
 #### `src/core/locking.ts` — Advisory Locks and Concurrency (#21 / B18)
 - Lockfiles under `<project root>/.hashpilot/locks/`, named by a SHA-256 of the
   **absolute** target path, holding `{pid, nonce, ts, targets}`.
