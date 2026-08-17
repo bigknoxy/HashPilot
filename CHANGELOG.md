@@ -1,3 +1,11 @@
+## [4.0.5](https://github.com/bigknoxy/HashPilot/compare/v4.0.4...v4.0.5) (2026-08-17)
+
+
+### Bug Fixes
+
+* correct --force help text and dedupe non-interactive upgrade log ([5c8b381](https://github.com/bigknoxy/HashPilot/commit/5c8b381ea50f77b142a4c232d0abb2580a539fb5))
+* doctor preserves exit-0 contract regardless of health state ([d4fda41](https://github.com/bigknoxy/HashPilot/commit/d4fda41397107f32602e5c1b2b16a2970f604283))
+
 ## [4.0.4](https://github.com/bigknoxy/HashPilot/compare/v4.0.3...v4.0.4) (2026-08-16)
 
 
