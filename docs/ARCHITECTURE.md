@@ -154,6 +154,17 @@ highest-frequency operations.
   5. Verify results
   6. Return `{ success, changeset, steps: [{file, operation, status, error?}] }`
 
+**Rollback & verification invariants (issues #10, #17)**:
+- Verification failure (`VerifyResult.overall === "fail"`), not just step failure, must
+  trigger rollback when `revertOnFailure` is true. `PlanResult.success` reflects both
+  dimensions; it is `false` when either the steps fail *or* the post-edit verification
+  fails. The `errorCode` of `VERIFY_FAILED` maps to exit code 4.
+- A half-reverted tree must never claim `reverted: true`. The revert loop now tracks
+  every snapshot file whose `safeWrite` threw and returns them in `unrevertedFiles`.
+  `reverted` is `true` only when every snapshot file was fully restored to its pre-edit
+  state; otherwise `reverted: false` and `unrevertedFiles` names the files still in
+  their post-edit state.
+
 #### `src/provenance.ts` — Edit History (M6)
 - ChangeSet-based tracking (group of related edits)
 - `provenanceQuery(file, line?)`: Shows edit history per file/line

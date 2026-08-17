@@ -19,5 +19,8 @@ logs/
 desktop-*.png
 mobile-*.png
 
+# Test scratch directories
+tests/__tmp_*/
+
 # Local task tracking
 tasks/
