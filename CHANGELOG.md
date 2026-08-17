@@ -1,3 +1,10 @@
+## [4.0.8](https://github.com/bigknoxy/HashPilot/compare/v4.0.7...v4.0.8) (2026-08-17)
+
+
+### Bug Fixes
+
+* wire verification result into success flag and make rollback atomic ([#10](https://github.com/bigknoxy/HashPilot/issues/10), [#17](https://github.com/bigknoxy/HashPilot/issues/17)) ([#75](https://github.com/bigknoxy/HashPilot/issues/75)) ([78c629c](https://github.com/bigknoxy/HashPilot/commit/78c629c22ce7d8254a25f5fc16dc7bee092d7d4b))
+
 ## [4.0.7](https://github.com/bigknoxy/HashPilot/compare/v4.0.6...v4.0.7) (2026-08-17)
 
 
