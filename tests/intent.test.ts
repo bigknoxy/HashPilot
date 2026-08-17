@@ -3,6 +3,7 @@ import { parseIntent, findSymbolDefinition, findReferences, generatePlan, Unsupp
 import { executePlan, executeIntent } from "../src/core/plan-executor";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
+import { simulateCrashAfterTempWrite } from "../src/core/paths";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_intent_tests__");
 
@@ -764,4 +765,139 @@ describe("intent edge cases", () => {
     expect(def).not.toBeNull();
     expect(def!.name).toBe("greet");
   });
+});
+
+// ── #10 / #17: verification feedback loop and rollback correctness ────
+
+describe("executePlan verification / rollback correctness", () => {
+  const VERIFY_FAIL_DIR = join(TMP_DIR, "__verify_fail__");
+  const BAD_TS = join(VERIFY_FAIL_DIR, "bad.ts");
+  const BAD_PKG = join(VERIFY_FAIL_DIR, "package.json");
+  const ORIGINAL_BAD_TS = "export const value = 1;\n";
+
+  beforeEach(() => {
+    simulateCrashAfterTempWrite(false);
+    try { rmSync(VERIFY_FAIL_DIR, { recursive: true, force: true }); } catch {}
+    mkdirSync(VERIFY_FAIL_DIR, { recursive: true });
+    writeFileSync(BAD_TS, ORIGINAL_BAD_TS);
+     // Auto-detection finds this package.json when walking up from BAD_TS;
+     // vitest is not in node_modules, so `npx --no-install vitest run` exits
+     // non-zero — a deterministic verify-overall="fail" without network flakiness.
+    writeFileSync(BAD_PKG, JSON.stringify({
+      name: "verify-fail-fixture",
+      devDependencies: { vitest: "^1.0.0" },
+     }));
+   });
+
+  afterEach(() => {
+    simulateCrashAfterTempWrite(false);
+    try { rmSync(VERIFY_FAIL_DIR, { recursive: true, force: true }); } catch {}
+   });
+
+  test("verification failure makes success:false and reverts changes (#10)", async () => {
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "value", param: { name: "x" } },
+      definition: { file: BAD_TS, name: "value", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: BAD_TS,
+          operation: "diff",
+          description: "replace content",
+          params: { oldContent: "= 1", newContent: "= 2" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: true, dryRun: false, revertOnFailure: true });
+
+     // #10 core invariant: a red verification result is not reported as success.
+    expect(result.success).toBe(false);
+    expect(result.verification).toBeDefined();
+    expect(result.verification!.overall).toBe("fail");
+    expect(result.errorCode).toBe("VERIFY_FAILED");
+
+     // Rollback must fire on verification failure, not just on step failure.
+    expect(result.reverted).toBe(true);
+    expect(await Bun.file(BAD_TS).text()).toBe(ORIGINAL_BAD_TS);
+   });
+
+  test("rollback failure sets reverted:false and lists unrevertedFiles (#17)", async () => {
+     // simulateCrashAfterTempWrite makes every atomicWrite throw after the
+     // temp-file write but before the rename.  The originals snapshot uses
+     // Bun.file().text() (no atomicWrite), so it is captured before the crash
+     // fires.  Every safeWrite in the rollback loop then throws, proving that
+     // `reverted` is never set to true over a half-reverted tree.
+    setup();
+    simulateCrashAfterTempWrite(true);
+
+    const plan = {
+      intent: { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "apply change to a.ts",
+          params: { oldContent: "greet", newContent: "sayHello" },
+        },
+        {
+          order: 1,
+          file: FILE_B,
+          operation: "diff",
+          description: "apply change to b.ts",
+          params: { oldContent: "greet", newContent: "sayHello" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: true });
+
+     // #17 core invariant: when the revert loop catches a write error the result
+     // must not claim a clean revert.
+    expect(result.reverted).toBe(false);
+    expect(result.unrevertedFiles).toBeDefined();
+    expect(result.unrevertedFiles!.length).toBeGreaterThan(0);
+    expect(result.unrevertedFiles).toContain(FILE_A);
+    expect(result.unrevertedFiles).toContain(FILE_B);
+   });
+
+  test("reverted:true when every snapshot file is restored cleanly", async () => {
+     // No crash → every revert write succeeds → reverted: true, unrevertedFiles: undefined.
+    setup();
+    const originalA = await Bun.file(FILE_A).text();
+
+    const plan = {
+      intent: { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "rename-symbol",
+          description: "Rename greet to sayHello",
+          params: { oldName: "greet", newName: "sayHello" },
+        },
+        {
+          order: 1,
+          file: FILE_A,
+          operation: "diff",
+          description: "Step 1 content not found — forces rollback",
+          params: { oldContent: "%%%NOT_FOUND%%%", newContent: "x" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: true });
+    expect(result.reverted).toBe(true);
+    expect(result.unrevertedFiles).toBeUndefined();
+    expect(await Bun.file(FILE_A).text()).toBe(originalA);
+   });
 });

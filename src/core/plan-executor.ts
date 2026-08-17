@@ -4,7 +4,7 @@ import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./
 import { replaceHash } from "./hash-edit";
 import { computeHash } from "./read";
 import { verifyChanges, VerifyResult } from "./verify";
-import { recordEvent } from "./telemetry";
+import { recordEvent, ErrorCode } from "./telemetry";
 import type { TelemetryEvent } from "./telemetry";
 import { createChangeSet, buildProvenanceFields } from "./provenance";
 
@@ -32,6 +32,8 @@ export interface PlanResult {
   };
   verification?: VerifyResult;
   reverted: boolean;
+  /** Files in the rollback snapshot whose `safeWrite` threw; the tree is half-reverted. */
+  unrevertedFiles?: string[];
   /** Set when the plan was refused outright; drives the process exit code. */
   errorCode?: string;
   /** Work the planner could not compute. Non-empty means the plan was partial. */
@@ -201,29 +203,48 @@ export async function executePlan(
 
   const succeeded = results.filter((r) => r.success).length;
   const failed = results.length - succeeded;
-  const allPassed = failed === 0;
+  const stepFailed = failed > 0;
 
-  // Run verification
+  // Run verification after all steps have applied, so the verify run sees the
+  // full in-memory state.
   let verification: VerifyResult | undefined;
   if (doVerify && !dryRun) {
     const impactedFiles = [...new Set(plan.steps.map((s) => s.file))];
     verification = await verifyChanges(impactedFiles, {
       autoDetect: true,
-      revertOnFailure: false, // We handle rollback ourselves
+      revertOnFailure: false, // executePlan owns the rollback path
       timeout,
     });
   }
 
-  // Rollback on failure
+  const verifyFailed = verification?.overall === "fail";
+  const allPassed = !stepFailed && !verifyFailed;
+
+  // Rollback on step failure OR verification failure.
+  //
+  // #10: verification was computed but its result was never read.  The old loop
+  //      condition `!allPassed` only tracked step failures, so a green step /
+  //      red test suite reported `success: true` and kept the broken changes.
+  //
+  // #17: `catch {}` in the revert loop meant a half-reverted tree still set
+  //       `reverted: true`.  `unrevertedFiles` now names every snapshot file
+  //      that could not be restored; `reverted` is only `true` when every file
+  //      in the snapshot was written back.
+  const unrevertedFiles: string[] = [];
   let reverted = false;
-  if (!allPassed && doRevert && !dryRun && originals.size > 0) {
+  if ((stepFailed || verifyFailed) && doRevert && !dryRun && originals.size > 0) {
     for (const [file, original] of originals) {
-      try { await safeWrite(file, original); } catch {}
+      try { await safeWrite(file, original); }
+      catch { unrevertedFiles.push(file); }
     }
-    reverted = true;
+    reverted = unrevertedFiles.length === 0;
   }
 
   const elapsed = Date.now() - start;
+
+  // VERIFY_FAILED has its own exit-code slot (code 4). A bare step failure has
+  // no errorCode and the exit-code system maps `success: false` to code 2.
+  const errorCode: string | undefined = verifyFailed ? ErrorCode.VERIFY_FAILED : undefined;
 
   recordEvent({
     operation: `intent-${plan.intent.operation}`,
@@ -237,6 +258,7 @@ export async function executePlan(
     reason: planReason,
     context: planContext,
     stepTotal: plan.steps.length,
+    errorCode,
   });
 
   return {
@@ -252,6 +274,8 @@ export async function executePlan(
     },
     verification,
     reverted,
+    unrevertedFiles: unrevertedFiles.length > 0 ? unrevertedFiles : undefined,
+    errorCode,
     unresolved,
   };
 }
