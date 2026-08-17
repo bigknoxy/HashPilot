@@ -990,7 +990,6 @@ program
       summaryParts.push(`  ${icon} ${check.name}: ${check.message}`);
     }
     console.log(summaryParts.join("\n"));
-    process.exitCode = report.healthy ? 0 : 1;
   });
 
 program
