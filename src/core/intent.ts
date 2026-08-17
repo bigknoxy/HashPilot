@@ -2,6 +2,7 @@ import { findSymbols, insertParameter, insertCallArg } from "./ast-edit";
 import { grepMany } from "./grep";
 import { glob } from "glob";
 import { escapeRegex } from "./utils";
+import { normalizePath, pathsEqual } from "./path-normalize";
 
 // ── Intent types ──────────────────────────────────────────────────────
 
@@ -279,7 +280,10 @@ export function generatePlan(
       // Only possible when the caller gave a default: without one there is no
       // value to pass, and inventing a placeholder means writing text that is
       // wrong in every language and a syntax error in Python. Report it instead.
-      const refFiles = [...new Set(references.map((r) => r.file))];
+      // Normalize before deduping: the same file reached via "src/a.ts",
+      // "./src/a.ts", and "/abs/proj/src/a.ts" is one file, and without this
+      // it produced one plan step per spelling.
+      const refFiles = [...new Set(references.map((r) => normalizePath(r.file)))];
       if (defaultVal === undefined) {
         for (const file of refFiles) {
           unresolved.push({
@@ -319,7 +323,10 @@ export function generatePlan(
         params: { oldName: intent.symbol, newName: intent.newName },
       });
 
-      const refFiles = [...new Set(references.map((r) => r.file))].filter((f) => f !== definition.file);
+      // Normalized compare, so a reference spelled differently from the
+      // definition still filters out and does not get renamed twice.
+      const refFiles = [...new Set(references.map((r) => normalizePath(r.file)))]
+        .filter((f) => !pathsEqual(f, definition.file));
       refFiles.forEach((file, i) => {
         steps.push({
           order: i + 1,

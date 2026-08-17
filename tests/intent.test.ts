@@ -276,6 +276,45 @@ describe("generatePlan", () => {
     expect(plan.steps[0].params.newName).toBe("sayHello");
   });
 
+  test("rename-exported-symbol: does not duplicate steps for a file spelled two ways", () => {
+    // The definition is an absolute path; one reference points at that same
+    // file via a relative spelling. Without normalization the `!== definition.file`
+    // filter misses it and the definition file gets renamed a second time.
+    const def = { file: FILE_A, name: "greet", kind: "function_declaration", line: 3, column: 17 };
+    const refs = [
+      { file: "tests/__tmp_intent_tests__/a.ts", line: 8, column: 14, context: "greet(data)" },
+      { file: FILE_B, line: 4, column: 14, context: 'greet("world")' },
+    ];
+    const plan = generatePlan(
+      { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      def,
+      refs
+    );
+    const refSteps = plan.steps.filter((s) => s.order > 0);
+    expect(refSteps.length).toBe(1);
+    expect(refSteps[0].file).toBe("tests/__tmp_intent_tests__/b.ts");
+  });
+
+  test("add-parameter: dedupes one file reached by several spellings", () => {
+    const def = { file: FILE_A, name: "process", kind: "function_declaration", line: 8, column: 17 };
+    const cwd = process.cwd();
+    const relC = FILE_C.replace(cwd + "/", "");
+    const refs = [
+      { file: "./" + relC, line: 4, column: 3, context: 'process("test", 1)' },
+      { file: relC, line: 5, column: 3, context: 'process("mid", 9)' },
+      { file: FILE_C, line: 6, column: 3, context: 'process("other", 2)' },
+    ];
+    const plan = generatePlan(
+      { operation: "add-parameter", symbol: "process", param: { name: "flag", default: "false" } },
+      def,
+      refs
+    );
+    // Definition step plus exactly one call-site step for the single ref file.
+    const refSteps = plan.steps.filter((s) => s.order > 0);
+    expect(refSteps.length).toBe(1);
+    expect(plan.steps.length).toBe(2);
+  });
+
   test("generatePlan also refuses remove-parameter", () => {
     const def = { file: FILE_A, name: "process", kind: "function_declaration", line: 8, column: 17 };
     const refs = [{ file: FILE_C, line: 4, column: 3, context: 'process("test", 1)' }];
