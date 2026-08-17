@@ -72,8 +72,7 @@ while [ $# -gt 0 ]; do
       echo "                     auto-downloads release tarball from GitHub."
       echo "  --target <dir>     Install target (default: ~/.agentic-tools)"
       echo "  --keep-telemetry   Preserve existing telemetry on reinstall"
-      echo "  --force, -f  Overwrite existing install without any prompt (also skips
-               non-interactive "existing install detected" message)"
+      echo '  --force, -f        Overwrite existing install without any prompt (including the non-interactive existing-install notice)'
       echo "  --help, -h         Show this help"
       echo ""
       echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash"
@@ -136,8 +135,7 @@ if [ -f "$MANIFEST" ]; then
     else
       # Non-interactive (piped) - proceed with upgrade by default
       # (user piped the script, so they clearly want to install/upgrade)
-      warn "Existing HashPilot installation detected at $TARGET_DIR"
-      log "Upgrading existing installation (non-interactive mode)"
+      warn "Existing HashPilot installation detected at $TARGET_DIR; upgrading in non-interactive mode"
     fi
   fi
   log "Upgrading existing installation..."
