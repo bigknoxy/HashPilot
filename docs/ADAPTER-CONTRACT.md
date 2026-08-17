@@ -818,7 +818,7 @@ hashpilot doctor --json     # machine-readable JSON envelope
 - `warn` — non-blocking issue
 - `skip` — component not applicable
 
-**Exit code:** `0` if all checks pass, `1` otherwise.
+**Exit code:** always `0`. `doctor` reports installation state — read `healthy` and the per-check `status` values from the JSON (or the human summary) rather than the exit code. A non-healthy report still exits 0 so a doctor run never fails a build for reporting an incomplete install.
 
 A standalone version is also available: `scripts/doctor.sh` (works without CLI on PATH).
 
