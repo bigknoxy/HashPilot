@@ -164,6 +164,25 @@ highest-frequency operations.
   `reverted` is `true` only when every snapshot file was fully restored to its pre-edit
   state; otherwise `reverted: false` and `unrevertedFiles` names the files still in
   their post-edit state.
+- **Verification is skipped entirely when a step has already failed.** The tree is
+  half-applied at that point, so the suite would report failures that are a
+  consequence of the incomplete edit, not findings about the change — at the cost of
+  a full test run on work that is about to be reverted. It also used to corrupt the
+  diagnosis: `errorCode` became `VERIFY_FAILED` (exit 4, "the edit applied but tests
+  failed") when the edit had never applied at all (exit 2).
+- **An incomplete rollback outranks every other error code.** `unrevertedFiles`
+  being non-empty yields `ROLLBACK_INCOMPLETE`, which maps to exit **5** (I/O) rather
+  than 4. Exit 4 sits in the band an agent reads as "your edit landed, the tests are
+  red" — safe to retry. A half-reverted tree is not safe to retry, so it must not
+  share that code.
+- **The rollback snapshot's own read failures count as unreverted.** A file that
+  could not be read when the pre-edit snapshot was taken has nothing to write back,
+  so the revert loop — which iterates the snapshot — would neither restore it nor
+  report it, reproducing the exact defect #17 closed on the write side. Such a file
+  is folded into `unrevertedFiles` when a step actually modified it. Both the
+  snapshot and the step read through `Bun.file().text()`, so today this requires the
+  file to become readable between the two — a race window, not a reproducible path.
+  It is guarded by construction so the invariant survives future step types.
 
 #### `src/provenance.ts` — Edit History (M6)
 - ChangeSet-based tracking (group of related edits)

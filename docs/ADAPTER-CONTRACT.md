@@ -627,6 +627,26 @@ signature plus `diff apply` at each call site.
 }
 ```
 
+**Rollback outcome (`execution.reverted`, `execution.unrevertedFiles`)**
+
+A plan is rolled back when any step fails **or** verification fails. Two fields
+report how that went, and an agent must read both:
+
+| Fields | Meaning | What to do |
+|--------|---------|------------|
+| `reverted: false`, no `unrevertedFiles` | No rollback was needed or requested | Nothing |
+| `reverted: true` | Every impacted file was restored to its pre-plan content | Safe to retry the plan |
+| `reverted: false` + `unrevertedFiles: [...]` | **The rollback itself failed.** The listed files still hold edits that were supposed to be undone | **Stop.** Restore those files before any retry. Exit code is `5` with `errorCode: ROLLBACK_INCOMPLETE` |
+
+`reverted: true` is never reported over a partial restore — if even one file
+could not be written back it appears in `unrevertedFiles` and `reverted` is
+`false`.
+
+**Verification is skipped when a step fails.** The tree is half-applied at that
+point, so a suite run over it would report failures caused by the incomplete
+edit rather than by the change itself. `verification` is then absent and the
+exit code is `2` (edit failed), not `4`.
+
 **Partial plans (`plan.unresolved`)**
 
 The planner never invents source text. When part of an intent cannot be
@@ -999,7 +1019,7 @@ Branch on the exit code, not on stderr text.
 | `2` | Edit failed — the operation ran but could not be applied | Try another route or report |
 | `3` | Stale anchor / precondition failed | **Retryable:** re-read the file and reissue with the fresh hash |
 | `4` | Verification failed — the edit applied but format/lint/test did not pass | Inspect the verify output; the edit may have been reverted |
-| `5` | I/O error — file not found, unreadable, or write failed | Check the path and permissions |
+| `5` | I/O error — file not found, unreadable, or write failed. Also an **incomplete rollback** (`errorCode: ROLLBACK_INCOMPLETE`) | Check the path and permissions. On `ROLLBACK_INCOMPLETE`, **stop and inspect** — read `unrevertedFiles` and restore them before retrying anything |
 | `70` | Internal error | Report a bug |
 
 Batch commands return the worst code across all items; an all-success batch

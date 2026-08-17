@@ -37,6 +37,9 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   [ErrorCode.DUPLICATE_MATCH]: ExitCode.EDIT_FAILED,
   [ErrorCode.UNSUPPORTED_LANGUAGE]: ExitCode.EDIT_FAILED,
   [ErrorCode.VERIFY_FAILED]: ExitCode.VERIFY_FAILED,
+  // Deliberately IO, not VERIFY_FAILED: a half-reverted tree is a filesystem
+  // problem the agent must stop and inspect, not a retryable test failure.
+  [ErrorCode.ROLLBACK_INCOMPLETE]: ExitCode.IO,
   [ErrorCode.INTERNAL_ERROR]: ExitCode.INTERNAL,
 };
 

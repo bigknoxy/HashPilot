@@ -4,6 +4,7 @@ import { executePlan, executeIntent } from "../src/core/plan-executor";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { simulateCrashAfterTempWrite } from "../src/core/paths";
+import { exitCodeFor } from "../src/core/exit-codes";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_intent_tests__");
 
@@ -900,4 +901,77 @@ describe("executePlan verification / rollback correctness", () => {
     expect(result.unrevertedFiles).toBeUndefined();
     expect(await Bun.file(FILE_A).text()).toBe(originalA);
    });
+
+  test("a failed step skips verification instead of misreporting VERIFY_FAILED", async () => {
+    // The step cannot apply, so the tree never reaches the state the plan
+    // describes. Running the suite over that half-applied tree produced a
+    // failure that was then reported as errorCode VERIFY_FAILED (exit 4,
+    // "the edit applied but tests failed") — the opposite of what happened.
+    // Verification must not run at all here.
+    const plan = {
+      intent: { operation: "add-parameter", symbol: "value", param: { name: "x" } },
+      definition: { file: BAD_TS, name: "value", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: BAD_TS,
+          operation: "diff",
+          description: "content that is not present",
+          params: { oldContent: "%%%NOT_FOUND%%%", newContent: "x" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: true, dryRun: false, revertOnFailure: true });
+
+    expect(result.success).toBe(false);
+    expect(result.verification).toBeUndefined();
+    expect(result.errorCode).toBeUndefined();
+    // A step failure is an edit failure (exit 2), not a verification failure (4).
+    expect(exitCodeFor(result)).toBe(2);
+    // The failed step changed nothing, so the file is untouched either way.
+    expect(await Bun.file(BAD_TS).text()).toBe(ORIGINAL_BAD_TS);
+  });
+
+  test("an incomplete rollback reports ROLLBACK_INCOMPLETE and exits 5", async () => {
+    // #17 gave the half-reverted tree a field (`unrevertedFiles`) but no error
+    // code, so it still exited 4 — which an agent reads as "edit applied, tests
+    // red", i.e. safe to retry. It is not safe to retry: files are left in a
+    // state neither the caller nor the plan asked for.
+    setup();
+    simulateCrashAfterTempWrite(true);
+
+    const plan = {
+      intent: { operation: "rename-exported-symbol", symbol: "greet", newName: "sayHello" },
+      definition: { file: FILE_A, name: "greet", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [
+        {
+          order: 0,
+          file: FILE_A,
+          operation: "diff",
+          description: "apply change to a.ts",
+          params: { oldContent: "greet", newContent: "sayHello" },
+        },
+      ],
+      impactSummary: "",
+    };
+
+    const result = await executePlan(plan, { verify: false, dryRun: false, revertOnFailure: true });
+
+    expect(result.reverted).toBe(false);
+    expect(result.unrevertedFiles).toContain(FILE_A);
+    expect(result.errorCode).toBe("ROLLBACK_INCOMPLETE");
+    expect(exitCodeFor(result)).toBe(5);
+  });
+
+  test("ROLLBACK_INCOMPLETE maps to exit 5 so it leaves the retryable band", () => {
+    // #17 gave the half-reverted tree a field but no code: it still exited 4,
+    // which an agent reads as "edit applied, tests red" — safe to retry. It is
+    // not safe to retry; some files still hold edits that should be gone.
+    expect(exitCodeFor({ success: false, errorCode: "ROLLBACK_INCOMPLETE" })).toBe(5);
+    expect(exitCodeFor({ success: false, errorCode: "VERIFY_FAILED" })).toBe(4);
+  });
 });
