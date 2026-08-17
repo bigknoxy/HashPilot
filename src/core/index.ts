@@ -119,3 +119,4 @@ export type { ResultLike } from "./exit-codes";
 export type { RecoveryMode } from "./hash-edit";
 export { UnsupportedIntentError } from "./intent";
 export { redactSecrets, redactEvent, isSensitiveFile } from "./redact";
+export { normalizePath, pathsEqual } from "./path-normalize";
