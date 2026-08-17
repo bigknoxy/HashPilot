@@ -1,3 +1,10 @@
+## [4.0.6](https://github.com/bigknoxy/HashPilot/compare/v4.0.5...v4.0.6) (2026-08-17)
+
+
+### Bug Fixes
+
+* normalize paths before deduping intent plan steps ([#41](https://github.com/bigknoxy/HashPilot/issues/41)) ([#74](https://github.com/bigknoxy/HashPilot/issues/74)) ([01a97f0](https://github.com/bigknoxy/HashPilot/commit/01a97f08c5c8975df76b7032b5401581109df085)), closes [#66](https://github.com/bigknoxy/HashPilot/issues/66)
+
 ## [4.0.5](https://github.com/bigknoxy/HashPilot/compare/v4.0.4...v4.0.5) (2026-08-17)
 
 
