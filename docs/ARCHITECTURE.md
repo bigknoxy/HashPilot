@@ -47,17 +47,17 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 │               routeEdit(): execute + telemetry + provenance        │
 ├──────────────────────────────────────────────────────────────────┤
 │                     Cross-Cutting Layers                          │
-|- **Telemetry (JSONL)**     • **Provenance (agent git blame)**          │
+│   • Telemetry (JSONL)     • Provenance (agent git blame)          │
 │   • Config (env→CLI→project→global)  • Error/exit codes           │
 │   • Doctor (health check)  • Batch (parallel/serial edits)        │
 └──────────────────────────────────────────────────────────────────┘
+```
 
 **Telemetry timing:** Every CLI command measures `elapsed_ms` via `Date.now() - start`
 recorded at command entry. This is enforced by a regression test that asserts no
 command reports a hardcoded zero. Previously `replace-hash` hardcoded `elapsed_ms: 0`
 (issue #51, defect #3), poisoning health-report averages since it is one of the
 highest-frequency operations.
-```
 
 ### Module Responsibilities
 

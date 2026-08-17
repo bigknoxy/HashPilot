@@ -492,14 +492,36 @@ describe("a broken log is not an empty log", () => {
 
 // ── Regression test for issue #51, defect #3 ──────────────────────────
 describe("replace-hash elapsed_ms regression", () => {
-  test("cli.ts does not hardcode elapsed_ms: 0 for replace-hash", async () => {
+  // The original defect: `replace-hash` reported `elapsed_ms: 0` on every call,
+  // dragging health-report averages toward zero for one of the highest-frequency
+  // operations. Asserting on source text is a blunt instrument, but `recordEvent`
+  // writes to the real telemetry log, so there is no seam to observe the emitted
+  // value from a unit test. Keep the assertions structural rather than
+  // whitespace-exact so a reformat cannot make them vacuously pass.
+  test("no CLI command hardcodes elapsed_ms: 0", async () => {
     const cliSource = await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text();
 
-    // The replace-hash command must measure elapsed time, not hardcode zero
-    expect(cliSource).not.toContain("operation: \"replace-hash\",\n      route: \"hash\",\n      file,\n      language: detectLanguage(file) || undefined,\n      success: result.success,\n      fallback_reason: result.stale ? \"stale-anchor\" : undefined,\n      retries: result.retries ?? 0,\n      elapsed_ms: 0,");
+    const hardcodedZero = cliSource.match(/elapsed_ms:\s*0\b/g) ?? [];
+    expect(hardcodedZero).toEqual([]);
+  });
 
-    // It must use Date.now() - start pattern
-    expect(cliSource).toMatch(/const start = Date\.now\(\)/);
-    expect(cliSource).toMatch(/elapsed_ms: Date\.now\(\) - start/);
+  test("the replace-hash action measures elapsed time", async () => {
+    const cliSource = await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text();
+
+    // Narrow to the replace-hash action body before asserting, so the check
+    // cannot be satisfied by some *other* command's timing code.
+    const start = cliSource.indexOf('.command("replace-hash');
+    expect(start).toBeGreaterThan(-1);
+    const rest = cliSource.slice(start + 1);
+    const next = rest.search(/^\s*\.command\(/m);
+    const action = next === -1 ? rest : rest.slice(0, next);
+    // Guard the slice itself: if the delimiter stops matching, this test must
+    // fail loudly rather than silently widening to the whole file.
+    expect(next).toBeGreaterThan(-1);
+    expect(action).not.toMatch(/\.command\("(?!replace-hash)/);
+
+    expect(action).toMatch(/const start = Date\.now\(\)/);
+    expect(action).toMatch(/operation:\s*"replace-hash"/);
+    expect(action).toMatch(/elapsed_ms:\s*Date\.now\(\) - start/);
   });
 });
