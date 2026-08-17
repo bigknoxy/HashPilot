@@ -154,8 +154,9 @@ parse. It hands off to Bun and forwards Bun's exit status unchanged, so a Node-o
 gets one actionable line instead of a syntax-error stack trace.
 
 ```bash
-# Verify it works
+# Verify it works (human-readable summary; add --json for machine output)
 hashpilot doctor
+hashpilot doctor --json
 
 # See your merged config
 hashpilot config
