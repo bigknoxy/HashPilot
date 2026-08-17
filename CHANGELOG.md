@@ -1,3 +1,10 @@
+## [4.0.7](https://github.com/bigknoxy/HashPilot/compare/v4.0.6...v4.0.7) (2026-08-17)
+
+
+### Bug Fixes
+
+* replace-hash measures elapsed_ms instead of hardcoding 0 ([#53](https://github.com/bigknoxy/HashPilot/issues/53)) ([84ce195](https://github.com/bigknoxy/HashPilot/commit/84ce195f952353519898cb6f3c72ddc6f25e72df)), closes [#3](https://github.com/bigknoxy/HashPilot/issues/3) [#51](https://github.com/bigknoxy/HashPilot/issues/51)
+
 ## [4.0.6](https://github.com/bigknoxy/HashPilot/compare/v4.0.5...v4.0.6) (2026-08-17)
 
 
