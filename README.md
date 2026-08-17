@@ -3,7 +3,7 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun_1.2%2B-black)](https://bun.sh)
 [![Tree-sitter](https://img.shields.io/badge/ast-tree--sitter-green)](https://tree-sitter.github.io)
-[![Tests](https://img.shields.io/badge/tests-96%25_coverage-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 [![Live Site](https://img.shields.io/badge/site-gh--pages-blue)](https://bigknoxy.github.io/HashPilot/)
 
 **AI agents edit code blind. HashPilot gives them cryptographic certainty.**

@@ -53,6 +53,12 @@ HashPilot has two complementary docs that must always be kept in sync with the c
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+**Telemetry timing:** Every CLI command measures `elapsed_ms` via `Date.now() - start`
+recorded at command entry. This is enforced by a regression test that asserts no
+command reports a hardcoded zero. Previously `replace-hash` hardcoded `elapsed_ms: 0`
+(issue #51, defect #3), poisoning health-report averages since it is one of the
+highest-frequency operations.
+
 ### Module Responsibilities
 
 #### `src/cli-node.cjs` — Node-parseable Launcher

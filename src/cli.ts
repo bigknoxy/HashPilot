@@ -229,6 +229,7 @@ program
   .option("--reason <text>", "Human-readable reason for the edit")
   .option("--json", "Output as JSON", true)
   .action(async (file: string, oldHash: string, newContent: string, opts) => {
+    const start = Date.now();
     let content = newContent;
     if (newContent.startsWith("@")) {
       content = await Bun.file(newContent.slice(1)).text();
@@ -260,7 +261,7 @@ program
       success: result.success,
       fallback_reason: result.stale ? "stale-anchor" : undefined,
       retries: result.retries ?? 0,
-      elapsed_ms: 0,
+      elapsed_ms: Date.now() - start,
       ...provFields,
     });
     finish(result);
