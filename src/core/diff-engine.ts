@@ -16,6 +16,12 @@ export interface PatchResult {
   message: string;
   newSource?: string;
   diff?: string;
+  /** 1-indexed line where the first match began in the source. */
+  appliedAt?: number;
+  /** 1-indexed line the hunk expected to match at. */
+  expectedAt?: number;
+  /** appliedAt - expectedAt (signed offset actually applied). */
+  offset?: number;
 }
 
 // --- LCS-based diff ---
@@ -223,16 +229,32 @@ export function applyPatchToSource(
   let hunksApplied = 0;
   let hunksFailed = 0;
   let lineOffset = 0;
+  let firstAppliedAt: number | undefined = undefined;
+  let firstExpectedAt: number | undefined = undefined;
 
   for (const hunk of parsed.hunks) {
     const result = applyHunk(srcLines, hunk, lineOffset, fuzzy);
     if (result.success) {
       lineOffset += result.offsetDelta;
       hunksApplied++;
+      if (firstAppliedAt === undefined && result.appliedAt !== undefined && result.expectedAt !== undefined) {
+        firstAppliedAt = result.appliedAt;
+        firstExpectedAt = result.expectedAt;
+      }
     } else {
       hunksFailed++;
       if (result.error) {
-        return { success: false, hunksApplied, hunksFailed, message: result.error };
+        return {
+          success: false,
+          hunksApplied,
+          hunksFailed,
+          message: result.error,
+          appliedAt: firstAppliedAt,
+          expectedAt: firstExpectedAt,
+          offset: firstAppliedAt !== undefined && firstExpectedAt !== undefined
+            ? firstAppliedAt - firstExpectedAt
+            : undefined,
+        };
       }
     }
   }
@@ -245,6 +267,11 @@ export function applyPatchToSource(
     hunksFailed,
     message: hunksFailed === 0 ? `Applied ${hunksApplied} hunk(s)` : `Applied ${hunksApplied}, failed ${hunksFailed}`,
     newSource,
+    appliedAt: firstAppliedAt,
+    expectedAt: firstExpectedAt,
+    offset: firstAppliedAt !== undefined && firstExpectedAt !== undefined
+      ? firstAppliedAt - firstExpectedAt
+      : undefined,
   };
 }
 
@@ -281,6 +308,8 @@ interface HunkApplyResult {
   success: boolean;
   offsetDelta: number;
   error?: string;
+  appliedAt?: number;
+  expectedAt?: number;
 }
 
 function applyHunk(
@@ -290,26 +319,40 @@ function applyHunk(
   fuzzy: number
 ): HunkApplyResult {
   const targetOldStart = hunk.oldStart + lineOffset - 1; // 0-indexed
+  const expectedAt = targetOldStart + 1; // 1-indexed, for reporting
 
-  // Search for hunk match within fuzzy range
+  // The match START may be at most `fuzzy` lines from the expected position,
+  // in either direction. hunk.oldLines must NOT widen the search window (issue #33).
   const searchStart = Math.max(0, targetOldStart - fuzzy);
-  const searchEnd = Math.min(srcLines.length, targetOldStart + fuzzy + hunk.oldLines + 1);
-  let matchIdx = -1;
+  const searchEnd = Math.min(srcLines.length, targetOldStart + fuzzy + 1);
+  const candidates: number[] = [];
 
   for (let srcPos = searchStart; srcPos < searchEnd; srcPos++) {
     if (hunkMatches(srcLines, hunk, srcPos)) {
-      matchIdx = srcPos;
-      break;
+      candidates.push(srcPos);
     }
   }
 
-  if (matchIdx < 0) {
+  if (candidates.length === 0) {
     return {
       success: false,
       offsetDelta: 0,
-      error: `Hunk failed at ${hunk.header}: context not found near line ${targetOldStart + 1}`,
+      error: `Hunk failed at ${hunk.header}: context not found near line ${expectedAt}`,
+      expectedAt,
     };
   }
+
+  if (candidates.length > 1) {
+    const candidateLines = candidates.map((c) => c + 1);
+    return {
+      success: false,
+      offsetDelta: 0,
+      error: `Ambiguous hunk match at ${hunk.header}: ${candidates.length} candidate positions found at lines ${candidateLines.join(", ")}. Pass a larger --context or use the hash tier.`,
+      expectedAt,
+    };
+  }
+
+  const matchIdx = candidates[0];
 
   // Build replacement: context and added lines, skip removed lines
   const replacementLines: string[] = [];
@@ -324,7 +367,12 @@ function applyHunk(
   srcLines.splice(matchIdx, hunk.oldLines, ...replacementLines);
 
   const offsetDelta = replacementLines.length - hunk.oldLines;
-  return { success: true, offsetDelta };
+  return {
+    success: true,
+    offsetDelta,
+    appliedAt: matchIdx + 1, // 1-indexed
+    expectedAt,
+  };
 }
 
 function hunkMatches(srcLines: string[], hunk: Hunk, srcPos: number): boolean {
