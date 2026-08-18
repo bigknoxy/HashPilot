@@ -1,3 +1,10 @@
+## [4.1.1](https://github.com/bigknoxy/HashPilot/compare/v4.1.0...v4.1.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **encoding:** preserve CRLF, BOM, and trailing newlines across every edit tier ([#30](https://github.com/bigknoxy/HashPilot/issues/30)) ([bd7eb46](https://github.com/bigknoxy/HashPilot/commit/bd7eb46052ee23bf4ad26a2d7e53bd6156c34a5f))
+
 # [4.1.0](https://github.com/bigknoxy/HashPilot/compare/v4.0.9...v4.1.0) (2026-08-18)
 
 
