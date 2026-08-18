@@ -549,6 +549,27 @@ is the list that flips the verdict). Each tool object may also carry
 `--revert-on-failure` is set, `revertedFiles` lists files restored to
 their original state; it is absent on a pass and on a timeout.
 
+**`--record-baseline` output** (a different shape — no checks are run):
+```json
+{
+  "recorded": true,
+  "reason": "recorded 1 pre-existing failure(s) at a1b2c3d4",
+  "commit": "a1b2c3d4...",
+  "runner": "bun test",
+  "failures": ["hp_preexisting"],
+  "cached": false
+}
+```
+
+`recorded: false` with `cached: true` means a baseline already exists for
+this commit + runner + test scope and was left alone. `recorded: false`
+without `cached` means no baseline could be taken — no git repo, no test
+runner, or the baseline run itself timed out. A timed-out baseline is
+never written: it would record "nothing was failing" and then mark every
+real pre-existing failure as new. `failures: null` means the runner's
+output could not be parsed into test names, which makes later
+comparisons `comparable: false` rather than wrong.
+
 ---
 
 ### route-edit

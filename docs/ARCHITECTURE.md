@@ -342,6 +342,32 @@ sequenceDiagram
     denied on any argument position.
 - `--allow-arbitrary-tool` bypasses all three, and logs a `WARNING` naming the
   command so an audit can tell a vetted tool from a bypassed one.
+- **Scoping, baselines, and timeouts (#24).** Verification used to run the whole
+  suite and treat any red as "your edit broke this", which meant an unrelated
+  pre-existing failure could drive `--revert-on-failure` into deleting correct
+  work. Three changes close that:
+  - `src/verify-scope.ts` — `buildTestInvocation()` narrows the run to the tests
+    related to the changed files, per runner (`jest --findRelatedTests`,
+    `vitest --related=`, changed/convention-derived test files for `bun test`
+    and `pytest`, per-package `./dir` for `go test`, `--test <name>` for
+    `cargo test` when every change is an integration test). Every result reports
+    `testScope.scoped` and a `reason`, so an unscoped fallback is visible rather
+    than silent. `parseFailures()` extracts individual test names and returns
+    `null` — never an empty list — when the output shape is unrecognised.
+  - `src/verify-baseline.ts` — a pre-edit run of the same scope, cached under
+    `~/.agentic-tools/verify-baselines/` keyed by root + commit SHA + runner +
+    scope signature. `recordVerifyBaseline()` is called by `plan-executor` on the
+    pristine tree (the only honest moment) and exposed as `--record-baseline`.
+    With `--use-baseline`, only tests that were *not* already failing count.
+    Every uncertainty — missing baseline, runner mismatch, scope mismatch,
+    unparseable output — resolves to `comparable: false`, so a doubtful baseline
+    makes the caller re-check rather than suppressing a real regression.
+  - Timeouts are their own outcome: `overall: "timeout"` with
+    `ErrorCode.VERIFY_TIMEOUT` (still exit 4), excluded from both the verify
+    revert and the plan rollback. A check that never reached a verdict is
+    evidence of nothing. Child output is drained from stdout and stderr
+    concurrently, retaining 256 KB but reading past it, so a chatty tool cannot
+    deadlock on a full pipe and masquerade as a timeout.
 
 #### `src/config.ts` — Layered Configuration
 - Merge priority: env var → CLI flag → project `.hashpilot.json` → global `~/.config/hashpilot/config.json` → defaults

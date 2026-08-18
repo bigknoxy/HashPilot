@@ -214,12 +214,13 @@ describe("timeout and large output (issue #24)", () => {
     const edited = "export const x = 2;\n";
     writeFileSync(file, edited);
 
+    // verify-changes appends the changed file as an operand, so the mock must
+    // tolerate extra args: `sleep 30 sample.ts` errors out on macOS instead of
+    // sleeping, which would mask the timeout path under test.
     const slow = join(DIR, "slow.js");
-writeFileSync(slow, "setTimeout(() => {}, 30000);\n");
-// verify-changes appends the changed file as an operand, so the mock
-// must tolerate extra args: `sleep 30 sample.ts` exits in error on
-// macOS instead of sleeping, masking the timeout path under test.
- const result = await verifyChanges([file], {
+    writeFileSync(slow, "setTimeout(() => {}, 30000);\n");
+
+    const result = await verifyChanges([file], {
       formatter: `node ${slow}`,
       allowArbitraryTool: true,
       timeout: 500,
