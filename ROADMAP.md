@@ -46,7 +46,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#17](../../issues/17) | B14 — Rollback is best-effort and reports `reverted: true` regardless | 50 | P1 | reported | correctness |
 | [#22](../../issues/22) | B19 — `verify-changes` executes arbitrary target-repo-chosen binaries | 50 | P1 | reported | security |
 | [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | reported | correctness |
-| [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis | 49 | P1 | reported | correctness |
+| [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis ✅ done (#88) | 49 | P1 | verified | correctness |
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
