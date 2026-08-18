@@ -80,7 +80,7 @@ You edit source files every time a user asks for a change. With HashPilot:
 
 - **You know the hash is correct.** `replace-hash` targets content by its SHA-256 fingerprint. No ambiguity.
 - **You don't need to re-read the file.** The hash from `read-many` is valid until the file changes. That's one less API round-trip.
-- **AST edits are syntax-safe.** `rename-symbol`, `replace-body`, `add-import` — tree-sitter guarantees the edit is structurally valid.
+- **AST edits are syntax-safe.** `rename-symbol`, `replace-body`, `add-import` — tree-sitter guarantees the edit is structurally valid. `rename-symbol` is **file-scoped and binding-aware**: it renames a symbol and its references within the target file, but refuses with `AMBIGUOUS_SYMBOL` when the same name binds more than one symbol in that file — a shadowed local, a foreign `import`, or a duplicate top-level declaration — so a file-wide rename never clobbers an unintended binding. Disambiguate by scoping the rename or renaming each declaration separately.
 - **Intents handle the blast radius.** One `intent` command handles definition + all call sites + verification.
 - **Telemetry tells you when something's wrong.** Stale-anchor rates, per-language failure rates, verify pass rates — all queryable.
 
@@ -284,7 +284,7 @@ Retention defaults to 200 changeSets / 7 days, configurable under `snapshots` in
 |---------|-------------|
 | `ast capabilities` | Show supported languages, operations, and limitations |
 | `ast find-symbols <file>` | List all symbols (functions, classes, variables) |
-| `ast rename-symbol <file> <old> <new>` | Rename a symbol and all its references |
+| `ast rename-symbol <file> <old> <new>` | Rename a symbol and all its references within **one file**, binding-aware — refuses with `AMBIGUOUS_SYMBOL` (exit `2`) when the name binds more than one symbol (a shadowed local, a foreign import, or a duplicate declaration) |
 | `ast replace-body <file> <symbol> <body>` | Replace a function/method body |
 | `ast add-import <file> <spec>` | Add an import with grouped-import merging |
 | `ast remove-import <file> <spec>` | Remove an import statement |

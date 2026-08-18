@@ -1057,9 +1057,24 @@ All commands return JSON with:
 - `message` with human-readable description
 
 **Error codes:** `PARSE_ERROR`, `SYMBOL_NOT_FOUND`, `STALE_ANCHOR`,
-`AMBIGUOUS_ANCHOR`, `HASH_MISMATCH`, `INVALID_ARGUMENT`, `PATH_DENIED`,
+`AMBIGUOUS_ANCHOR`, `AMBIGUOUS_SYMBOL`, `HASH_MISMATCH`, `INVALID_ARGUMENT`,
+`PATH_DENIED`,
 `UNSUPPORTED_OPERATION`, `FILE_NOT_FOUND`, `READ_FAILED`, `WRITE_FAILED`,
 `VERIFY_FAILED`, `VERIFY_TIMEOUT`.
+
+`AMBIGUOUS_SYMBOL` is returned by `ast rename-symbol` when the target name
+binds more than one symbol in the file — a shadowed local, a foreign
+`import`, or a duplicate top-level declaration (it maps to exit code `2`,
+the `SYMBOL_NOT_FOUND` edit-failure band). The file is **not** touched. The
+error `message` lists the contending binding sites, each as `line <N> (kind)`
+where `kind` is the declaration type (`variable_declarator`,
+`function_declaration`, `function_definition`, `class_declaration`,
+`type_alias_declaration`, `interface_declaration`, `enum_declaration`,
+`import`, or `parameter`). `rename-symbol` is file-scoped and binding-aware
+by design: it renames a symbol and its references within the target file only,
+and refuses a file-wide rename that would clobber an unintended binding.
+Disambiguate by scoping the rename to the intended binding, or rename each
+declaration separately.
 
 `READ_FAILED` means the file exists but could not be read (permissions, a
 directory in its place, a device error) — distinct from `FILE_NOT_FOUND`.

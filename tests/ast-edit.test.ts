@@ -1003,3 +1003,107 @@ describe("parse-validity gate (#13)", () => {
     expect(firstParseError("export declare const x: number", "types.d.ts")).toBeNull();
   });
 });
+
+// ── renameSymbol — binding-aware ambiguity guard (#14) ──────────────────
+// #14: a file-wide `rename-symbol` used to rename every reference of a name
+// in the file with no notion of *which* symbol was intended, silently
+// clobbering a shadowed local, a foreign import, or a duplicate top-level
+// declaration. `rename-symbol` is now file-scoped AND binding-aware: it
+// refuses with AMBIGUOUS_SYMBOL when the name binds more than one symbol.
+
+const SHADOW_TS = `const config = 1;
+function useConfig(x: number) {
+  const config = 99;
+  return x + config;
+}
+export function handle() { return config; }`;
+
+const FOREIGN_IMPORT_TS = `import { value } from "./other-binder";
+const value = 1;
+console.log(value);`;
+
+const DUPLICATE_TS = `function foo() { return 1; }
+const foo = 2;
+function bar() { return 3; }
+const bar = 4;`;
+
+const PY_PARAM_SHADOW = `def outer(x):
+  def inner(x):
+    return x + 1
+  return inner(x) + x`;
+
+// AC3: a single binding where the same spelling also appears as a property key,
+// a string literal, and a comment — none of which are references and must be
+// left untouched by a successful rename.
+const PROPERTY_KEY_TS = `const data = 1;
+function f() {
+  const label = "data"; // a string literal and a comment mention of data
+  return { data: data, label };
+}`;
+
+const CLEAN_TS = `function hello() {
+    const x = 1;
+    return x;
+   }
+export { hello };`;
+
+describe("renameSymbol — binding-aware ambiguity guard (#14)", () => {
+   // AC1: a name shadowed by a local at an inner scope is multi-bound → refuse.
+  test("AC1 — refuses a rename shadowed by a local (TS)", () => {
+    const r = renameSymbol(SHADOW_TS, "shadow.ts", "config", "renamed");
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("AMBIGUOUS_SYMBOL");
+    expect(r.changes).toBe(0);
+    });
+
+   // AC2: a foreign import of the same name is a second binding → refuse.
+  test("AC2 — refuses a rename shadowed by a foreign import (TS)", () => {
+    const r = renameSymbol(FOREIGN_IMPORT_TS, "foreign.ts", "value", "renamed");
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("AMBIGUOUS_SYMBOL");
+    expect(r.changes).toBe(0);
+    });
+
+   // AC3 part 1: duplicate top-level declarations → refuse.
+  test("AC3 — refuses a rename with duplicate top-level declarations (TS)", () => {
+    const r = renameSymbol(DUPLICATE_TS, "dup.ts", "foo", "renamed");
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("AMBIGUOUS_SYMBOL");
+    expect(r.changes).toBe(0);
+    });
+
+   // AC3 part 2: property keys, string literals, and comments are never
+   // references, so a rename of a single-bound name leaves them untouched and
+   // still succeeds.
+  test("AC3 — property keys / strings / comments are not renamed (TS)", () => {
+    const r = renameSymbol(PROPERTY_KEY_TS, "pk.ts", "data", "renamed");
+    expect(r.success).toBe(true);
+    expect(r.changes).toBeGreaterThan(0);
+    expect(r.newSource).toContain("renamed");
+     // the string literal and comment mention survive untouched:
+    expect(r.newSource).toContain('"data"');
+    expect(r.newSource).toContain("comment mention of data");
+    });
+
+   // Python: a name reused as a parameter across nested defs is a shadow.
+  test("shadow across nested function parameters (Python)", () => {
+    const r = renameSymbol(PY_PARAM_SHADOW, "outer.py", "x", "renamed");
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("AMBIGUOUS_SYMBOL");
+    });
+
+   // No over-refusal: a clean single-binding symbol still renames everywhere.
+  test("does NOT over-refuse a clean single binding (TS)", () => {
+    const r = renameSymbol(CLEAN_TS, "hello.ts", "hello", "greet");
+    expect(r.success).toBe(true);
+    expect(r.changes).toBeGreaterThanOrEqual(2);
+    expect(r.newSource).toContain("greet");
+    });
+
+   // The error message names the symbol so the caller can disambiguate.
+  test("error message names the contending symbol", () => {
+    const r = renameSymbol(SHADOW_TS, "shadow.ts", "config", "renamed");
+    expect(r.message).toContain("config");
+    expect(r.message).toMatch(/binding/i);
+    });
+});

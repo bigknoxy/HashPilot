@@ -35,6 +35,10 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   [ErrorCode.SYMBOL_NOT_FOUND]: ExitCode.EDIT_FAILED,
   [ErrorCode.PARSE_ERROR]: ExitCode.EDIT_FAILED,
   [ErrorCode.DUPLICATE_MATCH]: ExitCode.EDIT_FAILED,
+    // "Same name binds more than one symbol in this file" is a failed edit
+    // attempt (a precondition the caller didn't meet), not a stale/retryable
+    // anchor — so it shares the EDIT_FAILED band with SYMBOL_NOT_FOUND.
+    [ErrorCode.AMBIGUOUS_SYMBOL]: ExitCode.EDIT_FAILED,
   [ErrorCode.UNSUPPORTED_LANGUAGE]: ExitCode.EDIT_FAILED,
   [ErrorCode.VERIFY_FAILED]: ExitCode.VERIFY_FAILED,
   // A timeout shares the verification band — the edit applied, verification did

@@ -258,7 +258,7 @@ hashpilot ast find-symbols [options] <file>
 
 #### `ast rename-symbol`
 
-Rename a symbol across a file
+File-scoped, binding-aware rename of a symbol and its references. Refuses with AMBIGUOUS_SYMBOL when the name binds more than one symbol in the file (a shadowed local, a foreign import, or a duplicate declaration).
 
 ```
 hashpilot ast rename-symbol [options] <file> <old-name> <new-name>

@@ -307,7 +307,11 @@ function recordProvenanceEvent(opts: {
 
 astCmd
   .command("rename-symbol")
-  .description("Rename a symbol across a file")
+   .description(
+      "File-scoped, binding-aware rename of a symbol and its references. " +
+      "Refuses with AMBIGUOUS_SYMBOL when the name binds more than one symbol " +
+      "in the file (a shadowed local, a foreign import, or a duplicate declaration).",
+     )
   .argument("<file>", "File path")
   .argument("<old-name>", "Current symbol name")
   .argument("<new-name>", "New symbol name")
