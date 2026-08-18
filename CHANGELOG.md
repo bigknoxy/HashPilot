@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/bigknoxy/HashPilot/compare/v4.0.9...v4.1.0) (2026-08-18)
+
+
+### Features
+
+* **verify:** scope test runs and subtract pre-edit baseline ([#24](https://github.com/bigknoxy/HashPilot/issues/24)) ([3827686](https://github.com/bigknoxy/HashPilot/commit/3827686436d71889ef54e4b56b597915a5dace37))
+
 ## [4.0.9](https://github.com/bigknoxy/HashPilot/compare/v4.0.8...v4.0.9) (2026-08-18)
 
 
