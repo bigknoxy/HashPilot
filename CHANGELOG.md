@@ -1,3 +1,10 @@
+## [4.0.9](https://github.com/bigknoxy/HashPilot/compare/v4.0.8...v4.0.9) (2026-08-18)
+
+
+### Bug Fixes
+
+* close rollback-completeness gaps left by [#75](https://github.com/bigknoxy/HashPilot/issues/75) ([#10](https://github.com/bigknoxy/HashPilot/issues/10), [#17](https://github.com/bigknoxy/HashPilot/issues/17)) ([#76](https://github.com/bigknoxy/HashPilot/issues/76)) ([a3e7175](https://github.com/bigknoxy/HashPilot/commit/a3e7175ecd1a00f466c1bf4fdad5f5c40057512a))
+
 ## [4.0.8](https://github.com/bigknoxy/HashPilot/compare/v4.0.7...v4.0.8) (2026-08-17)
 
 
