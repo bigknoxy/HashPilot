@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { parseIntent, findSymbolDefinition, findReferences, generatePlan, UnsupportedIntentError } from "../src/core/intent";
 import { executePlan, executeIntent } from "../src/core/plan-executor";
+import type { VerifyResult } from "../src/core/verify";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { simulateCrashAfterTempWrite } from "../src/core/paths";
@@ -974,4 +975,85 @@ describe("executePlan verification / rollback correctness", () => {
     expect(exitCodeFor({ success: false, errorCode: "ROLLBACK_INCOMPLETE" })).toBe(5);
     expect(exitCodeFor({ success: false, errorCode: "VERIFY_FAILED" })).toBe(4);
   });
+
+  // ── #10 (B13): the rollback decision must READ the verification ────
+  // result, not just compute-and-print it. Each test pins one AC.
+  const EDITED_BAD_TS = "export const value = 2;\n";
+  function fakeVerify(overall: VerifyResult["overall"], extra: Partial<VerifyResult> = {}): VerifyResult {
+    return { files: [BAD_TS], overall, elapsed_ms: 1, fileHashes: { [BAD_TS]: "deadbeef0001" }, ...extra };
+  }
+  function applyThenEditedPlan(): any {
+    return {
+      intent: { operation: "add-parameter", symbol: "value", param: { name: "x" } },
+      definition: { file: BAD_TS, name: "value", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [{ order: 0, file: BAD_TS, operation: "diff", description: "replace = 1 with = 2", params: { oldContent: "= 1", newContent: "= 2" } }],
+      impactSummary: "",
+     };
+  }
+  function stepFailsPlan(): any {
+    return {
+      intent: { operation: "add-parameter", symbol: "value", param: { name: "x" } },
+      definition: { file: BAD_TS, name: "value", kind: "function", line: 1, column: 0 },
+      references: [],
+      steps: [{ order: 0, file: BAD_TS, operation: "diff", description: "content absent — step fails", params: { oldContent: "%%%ABSENT%%%", newContent: "x" } }],
+      impactSummary: "",
+     };
+  }
+
+  test("#10/AC1: a clean apply + green verify is a pass and reverts nothing", async () => {
+    const result = await executePlan(applyThenEditedPlan(), {
+      verify: true, dryRun: false, revertOnFailure: true, verifyImpl: async () => fakeVerify("pass"),
+     });
+    expect(result.success).toBe(true);
+    expect(result.reverted).toBe(false);
+    expect(result.revertReason).toBeUndefined();
+    expect(await Bun.file(BAD_TS).text()).toBe(EDITED_BAD_TS);
+  });
+
+  test("#10/AC2: revertReason says verification-failed when a check fails a clean apply", async () => {
+    const result = await executePlan(applyThenEditedPlan(), {
+      verify: true, dryRun: false, revertOnFailure: true, verifyImpl: async () => fakeVerify("fail"),
+     });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("VERIFY_FAILED");
+    expect(result.revertReason).toBe("verification-failed");
+    expect(result.reverted).toBe(true);
+    expect(await Bun.file(BAD_TS).text()).toBe(ORIGINAL_BAD_TS);
+  });
+
+  test("#10/AC2: revertReason says step-failed when an edit does not apply", async () => {
+    const result = await executePlan(stepFailsPlan(), {
+      verify: true, dryRun: false, revertOnFailure: true,
+     });
+    expect(result.success).toBe(false);
+    expect(result.revertReason).toBe("step-failure");
+    expect(await Bun.file(BAD_TS).text()).toBe(ORIGINAL_BAD_TS);
+  });
+
+  test("#10/AC3: a verify failure without --revert-on-failure still fails but leaves the edits", async () => {
+    const result = await executePlan(applyThenEditedPlan(), {
+      verify: true, dryRun: false, revertOnFailure: false, verifyImpl: async () => fakeVerify("fail"),
+     });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("VERIFY_FAILED");
+    expect(exitCodeFor(result)).toBe(4);
+    expect(result.reverted).toBe(false);
+    expect(result.revertReason).toBeUndefined();
+    expect(await Bun.file(BAD_TS).text()).toBe(EDITED_BAD_TS);
+  });
+
+  test("#10/AC4 + TestsToAdd: a verify timeout is its own non-pass verdict — VERIFY_TIMEOUT, no revert, no false success", async () => {
+    const result = await executePlan(applyThenEditedPlan(), {
+      verify: true, dryRun: false, revertOnFailure: true, verifyImpl: async () => fakeVerify("timeout", { timedOut: ["tests"] }),
+     });
+    expect(result.success).toBe(false);
+    expect(result.verification!.overall).toBe("timeout");
+    expect(result.errorCode).toBe("VERIFY_TIMEOUT");
+    expect(exitCodeFor(result)).toBe(4);
+    expect(result.reverted).toBe(false);
+    expect(result.revertReason).toBeUndefined();
+    expect(await Bun.file(BAD_TS).text()).toBe(EDITED_BAD_TS);
+  });
+
 });

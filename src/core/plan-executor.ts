@@ -33,6 +33,10 @@ export interface PlanResult {
   };
   verification?: VerifyResult;
   reverted: boolean;
+  /** Why the rollback fired, when one did — letting a caller tell "the
+  * tests broke" (verification-failed) apart from "an edit never applied"
+  * (step-failed). Absent when no rollback ran. */
+  revertReason?: "verification-failed" | "step-failure";
   /** Files in the rollback snapshot whose `safeWrite` threw; the tree is half-reverted. */
   unrevertedFiles?: string[];
   /** Set when the plan was refused outright; drives the process exit code. */
@@ -56,6 +60,10 @@ export async function executePlan(
     context?: string;
     /** Proceed even though part of the intent could not be planned. */
     yes?: boolean;
+    /** Test seam: substitute the verification runner. The CLI never sets this;
+    * it defaults to verifyChanges and exists so the rollback decision can be
+    * exercised deterministically without spawning real commands. */
+    verifyImpl?: typeof verifyChanges;
   } = {}
 ): Promise<PlanResult> {
   const start = Date.now();
@@ -246,7 +254,7 @@ export async function executePlan(
   let verification: VerifyResult | undefined;
   if (doVerify && !dryRun && !stepFailed) {
     const impactedFiles = [...new Set(plan.steps.map((s) => s.file))];
-    verification = await verifyChanges(impactedFiles, {
+    verification = await (options.verifyImpl ?? verifyChanges)(impactedFiles, {
       autoDetect: true,
       revertOnFailure: false, // executePlan owns the rollback path
       useBaseline: true, // only tests this plan actually broke count (#24)
@@ -274,7 +282,12 @@ export async function executePlan(
   //      in the snapshot was written back.
   const unrevertedFiles: string[] = [];
   let reverted = false;
+  // #10 (B13): the rollback decision must also say *why* it fired, not just that
+  // it did. A step that failed is the root cause; "verification-failed" is the
+  // case where every step applied but a check (test/lint/typecheck) failed.
+  let revertReason: "verification-failed" | "step-failure" | undefined;
   if ((stepFailed || verifyFailed) && doRevert && !dryRun && originals.size > 0) {
+    revertReason = stepFailed ? "step-failure" : "verification-failed";
     for (const [file, original] of originals) {
       try { await safeWrite(file, original); }
       catch { unrevertedFiles.push(file); }
@@ -340,6 +353,7 @@ export async function executePlan(
     },
     verification,
     reverted,
+    revertReason,
     unrevertedFiles: unrevertedFiles.length > 0 ? unrevertedFiles : undefined,
     errorCode,
     unresolved,

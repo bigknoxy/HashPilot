@@ -683,6 +683,22 @@ report how that went, and an agent must read both:
 could not be written back it appears in `unrevertedFiles` and `reverted` is
 `false`.
 
+**Why the rollback happened (`execution.revertReason`).**
+When `reverted: true`, a new field says *why* — one of:
+
+| `revertReason` | Meaning |
+|----------------|---------|
+| `"verification-failed"` | Every step applied, but a check reported `overall: "fail"` |
+| `"step-failed"` | An edit could not be applied, so a step failed |
+
+It is **absent whenever nothing was reverted** (`reverted: false`). This is the
+core of [#10](../../issues/10) (B13): the result used to say *that* a plan was
+reverted but not *why*, so an agent could not distinguish a red verification
+(fix the failing check and retry) from a broken plan (a step could not apply). A
+verification **timeout** is its own verdict — `overall: "timeout"`, exit `4`,
+`errorCode: VERIFY_TIMEOUT` — and **never reverts the edit, so it yields no
+`revertReason`**.
+
 **Verification is skipped when a step fails.** The tree is half-applied at that
 point, so a suite run over it would report failures caused by the incomplete
 edit rather than by the change itself. `verification` is then absent and the
