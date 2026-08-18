@@ -183,6 +183,13 @@ highest-frequency operations.
   snapshot and the step read through `Bun.file().text()`, so today this requires the
   file to become readable between the two — a race window, not a reproducible path.
   It is guarded by construction so the invariant survives future step types.
+- **The rollback decision reports *why* it fired.** `PlanResult.revertReason` carries
+  `"verification-failed"` (every step applied but a check reported `overall: "fail"`)
+  or `"step-failed"` (a step could not apply, so the tree is half-applied); it is
+  absent when nothing was reverted (#10). This is what lets a caller tell a red
+  verification (fix the check, then retry) apart from a broken plan. A verification
+  *timeout* is its own verdict (`VERIFY_TIMEOUT`, exit 4) and never reverts, so it
+  yields no `revertReason`.
 
 #### `src/provenance.ts` — Edit History (M6)
 - ChangeSet-based tracking (group of related edits)
