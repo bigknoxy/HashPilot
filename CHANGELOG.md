@@ -1,3 +1,10 @@
+## [4.1.3](https://github.com/bigknoxy/HashPilot/compare/v4.1.2...v4.1.3) (2026-08-18)
+
+
+### Bug Fixes
+
+* **rename:** make rename-symbol file-scoped & binding-aware ([#14](https://github.com/bigknoxy/HashPilot/issues/14)) ([#88](https://github.com/bigknoxy/HashPilot/issues/88)) ([394fc4a](https://github.com/bigknoxy/HashPilot/commit/394fc4a0a6f19361f48b632d4548a6b7ca594ff9))
+
 ## [4.1.2](https://github.com/bigknoxy/HashPilot/compare/v4.1.1...v4.1.2) (2026-08-18)
 
 
