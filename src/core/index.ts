@@ -124,3 +124,5 @@ export type { RecoveryMode } from "./hash-edit";
 export { UnsupportedIntentError } from "./intent";
 export { redactSecrets, redactEvent, isSensitiveFile } from "./redact";
 export { normalizePath, pathsEqual } from "./path-normalize";
+export { decodeText, encodeText, readDecoded } from "./encoding";
+export type { FileEncoding } from "./encoding";

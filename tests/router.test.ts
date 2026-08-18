@@ -286,7 +286,10 @@ describe("routeEdit", () => {
     expect(result.route).toBe("hash");
     expect(result.result.success).toBe(true);
     const updated = readFileSync(file, "utf-8");
-    expect(updated).toBe("alpha\nbeta\ngamma");
+    // The original ended with a newline, so the result does too (#30): an agent
+    // handing back content without one is describing lines, not asking to
+    // change how the file terminates.
+    expect(updated).toBe("alpha\nbeta\ngamma\n");
     teardown(file);
   });
 

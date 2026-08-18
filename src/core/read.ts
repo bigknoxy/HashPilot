@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { readDecoded } from "./encoding";
 
 export interface ReadResult {
   path: string;
@@ -32,7 +33,7 @@ export async function readMany(files: string[]): Promise<ReadResult[]> {
   const results = await Promise.all(
     files.map(async (p) => {
       try {
-        const content = await Bun.file(p).text();
+        const { text: content } = await readDecoded(p);
         return {
           path: p,
           content,
@@ -64,7 +65,7 @@ export async function readHash(
   contextLines: number = 3
 ): Promise<ReadHashResult> {
   try {
-    const content = await Bun.file(filePath).text();
+    const { text: content } = await readDecoded(filePath);
     const lines = content.split("\n");
     const targetLine = lines[line - 1];
     // A blank line is an empty string, which is falsy — checking truthiness here
