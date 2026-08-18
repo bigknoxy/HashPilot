@@ -8,6 +8,14 @@
 
 **AI agents edit code blind. HashPilot gives them cryptographic certainty.**
 
+> **HashPilot is the *safe, verifiable, observable* file-editing primitive for coding agents.**
+> While other tools match text or rewrite whole files, HashPilot anchors every edit to a
+> cryptographic digest — **if the hash doesn't match, nothing changes.** With AST-native editing,
+> provenance trails, and a verify pipeline, it gives agents deterministic control over how code
+> changes land on disk. It occupies the one position no competitor does: hash-anchored +
+> AST-aware + provenance-tracked. See [`docs/COMPETITIVE-ANALYSIS.md`](docs/COMPETITIVE-ANALYSIS.md).
+
+
 Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
 Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · CLI reference: **[docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
 
