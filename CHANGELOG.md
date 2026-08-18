@@ -1,3 +1,10 @@
+## [4.1.2](https://github.com/bigknoxy/HashPilot/compare/v4.1.1...v4.1.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* **intent:** surface revertReason so the rollback decision explains WHY it fired ([#10](https://github.com/bigknoxy/HashPilot/issues/10)) ([#86](https://github.com/bigknoxy/HashPilot/issues/86)) ([edfae1d](https://github.com/bigknoxy/HashPilot/commit/edfae1dec1ae8065fd8f4ec31d61c815f4c86784))
+
 ## [4.1.1](https://github.com/bigknoxy/HashPilot/compare/v4.1.0...v4.1.1) (2026-08-18)
 
 
