@@ -15,7 +15,6 @@
 > changes land on disk. It occupies the one position no competitor does: hash-anchored +
 > AST-aware + provenance-tracked. See [`docs/COMPETITIVE-ANALYSIS.md`](docs/COMPETITIVE-ANALYSIS.md).
 
-
 Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
 Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · CLI reference: **[docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
 
