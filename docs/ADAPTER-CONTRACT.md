@@ -498,7 +498,7 @@ Run formatter, linter, typechecker, and tests on changed files. Supports auto-de
 
 **Invocation:**
 ```
-hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--typecheck <cmd>] [--test-filter <pattern>] [--test-runner <runner>] [--auto-detect] [--revert-on-failure] [--timeout <ms>] [--formatter-args ...] [--linter-args ...] [--test-args ...]
+hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>] [--typecheck <cmd>] [--test-filter <pattern>] [--test-runner <runner>] [--auto-detect] [--no-scope-tests] [--revert-on-failure] [--timeout <ms>] [--use-baseline] [--record-baseline] [--formatter-args ...] [--linter-args ...] [--test-args ...]
 ```
 
 **Options:**
@@ -508,8 +508,11 @@ hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>
 - `--test-filter <pattern>` — filter tests by name pattern
 - `--test-runner <runner>` — explicit test runner (`bun test`, `vitest`, `jest`, `pytest`, `go test`, `cargo test`)
 - `--auto-detect` — auto-detect tools from `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`
-- `--revert-on-failure` — restore originals if any check fails
+- `--no-scope-tests` — run the whole test suite instead of only the tests related to the changed files (default: scoped to the changed files)
+- `--revert-on-failure` — restore originals if any check *fails* (a timeout never triggers a revert)
 - `--timeout <ms>` — per-check timeout (default 30000)
+- `--use-baseline` — subtract a pre-edit baseline so only tests this edit *newly* broke count; requires an earlier `--record-baseline` at the same commit
+- `--record-baseline` — record which tests currently fail and return **without running verification** — run it *before* editing so `--use-baseline` can later subtract pre-existing failures
 
 **Output:**
 ```json
@@ -517,9 +520,11 @@ hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>
   "files": ["/abs/path/file.ts"],
   "formatter": { "passed": true, "output": "..." },
   "linter": { "passed": true, "output": "..." },
-  "tests": { "passed": true, "output": "..." },
+  "tests": { "passed": true, "output": "...", "timedOut": false, "truncated": false },
   "typecheck": { "passed": true, "output": "..." },
   "overall": "pass",
+  "testScope": { "cmd": "bun test", "args": ["/abs/path/file.test.ts"], "scoped": true, "reason": "bun test restricted to 1 related test file(s)" },
+  "baseline": { "source": "cache", "comparable": true, "preExisting": [], "newFailures": [], "reason": "all failures were already failing at \u2026" },
   "elapsed_ms": 120,
   "fileHashes": { "/abs/path/file.ts": "abc123def456" },
   "detected": { "formatter": "prettier --write", "testRunner": "vitest" },
@@ -527,7 +532,43 @@ hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>
 }
 ```
 
-`overall` is `"pass"` or `"fail"`. When `--revert-on-failure` is set, `revertedFiles` lists files restored to their original state.
+`overall` is `"pass"`, `"fail"`, or `"timeout"`. `"timeout"` means a check
+hit its `--timeout` without reaching a verdict; it is *not* a
+failure and never triggers `--revert-on-failure` — a slow suite must
+not destroy correct work.
+
+Per-run fields: `timedOut` (which checks timed out, present only
+when `overall` is `"timeout"`), `errorCode` (`VERIFY_TIMEOUT` on a
+timeout, `VERIFY_FAILED` on a real failure, `undefined` on a pass
+— both failures map to exit code `4`), `testScope` (how the test run
+was scoped; `scoped: false` means the whole suite ran and why), and
+`baseline` (the `--use-baseline` comparison: `comparable: false` means
+no usable baseline existed, so every failure counts; `newFailures`
+is the list that flips the verdict). Each tool object may also carry
+`timedOut` and `truncated` (captured output hit the 256 KB cap). When
+`--revert-on-failure` is set, `revertedFiles` lists files restored to
+their original state; it is absent on a pass and on a timeout.
+
+**`--record-baseline` output** (a different shape — no checks are run):
+```json
+{
+  "recorded": true,
+  "reason": "recorded 1 pre-existing failure(s) at a1b2c3d4",
+  "commit": "a1b2c3d4...",
+  "runner": "bun test",
+  "failures": ["hp_preexisting"],
+  "cached": false
+}
+```
+
+`recorded: false` with `cached: true` means a baseline already exists for
+this commit + runner + test scope and was left alone. `recorded: false`
+without `cached` means no baseline could be taken — no git repo, no test
+runner, or the baseline run itself timed out. A timed-out baseline is
+never written: it would record "nothing was failing" and then mark every
+real pre-existing failure as new. `failures: null` means the runner's
+output could not be parsed into test names, which makes later
+comparisons `comparable: false` rather than wrong.
 
 ---
 
@@ -1002,7 +1043,7 @@ All commands return JSON with:
 **Error codes:** `PARSE_ERROR`, `SYMBOL_NOT_FOUND`, `STALE_ANCHOR`,
 `AMBIGUOUS_ANCHOR`, `HASH_MISMATCH`, `INVALID_ARGUMENT`, `PATH_DENIED`,
 `UNSUPPORTED_OPERATION`, `FILE_NOT_FOUND`, `READ_FAILED`, `WRITE_FAILED`,
-`VERIFY_FAILED`.
+`VERIFY_FAILED`, `VERIFY_TIMEOUT`.
 
 `READ_FAILED` means the file exists but could not be read (permissions, a
 directory in its place, a device error) — distinct from `FILE_NOT_FOUND`.
@@ -1018,7 +1059,7 @@ Branch on the exit code, not on stderr text.
 | `1` | Usage error — bad arguments, denied path, unsupported operation | Fix the invocation; do not retry as-is |
 | `2` | Edit failed — the operation ran but could not be applied | Try another route or report |
 | `3` | Stale anchor / precondition failed | **Retryable:** re-read the file and reissue with the fresh hash |
-| `4` | Verification failed — the edit applied but format/lint/test did not pass | Inspect the verify output; the edit may have been reverted |
+| `4` | Verification failed **or timed out** — the edit applied but the suite did not pass, or hit its `--timeout` (`overall:`"timeout"`, `errorCode:`VERIFY_TIMEOUT`) | Inspect the verify output. A *timeout* is not a failure: do not retry it and it never reverts the edit. A real failure *may* have been reverted |
 | `5` | I/O error — file not found, unreadable, or write failed. Also an **incomplete rollback** (`errorCode: ROLLBACK_INCOMPLETE`) | Check the path and permissions. On `ROLLBACK_INCOMPLETE`, **stop and inspect** — read `unrevertedFiles` and restore them before retrying anything |
 | `70` | Internal error | Report a bug |
 

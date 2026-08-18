@@ -25,8 +25,12 @@ export {
 } from "./ast-edit";
 export type { ParseIssue } from "./ast-edit";
 export type { ASTEditResult, SymbolInfo, LanguageCapability } from "./ast-edit";
-export { verifyChanges } from "./verify";
-export type { VerifyResult, VerifyOptions } from "./verify";
+export { verifyChanges, recordVerifyBaseline } from "./verify";
+export type { VerifyResult, VerifyOptions, ToolRun, RecordBaselineResult } from "./verify";
+export { buildTestInvocation, parseFailures } from "./verify-scope";
+export type { TestInvocation } from "./verify-scope";
+export { compareToBaseline, currentCommit, readBaseline, writeBaseline, scopeSignature } from "./verify-baseline";
+export type { Baseline, BaselineReport, BaselineSource } from "./verify-baseline";
 export {
   recordEvent,
   readEvents,

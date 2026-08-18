@@ -52,6 +52,12 @@ export enum ErrorCode {
   /** The edit applied but format/lint/test verification failed. */
   VERIFY_FAILED = "VERIFY_FAILED",
   /**
+   * A verification check was killed at its timeout. Distinct from
+   * VERIFY_FAILED: the check never reached a verdict, so it is evidence of
+   * nothing about the edit and must not trigger a revert on its own.
+   */
+  VERIFY_TIMEOUT = "VERIFY_TIMEOUT",
+  /**
    * A rollback ran but could not restore every file, so the tree is left in a
    * state that is neither the original nor the intended result. Strictly more
    * serious than the failure that triggered the rollback — see

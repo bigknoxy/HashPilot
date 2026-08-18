@@ -3,7 +3,7 @@ import { safeWrite } from "./paths";
 import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
 import { computeHash } from "./read";
-import { verifyChanges, VerifyResult } from "./verify";
+import { verifyChanges, recordVerifyBaseline, VerifyResult } from "./verify";
 import { recordEvent, ErrorCode } from "./telemetry";
 import type { TelemetryEvent } from "./telemetry";
 import { createChangeSet, buildProvenanceFields } from "./provenance";
@@ -105,6 +105,21 @@ export async function executePlan(
         unsnapshotted.push(file);
       }
     }
+  }
+
+  // Record which tests already fail, while the tree is still pristine. This is
+  // the only moment a baseline can be taken honestly — after the first step the
+  // failures are no longer "pre-existing". Cached per commit SHA, so this is a
+  // no-op on every plan after the first at a given commit. Best-effort: a repo
+  // with no runner, no git, or a timing-out suite simply gets no baseline, and
+  // verification then counts every failure as it did before (#24).
+  if (doVerify && !dryRun) {
+    try {
+      await recordVerifyBaseline([...new Set(plan.steps.map((s) => s.file))], {
+        autoDetect: true,
+        timeout,
+      });
+    } catch {}
   }
 
   const results: StepResult[] = [];
@@ -233,12 +248,18 @@ export async function executePlan(
     verification = await verifyChanges(impactedFiles, {
       autoDetect: true,
       revertOnFailure: false, // executePlan owns the rollback path
+      useBaseline: true, // only tests this plan actually broke count (#24)
       timeout,
     });
   }
 
   const verifyFailed = verification?.overall === "fail";
-  const allPassed = !stepFailed && !verifyFailed;
+  // A timeout is not a failure and must not trigger a rollback: the suite never
+  // reached a verdict, so reverting would destroy work on no evidence (#24).
+  // It is still not a pass — the plan reports `success: false` with
+  // VERIFY_TIMEOUT so the caller decides what to do.
+  const verifyTimedOut = verification?.overall === "timeout";
+  const allPassed = !stepFailed && !verifyFailed && !verifyTimedOut;
 
   // Rollback on step failure OR verification failure.
   //
@@ -284,9 +305,11 @@ export async function executePlan(
   const errorCode: string | undefined =
     unrevertedFiles.length > 0
       ? ErrorCode.ROLLBACK_INCOMPLETE
-      : verifyFailed
-        ? ErrorCode.VERIFY_FAILED
-        : undefined;
+      : verifyTimedOut
+        ? ErrorCode.VERIFY_TIMEOUT
+        : verifyFailed
+          ? ErrorCode.VERIFY_FAILED
+          : undefined;
 
   recordEvent({
     operation: `intent-${plan.intent.operation}`,

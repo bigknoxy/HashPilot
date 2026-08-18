@@ -5,15 +5,49 @@ import { computeHash } from "./read";
 // looking for tool config files. That one answers "which tools apply here"; this
 // one answers "where is the write boundary" and must not be confused with it.
 import { safeWrite, findProjectRoot as findWriteRoot } from "./paths";
-import { recordEvent } from "./telemetry";
+import { recordEvent, ErrorCode } from "./telemetry";
+import { buildTestInvocation, parseFailures, type TestInvocation } from "./verify-scope";
+import {
+  compareToBaseline,
+  currentCommit,
+  readBaseline,
+  scopeSignature,
+  writeBaseline,
+  type Baseline,
+  type BaselineReport,
+} from "./verify-baseline";
+
+/** One tool invocation's outcome. */
+export interface ToolRun {
+  passed: boolean;
+  output: string;
+  resolved?: string;
+  /** The tool was killed at the timeout. Never a pass, and never a plain fail. */
+  timedOut?: boolean;
+  /** Captured output hit the cap and was cut; see MAX_CAPTURED_OUTPUT. */
+  truncated?: boolean;
+}
 
 export interface VerifyResult {
   files: string[];
-  formatter?: { passed: boolean; output: string };
-  linter?: { passed: boolean; output: string };
-  tests?: { passed: boolean; output: string };
-  typecheck?: { passed: boolean; output: string };
-  overall: "pass" | "fail";
+  formatter?: ToolRun;
+  linter?: ToolRun;
+  tests?: ToolRun;
+  typecheck?: ToolRun;
+  /**
+   * `timeout` is deliberately its own state: a suite that ran out of time says
+   * nothing about the edit, so collapsing it into `fail` both misreports the
+   * change and (with --revert-on-failure) destroys it.
+   */
+  overall: "pass" | "fail" | "timeout";
+  /** Which checks timed out, when `overall` is "timeout". */
+  timedOut?: string[];
+  /** Set on any non-pass outcome so callers get a stable exit code. */
+  errorCode?: string;
+  /** How the test command was scoped — `scoped: false` means the full suite ran. */
+  testScope?: TestInvocation;
+  /** Baseline comparison, when one was requested. */
+  baseline?: BaselineReport;
   elapsed_ms: number;
   fileHashes: Record<string, string>;
   detected?: {
@@ -39,6 +73,19 @@ export interface VerifyOptions {
   timeout?: number;
   /** When true, allow any binary name. When false (default), only allowlisted tools are permitted. */
   allowArbitraryTool?: boolean;
+  /**
+   * Restrict the test run to the changed files. Default true — the full suite
+   * is the fallback, not the norm. `VerifyResult.testScope` always reports
+   * which one actually happened.
+   */
+  scopeTests?: boolean;
+  /**
+   * Subtract the baseline recorded for this commit, so only *newly* failing
+   * tests fail verification. Off by default: without a baseline on disk it
+   * changes nothing, and turning it on silently would hide the fact that the
+   * caller never recorded one.
+   */
+  useBaseline?: boolean;
 }
 
 // ---- Security: allowlist of known-safe binaries (B19) ----
@@ -299,12 +346,54 @@ async function detectTools(
 
 // ---- Process execution ----
 
+/**
+ * Cap on captured output per stream. Beyond this we keep reading (so the child
+ * never blocks on a full pipe) but stop retaining, and append the marker below
+ * so a caller can tell truncation from a tool that simply said little.
+ */
+const MAX_CAPTURED_OUTPUT = 256 * 1024;
+const TRUNCATION_MARKER = "\n[hashpilot: output truncated at 256KB]";
+
+/**
+ * Read a stream to completion, retaining at most `cap` bytes.
+ *
+ * Draining past the cap is the point: a child writing more than the pipe buffer
+ * holds blocks until someone reads, so a parent that stops reading and waits on
+ * exit deadlocks. Both streams are drained concurrently for the same reason —
+ * reading stdout to EOF first hangs on a child that fills stderr.
+ */
+async function drainStream(
+  stream: ReadableStream<Uint8Array> | null | undefined,
+  cap: number
+): Promise<{ text: string; truncated: boolean }> {
+  if (!stream) return { text: "", truncated: false };
+  const decoder = new TextDecoder();
+  const reader = stream.getReader();
+  let text = "";
+  let truncated = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (truncated) continue; // keep draining, stop retaining
+      text += decoder.decode(value, { stream: true });
+      if (text.length > cap) {
+        text = text.slice(0, cap);
+        truncated = true;
+      }
+    }
+  } catch {
+    // A killed child can tear the stream down mid-read; keep what we have.
+  }
+  return { text, truncated };
+}
+
 async function runTool(
   cmd: string,
   args: string[],
   timeoutMs: number = 30000,
   allowArbitrary: boolean = false
-): Promise<{ passed: boolean; output: string; resolved?: string }> {
+): Promise<ToolRun> {
   // Validate binary against allowlist (B19)
   const resolved = resolveCommand(cmd, allowArbitrary);
   if ("error" in resolved) {
@@ -325,23 +414,33 @@ async function runTool(
     console.error(`[verify-changes] WARNING: running non-allowlisted command "${resolvedLine}" (--allow-arbitrary-tool)`);
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
     // Always spawn without shell (B19): argv array keeps shell metacharacters inert
     const proc = Bun.spawn([binary, ...allArgs], {
       stdout: "pipe",
       stderr: "pipe",
-      signal: controller.signal,
     });
-    const stdout = await new Response(proc.stdout).text();
-    const stderr = await new Response(proc.stderr).text();
+    timer = setTimeout(() => {
+      timedOut = true;
+      try { proc.kill(); } catch {}
+    }, timeoutMs);
+
+    const [out, err] = await Promise.all([
+      drainStream(proc.stdout as ReadableStream<Uint8Array>, MAX_CAPTURED_OUTPUT),
+      drainStream(proc.stderr as ReadableStream<Uint8Array>, MAX_CAPTURED_OUTPUT),
+    ]);
     const exitCode = await proc.exited;
+    const truncated = out.truncated || err.truncated;
+    const output = (out.text + "\n" + err.text).trim() + (truncated ? TRUNCATION_MARKER : "");
     return {
-      passed: exitCode === 0,
-      output: (stdout + "\n" + stderr).trim(),
+      passed: !timedOut && exitCode === 0,
+      output: timedOut ? `${output}\n[hashpilot: killed after ${timeoutMs}ms timeout]`.trim() : output,
       resolved: resolvedLine,
+      ...(timedOut ? { timedOut: true } : {}),
+      ...(truncated ? { truncated: true } : {}),
     };
   } catch (err: any) {
     return {
@@ -350,8 +449,45 @@ async function runTool(
       resolved: resolvedLine,
     };
   } finally {
-    clearTimeout(timer);
+    if (timer) clearTimeout(timer);
   }
+}
+
+/**
+ * The full test selection: scoping plus anything the caller narrowed it with.
+ *
+ * Baselines are keyed off this, not off `invocation.args` alone. A `--test-filter`
+ * or extra `--test-args` changes *which tests ran*, and a baseline recorded over
+ * one selection says nothing about another — keying on the scoping args only
+ * would let a narrow run be subtracted from a wide one.
+ */
+function selectionArgs(
+  runner: string,
+  invocation: TestInvocation,
+  options: VerifyOptions
+): string[] {
+  return [
+    ...invocation.args,
+    ...(options.testArgs || []),
+    ...(options.testFilter ? buildTestFilterArgs(runner, options.testFilter) : []),
+  ];
+}
+
+/**
+ * Failure list for a run, or null when it cannot be trusted.
+ *
+ * Truncated output is treated as unparseable: the tail we dropped is exactly
+ * where a runner prints its failure summary, so a partial list would look like
+ * "fewer failures" and let baseline subtraction pass a real regression.
+ */
+function runFailures(runner: string, run: ToolRun): string[] | null {
+  return run.truncated ? null : parseFailures(runner, run.output);
+}
+
+/** Directory scoping and baseline keys are resolved against. */
+async function testRootFor(files: string[]): Promise<string> {
+  if (files.length === 0) return ".";
+  return findProjectRoot(files[0].split("/").slice(0, -1).join("/") || ".");
 }
 
 // ---- Main entry point ----
@@ -409,15 +545,38 @@ export async function verifyChanges(
   ) : undefined;
 
   // Tests
-  let tests: { passed: boolean; output: string } | undefined;
+  let tests: ToolRun | undefined;
+  let testScope: TestInvocation | undefined;
+  let baselineReport: BaselineReport | undefined;
   if (effective.testRunner || options.testFilter) {
     const runner = effective.testRunner || "bun test";
-    const runnerCmd = TEST_RUNNER_MAP[runner] || runner;
+    const rootDir = await testRootFor(files);
+    const invocation = buildTestInvocation(runner, files, rootDir, { scope: options.scopeTests });
+    testScope = invocation;
+    const selection = selectionArgs(runner, invocation, options);
     const testArgs = [
-      ...(options.testArgs || []),
-      ...(options.testFilter ? buildTestFilterArgs(runner, options.testFilter) : []),
+      ...(runner === "pytest" ? ["-rf"] : []), // guarantees the parseable summary
+      ...selection,
     ];
-    tests = await runTool(runnerCmd, testArgs, timeout, allowArbitrary);
+    tests = await runTool(invocation.cmd, testArgs, timeout, allowArbitrary);
+
+    // Baseline subtraction. A timeout is never compared — it has no failure
+    // list, only an absence of information.
+    if (options.useBaseline && !tests.timedOut) {
+      const scopeKey = scopeSignature(selection);
+      const commit = await currentCommit(rootDir);
+      const baseline = commit ? await readBaseline(rootDir, commit, runner, scopeKey) : undefined;
+      baselineReport = commit
+        ? compareToBaseline(baseline, runner, scopeKey, runFailures(runner, tests))
+        : { source: "none", comparable: false, reason: "not a git repository; cannot key a baseline" };
+
+      // Only newly failing tests count. A run that fails purely on tests that
+      // were already broken at this commit is what makes --revert-on-failure
+      // safe to enable.
+      if (!tests.passed && baselineReport.comparable && baselineReport.newFailures?.length === 0) {
+        tests = { ...tests, passed: true };
+      }
+    }
   }
 
   const elapsed = Date.now() - start;
@@ -434,7 +593,17 @@ export async function verifyChanges(
   if (typecheck && !typecheck.passed) failedIn.push("typecheck");
   if (tests && !tests.passed) failedIn.push("tests");
 
-  const overall: "pass" | "fail" = allPass ? "pass" : "fail";
+  const timedOut = ([
+    ["formatter", formatter],
+    ["linter", linter],
+    ["typecheck", typecheck],
+    ["tests", tests],
+  ] as const).filter(([, run]) => run?.timedOut).map(([name]) => name);
+
+  // Timeout outranks failure: a check that never finished has not judged the
+  // edit, and reporting "fail" would license a revert on no evidence.
+  const overall: "pass" | "fail" | "timeout" =
+    timedOut.length > 0 ? "timeout" : allPass ? "pass" : "fail";
 
   const result: VerifyResult = {
     files,
@@ -443,12 +612,22 @@ export async function verifyChanges(
     typecheck: typecheck || undefined,
     tests: tests || undefined,
     overall,
+    timedOut: timedOut.length > 0 ? [...timedOut] : undefined,
+    errorCode:
+      overall === "timeout"
+        ? ErrorCode.VERIFY_TIMEOUT
+        : overall === "fail"
+          ? ErrorCode.VERIFY_FAILED
+          : undefined,
+    testScope,
+    baseline: baselineReport,
     elapsed_ms: elapsed,
     fileHashes,
     detected: Object.keys(detected).length > 0 ? detected : undefined,
   };
 
-  // Revert on failure
+  // Revert on failure. Deliberately not on `timeout` — deleting the caller's
+  // work because a suite was slow is the destructive half of issue #24.
   if (overall === "fail" && options.revertOnFailure && originals.size > 0) {
     const reverted: string[] = [];
     for (const [f, original] of originals) {
@@ -468,4 +647,69 @@ export async function verifyChanges(
   });
 
   return result;
+}
+
+export interface RecordBaselineResult {
+  recorded: boolean;
+  reason: string;
+  commit?: string;
+  runner?: string;
+  failures?: string[] | null;
+  /** True when a usable baseline already existed for this commit and scope. */
+  cached?: boolean;
+}
+
+/**
+ * Record which tests already fail, for later subtraction by `useBaseline`.
+ *
+ * Must be called on the pre-edit tree — it runs the suite as-is and believes
+ * what it sees. `plan-executor` calls it before applying any step; a human or
+ * agent can call it directly via `verify-changes --record-baseline`.
+ *
+ * Cached per commit SHA (and per test selection), so the cost is paid once per
+ * commit rather than once per edit.
+ */
+export async function recordVerifyBaseline(
+  files: string[],
+  options: VerifyOptions = {}
+): Promise<RecordBaselineResult> {
+  const { effective } = await detectTools(files, options);
+  const runner = effective.testRunner || options.testRunner;
+  if (!runner) return { recorded: false, reason: "no test runner configured or detected" };
+
+  const rootDir = await testRootFor(files);
+  const commit = await currentCommit(rootDir);
+  if (!commit) return { recorded: false, reason: "not a git repository; a baseline needs a commit to key on" };
+
+  const invocation = buildTestInvocation(runner, files, rootDir, { scope: options.scopeTests });
+  const selection = selectionArgs(runner, invocation, options);
+  const scopeKey = scopeSignature(selection);
+
+  const existing = await readBaseline(rootDir, commit, runner, scopeKey);
+  if (existing) {
+    return { recorded: false, cached: true, reason: "baseline already recorded for this commit", commit, runner, failures: existing.failures };
+  }
+
+  const run = await runTool(
+    invocation.cmd,
+    [...(runner === "pytest" ? ["-rf"] : []), ...selection],
+    options.timeout ?? 30000,
+    options.allowArbitraryTool ?? false
+  );
+  if (run.timedOut) {
+    // A timed-out baseline would record "nothing was failing", which would then
+    // mark every real pre-existing failure as new. Refuse to write it.
+    return { recorded: false, reason: "baseline run timed out; not recording an unreliable baseline", commit, runner };
+  }
+
+  const baseline: Baseline = {
+    commit,
+    runner,
+    scopeKey,
+    failures: runFailures(runner, run),
+    clean: run.passed,
+    recorded_at: new Date().toISOString(),
+  };
+  await writeBaseline(rootDir, baseline);
+  return { recorded: true, reason: "baseline recorded", commit, runner, failures: baseline.failures };
 }
