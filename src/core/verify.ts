@@ -453,6 +453,37 @@ async function runTool(
   }
 }
 
+/**
+ * The full test selection: scoping plus anything the caller narrowed it with.
+ *
+ * Baselines are keyed off this, not off `invocation.args` alone. A `--test-filter`
+ * or extra `--test-args` changes *which tests ran*, and a baseline recorded over
+ * one selection says nothing about another — keying on the scoping args only
+ * would let a narrow run be subtracted from a wide one.
+ */
+function selectionArgs(
+  runner: string,
+  invocation: TestInvocation,
+  options: VerifyOptions
+): string[] {
+  return [
+    ...invocation.args,
+    ...(options.testArgs || []),
+    ...(options.testFilter ? buildTestFilterArgs(runner, options.testFilter) : []),
+  ];
+}
+
+/**
+ * Failure list for a run, or null when it cannot be trusted.
+ *
+ * Truncated output is treated as unparseable: the tail we dropped is exactly
+ * where a runner prints its failure summary, so a partial list would look like
+ * "fewer failures" and let baseline subtraction pass a real regression.
+ */
+function runFailures(runner: string, run: ToolRun): string[] | null {
+  return run.truncated ? null : parseFailures(runner, run.output);
+}
+
 /** Directory scoping and baseline keys are resolved against. */
 async function testRootFor(files: string[]): Promise<string> {
   if (files.length === 0) return ".";
@@ -522,22 +553,21 @@ export async function verifyChanges(
     const rootDir = await testRootFor(files);
     const invocation = buildTestInvocation(runner, files, rootDir, { scope: options.scopeTests });
     testScope = invocation;
+    const selection = selectionArgs(runner, invocation, options);
     const testArgs = [
       ...(runner === "pytest" ? ["-rf"] : []), // guarantees the parseable summary
-      ...invocation.args,
-      ...(options.testArgs || []),
-      ...(options.testFilter ? buildTestFilterArgs(runner, options.testFilter) : []),
+      ...selection,
     ];
     tests = await runTool(invocation.cmd, testArgs, timeout, allowArbitrary);
 
     // Baseline subtraction. A timeout is never compared — it has no failure
     // list, only an absence of information.
     if (options.useBaseline && !tests.timedOut) {
-      const scopeKey = scopeSignature(invocation.args);
+      const scopeKey = scopeSignature(selection);
       const commit = await currentCommit(rootDir);
       const baseline = commit ? await readBaseline(rootDir, commit, runner, scopeKey) : undefined;
       baselineReport = commit
-        ? compareToBaseline(baseline, runner, scopeKey, parseFailures(runner, tests.output))
+        ? compareToBaseline(baseline, runner, scopeKey, runFailures(runner, tests))
         : { source: "none", comparable: false, reason: "not a git repository; cannot key a baseline" };
 
       // Only newly failing tests count. A run that fails purely on tests that
@@ -652,7 +682,8 @@ export async function recordVerifyBaseline(
   if (!commit) return { recorded: false, reason: "not a git repository; a baseline needs a commit to key on" };
 
   const invocation = buildTestInvocation(runner, files, rootDir, { scope: options.scopeTests });
-  const scopeKey = scopeSignature(invocation.args);
+  const selection = selectionArgs(runner, invocation, options);
+  const scopeKey = scopeSignature(selection);
 
   const existing = await readBaseline(rootDir, commit, runner, scopeKey);
   if (existing) {
@@ -661,7 +692,7 @@ export async function recordVerifyBaseline(
 
   const run = await runTool(
     invocation.cmd,
-    [...(runner === "pytest" ? ["-rf"] : []), ...invocation.args, ...(options.testArgs || [])],
+    [...(runner === "pytest" ? ["-rf"] : []), ...selection],
     options.timeout ?? 30000,
     options.allowArbitraryTool ?? false
   );
@@ -675,7 +706,7 @@ export async function recordVerifyBaseline(
     commit,
     runner,
     scopeKey,
-    failures: parseFailures(runner, run.output),
+    failures: runFailures(runner, run),
     clean: run.passed,
     recorded_at: new Date().toISOString(),
   };

@@ -192,6 +192,46 @@ describe("baseline comparison (issue #24)", () => {
     expect(second.commit).toBe(first.commit!);
   }, 30000);
 
+  test("a baseline recorded over a different selection is not subtracted", async () => {
+    const files = [passing(), broken()];
+    // Baseline covers the whole scoped selection...
+    const rec = await recordVerifyBaseline(files, { testRunner: "bun test" });
+    expect(rec.recorded).toBe(true);
+
+    // ...but this run narrows it with a filter, so it covered different tests.
+    // Subtracting the wider baseline here would hide a regression in anything
+    // the filter excluded.
+    const result = await verifyChanges(files, {
+      testRunner: "bun test",
+      useBaseline: true,
+      testFilter: "hp_preexisting",
+    });
+    expect(result.baseline?.comparable).toBe(false);
+    expect(result.overall).toBe("fail");
+  }, 30000);
+
+  test("truncated test output is never comparable", async () => {
+    // A suite noisy enough to blow past the 256KB capture cap. The tail is
+    // where bun prints its (fail) lines, so a partial parse would look like
+    // "no failures" and let the subtraction pass a real regression.
+    writeFileSync(
+      broken(),
+      'import { test, expect } from "bun:test";\n' +
+        'test("hp_noisy", () => { for (let i = 0; i < 6000; i++) console.log("x".repeat(80)); expect(1).toBe(2); });\n'
+    );
+    sh(["git", "add", "-A"], REPO);
+    sh(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "noisy"], REPO);
+
+    const files = [broken()];
+    const rec = await recordVerifyBaseline(files, { testRunner: "bun test" });
+    expect(rec.failures).toBeNull();
+
+    const result = await verifyChanges(files, { testRunner: "bun test", useBaseline: true });
+    expect(result.tests?.truncated).toBe(true);
+    expect(result.baseline?.comparable).toBe(false);
+    expect(result.overall).toBe("fail");
+  }, 30000);
+
   test("without a baseline, every failure counts", async () => {
     const result = await verifyChanges([broken()], { testRunner: "bun test", useBaseline: true });
     expect(result.baseline?.comparable).toBe(false);
