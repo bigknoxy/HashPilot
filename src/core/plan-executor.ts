@@ -87,11 +87,23 @@ export async function executePlan(
   const changeSetId = createChangeSet();
   const stepTotal = plan.steps.length;
 
-  // Snapshot all impacted files for rollback
+  // Snapshot all impacted files for rollback.
+  //
+  // A file we cannot read here has no snapshot, so it can never be rolled back.
+  // Swallowing that read failure re-creates the exact defect #17 closed on the
+  // write side: the revert loop iterates `originals`, so an unsnapshotted file
+  // is neither restored nor reported, and `reverted: true` goes out over a tree
+  // that still holds the edit. Record the miss now and fold it into
+  // `unrevertedFiles` if a rollback actually fires.
   const originals = new Map<string, string>();
+  const unsnapshotted: string[] = [];
   if (doRevert) {
     for (const file of [...new Set(plan.steps.map((s) => s.file))]) {
-      try { originals.set(file, await Bun.file(file).text()); } catch {}
+      try {
+        originals.set(file, await Bun.file(file).text());
+      } catch {
+        unsnapshotted.push(file);
+      }
     }
   }
 
@@ -207,8 +219,16 @@ export async function executePlan(
 
   // Run verification after all steps have applied, so the verify run sees the
   // full in-memory state.
+  //
+  // Skipped when a step already failed. The tree is then half-applied, so the
+  // suite is being run over a state no one asked for and is about to be
+  // reverted — it costs a full test run to produce a failure that is a
+  // consequence of the step failure, not an independent finding. Worse, it used
+  // to overwrite the diagnosis: `errorCode` became VERIFY_FAILED (exit 4,
+  // "the edit applied but tests failed") when the edit had in fact never
+  // applied (exit 2).
   let verification: VerifyResult | undefined;
-  if (doVerify && !dryRun) {
+  if (doVerify && !dryRun && !stepFailed) {
     const impactedFiles = [...new Set(plan.steps.map((s) => s.file))];
     verification = await verifyChanges(impactedFiles, {
       autoDetect: true,
@@ -237,14 +257,36 @@ export async function executePlan(
       try { await safeWrite(file, original); }
       catch { unrevertedFiles.push(file); }
     }
+    // A file that was edited but never snapshotted is just as unreverted as one
+    // whose restore write threw — there was nothing to write back. Only count
+    // it if a step actually changed it; an unreadable file that also failed its
+    // step left the tree untouched and needs no rollback.
+    const editedFiles = new Set(results.filter((r) => r.success).map((r) => r.file));
+    for (const file of unsnapshotted) {
+      if (editedFiles.has(file)) unrevertedFiles.push(file);
+    }
     reverted = unrevertedFiles.length === 0;
   }
 
   const elapsed = Date.now() - start;
 
-  // VERIFY_FAILED has its own exit-code slot (code 4). A bare step failure has
-  // no errorCode and the exit-code system maps `success: false` to code 2.
-  const errorCode: string | undefined = verifyFailed ? ErrorCode.VERIFY_FAILED : undefined;
+  // Error-code precedence, most alarming first.
+  //
+  // An incomplete rollback outranks everything else: the tree is now in a state
+  // neither the caller nor the plan asked for. Reporting that as VERIFY_FAILED
+  // (exit 4) tells an agent "your edit applied, the tests didn't pass" — which
+  // reads as safe to retry, when in fact some files still hold edits that were
+  // supposed to be undone. ROLLBACK_INCOMPLETE maps to exit 5 (I/O), so it does
+  // not sit in the retryable band at all.
+  //
+  // VERIFY_FAILED has its own slot (code 4). A bare step failure carries no
+  // errorCode and the exit-code system maps `success: false` to code 2.
+  const errorCode: string | undefined =
+    unrevertedFiles.length > 0
+      ? ErrorCode.ROLLBACK_INCOMPLETE
+      : verifyFailed
+        ? ErrorCode.VERIFY_FAILED
+        : undefined;
 
   recordEvent({
     operation: `intent-${plan.intent.operation}`,

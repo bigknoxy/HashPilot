@@ -51,6 +51,13 @@ export enum ErrorCode {
   UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION",
   /** The edit applied but format/lint/test verification failed. */
   VERIFY_FAILED = "VERIFY_FAILED",
+  /**
+   * A rollback ran but could not restore every file, so the tree is left in a
+   * state that is neither the original nor the intended result. Strictly more
+   * serious than the failure that triggered the rollback — see
+   * `PlanResult.unrevertedFiles` for the files still holding edits.
+   */
+  ROLLBACK_INCOMPLETE = "ROLLBACK_INCOMPLETE",
   /** The anchor could not be relocated unambiguously (multiple candidate matches). */
   AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR",
   /** A file exists but could not be read (permissions, device error). Distinct from FILE_NOT_FOUND. */
