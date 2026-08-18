@@ -107,7 +107,8 @@ describe("undo", () => {
 
     setCurrentChangeSet("cs-1");
     await safeWrite(file, "clobbered");
-    expect(readFileSync(file, "utf8")).toBe("clobbered");
+    // The write inherits the file's CRLF and trailing newline (#30).
+    expect(readFileSync(file, "utf8")).toBe("clobbered\r\n");
 
     setCurrentChangeSet(null);
     const result = undoChangeSet("cs-1");

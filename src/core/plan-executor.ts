@@ -7,6 +7,7 @@ import { verifyChanges, recordVerifyBaseline, VerifyResult } from "./verify";
 import { recordEvent, ErrorCode } from "./telemetry";
 import type { TelemetryEvent } from "./telemetry";
 import { createChangeSet, buildProvenanceFields } from "./provenance";
+import { readDecoded } from "./encoding";
 
 // ── Result types ──────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ export async function executePlan(
   if (doRevert) {
     for (const file of [...new Set(plan.steps.map((s) => s.file))]) {
       try {
-        originals.set(file, await Bun.file(file).text());
+        originals.set(file, (await readDecoded(file)).text);
       } catch {
         unsnapshotted.push(file);
       }
@@ -133,7 +134,7 @@ export async function executePlan(
     let stepSource: string | undefined;
 
     try {
-      stepSource = await Bun.file(step.file).text();
+      stepSource = (await readDecoded(step.file)).text;
       const source = stepSource;
       let result: { success: boolean; message: string; newSource?: string };
 

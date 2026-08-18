@@ -1,7 +1,8 @@
 import {
-  existsSync, realpathSync, writeFileSync, renameSync, unlinkSync,
+  existsSync, readFileSync, realpathSync, writeFileSync, renameSync, unlinkSync,
   statSync, openSync, fsyncSync, closeSync,
 } from "node:fs";
+import { decodeText, encodeText } from "./encoding";
 import { homedir, platform } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { ErrorCode } from "./telemetry";
@@ -223,9 +224,41 @@ export async function safeWrite(
   options: AssertWritableOptions = {},
 ): Promise<string> {
   const resolved = assertWritable(target, options);
-  recordSnapshot(resolved, content);
-  atomicWrite(resolved, content);
+  // Encode before snapshotting: the snapshot records the bytes that actually
+  // land on disk, and undo verifies against them (#30).
+  const encoded = restoreEncoding(resolved, content);
+  recordSnapshot(resolved, encoded);
+  atomicWrite(resolved, encoded);
   return resolved;
+}
+
+/**
+ * Put the target file's byte layout back on the content about to replace it
+ * (#30).
+ *
+ * The editing tiers work on plain-LF text with no BOM, which is what makes
+ * line splitting, hashing, and AST offsets tractable. That normalization is
+ * only safe if the bytes are restored on the way out — otherwise a one-line
+ * edit in a CRLF repo rewrites every line ending in the file, and a BOM or a
+ * trailing newline disappears.
+ *
+ * The incoming content is decoded first, so this is correct whether the caller
+ * handed us normalized text or text that still carries the file's own endings,
+ * and applying it twice changes nothing.
+ */
+function restoreEncoding(resolved: string, content: string): string {
+  const { text } = decodeText(content);
+  let encoding;
+  try {
+    // A file that does not exist yet has no layout to preserve; the content's
+    // own is the only evidence available.
+    encoding = existsSync(resolved)
+      ? decodeText(readFileSync(resolved, "utf8")).encoding
+      : decodeText(content).encoding;
+  } catch {
+    return content;
+  }
+  return encodeText(text, encoding);
 }
 
 /** Injectable failure point, so a test can simulate a crash mid-write. */
@@ -250,6 +283,7 @@ export function simulateCrashAfterTempWrite(value: boolean): void {
  * exactly the non-atomic write this replaces.
  */
 export function atomicWrite(resolved: string, content: string): void {
+  content = restoreEncoding(resolved, content);
   const dir = dirname(resolved);
   const tmp = join(dir, `.hashpilot-tmp-${process.pid}-${Math.random().toString(36).slice(2)}`);
 

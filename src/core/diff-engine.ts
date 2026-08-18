@@ -1,4 +1,5 @@
 import { safeWrite } from "./paths";
+import { readDecoded } from "./encoding";
 export interface Hunk {
   oldStart: number;
   oldLines: number;
@@ -256,7 +257,7 @@ export async function applyPatch(
 
   let source: string;
   try {
-    source = await Bun.file(filePath).text();
+    source = (await readDecoded(filePath)).text;
   } catch {
     return { success: false, hunksApplied: 0, hunksFailed: parsePatch(patchText).hunks.length, message: `Cannot read file: ${filePath}` };
   }

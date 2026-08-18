@@ -4,6 +4,7 @@ import { addWarning } from "./envelope";
 import { assertWritable, atomicWrite, PathDeniedError, type AssertWritableOptions } from "./paths";
 import { recordSnapshot } from "./snapshot";
 import { firstParseError } from "./ast-edit";
+import { readDecoded } from "./encoding";
 
 /**
  * What to do when the anchor hash no longer matches the content at the given range.
@@ -100,7 +101,7 @@ export async function replaceHash(
 
   let content: string;
   try {
-    content = await Bun.file(filePath).text();
+    content = (await readDecoded(filePath)).text;
   } catch (e: any) {
     return fail(
       `Failed to read file: ${e.message}`,

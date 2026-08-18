@@ -18,6 +18,7 @@ import { buildProvenanceFields } from "./provenance";
 import { loadConfig, policyForce, RoutePolicy } from "./config";
 import { addWarning } from "./envelope";
 import { acquireLock, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
+import { readDecoded } from "./encoding";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -224,7 +225,7 @@ export async function routeEdit(params: {
         let source: string;
         let casHash: string | undefined;
         try {
-          source = await Bun.file(filePath).text();
+          source = (await readDecoded(filePath)).text;
           editSource = source;
           casHash = computeHash(source);
         } catch (e: any) {
@@ -279,7 +280,7 @@ export async function routeEdit(params: {
       // Write result to file if successful — CAS guard prevents silent data
       // loss when concurrent edits both read the same snapshot.
       if (result.success && (result as any).newSource && !dryRun) {
-        const currentOnDisk = await Bun.file(filePath).text();
+        const currentOnDisk = (await readDecoded(filePath)).text;
         const nowHash = computeHash(currentOnDisk);
         if (nowHash !== casHash) {
           result = {
@@ -298,9 +299,9 @@ export async function routeEdit(params: {
       break;
     }
     case "hash":
-      editSource = await Bun.file(filePath).text();
+      editSource = (await readDecoded(filePath)).text;
       result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun });
-      editResult = (await Bun.file(filePath).text());
+      editResult = ((await readDecoded(filePath)).text);
       break;
     case "diff": {
       // An empty newContent is a deletion. Only oldContent must be non-empty —
@@ -312,7 +313,7 @@ export async function routeEdit(params: {
       let source: string;
       let casHash: string | undefined;
       try {
-        source = await Bun.file(filePath).text();
+        source = (await readDecoded(filePath)).text;
         editSource = source;
         casHash = computeHash(source);
       } catch (e: any) {
@@ -336,7 +337,7 @@ export async function routeEdit(params: {
         }
       }
       if (result.success && (result as any).newSource && !dryRun) {
-        const currentOnDisk = await Bun.file(filePath).text();
+        const currentOnDisk = (await readDecoded(filePath)).text;
         const nowHash = computeHash(currentOnDisk);
         if (nowHash !== casHash) {
           result = {

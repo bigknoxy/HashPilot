@@ -206,6 +206,38 @@ highest-frequency operations.
   preserved. A crash mid-write leaves the original byte-identical, and orphaned
   `.hashpilot-tmp-*` files older than an hour are swept after each write.
 
+#### `src/core/encoding.ts` — Byte Fidelity (#30)
+- A structured editor's one non-negotiable property is that it must not change
+  bytes it was not asked to change. Reading with `.split("\n")` and writing back
+  with `.join("\n")` breaks that three ways: it deletes `\r` from every line of a
+  CRLF file, folds a BOM into line 1 where it corrupts that line's hash, and drops
+  or invents a trailing newline. A one-line edit then produces a whole-file diff.
+- **Normalize at the boundary.** `decodeText(raw)` strips the BOM and converts
+  CRLF/CR/LF to plain `\n`, returning that text plus a `FileEncoding` record
+  (`bom`, dominant `eol`, per-line `endings` when the file was inconsistent,
+  `trailingNewline`). Every tier — hashing, line splitting, AST offsets — operates
+  on plain-LF text and never sees a `\r`. `encodeText(text, encoding)` puts the
+  original layout back at write time. `readDecoded(path)` is the read-side entry
+  point, used by `read.ts`, `hash-edit.ts`, `diff-engine.ts`, `plan-executor.ts`,
+  and `router.ts`.
+- **Write side.** `paths.ts` re-applies the *target file's* layout inside both
+  `safeWrite` and `atomicWrite`. It re-decodes the incoming content first, so the
+  transform is correct whether the caller handed back normalized text or text still
+  carrying the file's endings, and applying it twice changes nothing. Encoding runs
+  **before** `recordSnapshot`, or the snapshot would hash bytes that never reached
+  disk and `undo` would fail its own verification.
+- Trailing-newline presence follows the original file, not the edit: an agent
+  handing back content without a final newline is describing lines, not asking to
+  change how the file terminates. The one exception is emptying a file, which
+  yields an empty file rather than a lone blank line.
+- **Known limitation.** A mixed-ending file restores endings *by line position*, so
+  lines after an inserted line take the ending that used to belong to the line at
+  that index. Lines the edit created take the dominant style. Consistent files —
+  effectively all real ones — are unaffected.
+- Astral-plane content is safe without special handling: tree-sitter node
+  `startIndex`/`endIndex` are UTF-16 code units, matching JS string offsets, so
+  emoji and CJK Extension B characters do not shift AST edits.
+
 #### `src/core/path-normalize.ts` — Path Canonicalization for Comparison (#41)
 - `normalizePath(file)` resolves `./`, `../`, and trailing slashes, then expresses
   the result **relative to `process.cwd()`** when it lives underneath it, and
