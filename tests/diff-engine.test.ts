@@ -338,3 +338,133 @@ describe("generate + apply roundtrip", () => {
     expect(result.newSource).toBe(newSrc);
   });
 });
+
+describe("applyPatchToSource — fuzzy window correctness (issue #33)", () => {
+  test("fuzzy: 0 requires exact position — refuses shifted match", () => {
+    // Content is at line 1 but patch claims oldStart=6. With fuzzy=0, no shift allowed.
+    const source = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj";
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -6,3 +6,3 @@
+ d
+ e
+-f
++FFF`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 0 });
+    expect(result.success).toBe(false);
+    expect(result.hunksApplied).toBe(0);
+  });
+
+  test("match window is exactly [expected ± fuzzy], independent of hunk size (issue #33 req 1)", () => {
+    // The buggy code widened the search window by hunk.oldLines, letting a large
+    // hunk drift far from the expected position. The fix makes the START-position
+    // window exactly [expected - fuzzy, expected + fuzzy], independent of hunk size.
+    //
+    // Source: "b c d e f" (the hunk content) lives ONLY at 0-indexed positions 4-8.
+    // The patch claims oldStart=1 (0-indexed 0). With fuzzy=1 the window covers
+    // positions 0..2 (lines 1-3), and "b c d e -f" does not appear there
+    // (positions 0..2 hold "a b c"). The match at position 4 is outside ±1.
+    // The old buggy window (widened by oldLines=5) reached position 4 and matched.
+    const source = "a\nb\nc\nd\nb\nc\nd\ne\nf\ng\n";
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -1,5 +1,5 @@
+ b
+ c
+ d
+ e
+-f
++F`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 1 });
+    expect(result.success).toBe(false);
+  });
+
+  test("fuzzy: 0 refuses non-exact-content match at exact position (issue #33 req 2)", () => {
+    // fuzzy=0 means exact position AND exact content, or fail. The position matches
+    // but the content differs, so it must be refused.
+    const source = "a\nb\nc\nd\ne";
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -1,1 +1,1 @@
+ b
+-B`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 0 });
+    expect(result.success).toBe(false);
+    expect(result.hunksApplied).toBe(0);
+  });
+
+  test("ambiguous match within window → error listing candidates, no write (issue #33 req 3)", () => {
+    // Two identical candidate positions within the fuzzy window must refuse and
+    // report both line numbers.
+    const source = [
+      "x", "a", "b", "T", "c", // block 0 at 0-idx 0 (lines 1-5)
+      "x", "a", "b", "T", "c", // block 1 at 0-idx 5 (lines 6-10)
+      "x",
+    ].join("\n");
+    // oldStart=1, oldLines=4 (x, a, b, T). Matches at 0-idx 0 and 0-idx 5.
+    // fuzzy=5 → window [0-5, 0+5] = positions -5..5 → covers both candidates.
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -1,4 +1,4 @@
+ x
+ a
+ b
+-T
++TT`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 5 });
+    expect(result.success).toBe(false);
+    expect(result.hunksApplied).toBe(0);
+    expect(result.message).toMatch(/ambig/i);
+  });
+
+  test("regression: repeated blocks do not misapply to wrong location (issue #33)", () => {
+    // Two near-identical blocks. Block 0's marker differs from block 1's, so a
+    // hunk built for block 1's content does NOT match at the expected position
+    // (block 0). Only the shifted position (block 1) matches. The buggy code
+    // widened the search window by hunk.oldLines, so it found block 1 and
+    // silently misapplied; the fix's ±fuzzy window must refuse it.
+    const source = [
+      "block0", "context-a", "context-b", "context-c", // block 0 at 0-idx 0
+      "block1", "context-a", "context-b", "context-c", // block 1 at 0-idx 4
+    ].join("\n");
+    // Hunk for block 1's 4 lines, claims oldStart=1 (0-idx 0 = block 0's start).
+    // Content "block1 / context-a / context-b / context-c" only matches at 0-idx 4.
+    // fuzzy=2 → fixed window [0-2, 0+2] = positions -2..2; pos 4 is OUTSIDE → refuse.
+    // Buggy window: searchEnd = 0 + 2 + 4 + 1 = 7, reaching pos 4 → misapply (success).
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -1,4 +1,4 @@
+ block1
+ context-a
+ context-b
+ context-c`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 2 });
+    // Correct behavior: refuse (success=false). Old buggy behavior: succeeds
+    // by drifting far enough to match block 1.
+    expect(result.success).toBe(false);
+  });
+
+  test("successful fuzzy match reports appliedAt, expectedAt, offset (issue #33 req 4)", () => {
+    const source = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj";
+    // Content "b" (line 1, 0-idx 1) then removed "c" lives at oldStart=2; patch
+    // claims oldStart=1 (0-idx 0). fuzzy=3 catches the 1-line shift.
+    // Body = 1 context + 1 removed = 2 old lines, 2 new lines.
+    const patch = `--- a/test.txt
++++ b/test.txt
+@@ -1,2 +1,2 @@
+ b
+-c
++C`;
+
+    const result = applyPatchToSource(source, patch, { fuzzyMatch: 3 });
+    expect(result.success).toBe(true);
+    expect(result.appliedAt).toBeDefined();
+    expect(result.expectedAt).toBeDefined();
+    expect(result.offset).toBe(result.appliedAt! - result.expectedAt!);
+  });
+});
