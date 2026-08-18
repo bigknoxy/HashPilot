@@ -113,14 +113,22 @@ describe("verifyChanges", () => {
 
   // Timeout
   test("timeout kills slow process", async () => {
+    // verify-changes appends the changed file as an operand, so the mock
+     // must tolerate extra args: `sleep 10 sample.ts` exits in error on macOS,
+    // which would read as a fast "fail" and mask the timeout path under test.
+    const slow = join(TMP_DIR, "slow.js");
+    writeFileSync(slow, "setTimeout(() => {}, 10000);\n");
     const result = await verifyChanges([join(TMP_DIR, "sample.ts")], {
-      formatter: "sleep 10",
+      formatter: `node ${slow}`,
       timeout: 500,
       allowArbitraryTool: true,
     });
     expect(result.formatter).toBeDefined();
-    expect(result.formatter!.passed).toBe(false);
-    expect(result.overall).toBe("fail");
+     expect(result.formatter!.passed).toBe(false);
+       // Issue #24: a check that never reached a verdict is "timeout", not
+     // "fail" - "fail" licenses a --revert-on-failure on no evidence the
+     // edit was bad.
+    expect(result.overall).toBe("timeout");
   });
 
   // Auto-detection from package.json

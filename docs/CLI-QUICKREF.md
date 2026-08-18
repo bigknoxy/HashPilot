@@ -546,6 +546,9 @@ hashpilot verify-changes [options] <files...>
 | `--allow-arbitrary-tool` | Allow binaries outside the allowlist (warns on each use) |
 | `--revert-on-failure` | Restore original file contents if any check fails |
 | `--timeout <ms>` | Per-check timeout in ms (default 30000) |
+| `--no-scope-tests` | Run the whole test suite instead of only tests related to the changed files |
+| `--use-baseline` | Ignore tests that were already failing at this commit (see --record-baseline) |
+| `--record-baseline` | Record which tests currently fail, for later --use-baseline runs. Run this before editing. |
 | `--json` | Output as JSON (default: true) |
 
 #### `telemetry show`
