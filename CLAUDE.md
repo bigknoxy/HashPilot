@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Strategic Context
+
+**[docs/COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md)** is the canonical map of the agent
+file-editing primitive space (Aider, Scalpel MCP, fedit, CLIO, Codex/Claude/Cursor, Comby, Morfx,
+and others). It carries the positioning statement now used on the README and landing page, the feature
+matrix, and the deduped action list. **Read it before working on** MCP (#25), benchmarks (#26),
+language expansion, distribution, Go-to-market, or "compete with X" requests. Headline facts worth
+knowing up front:
+
+- **The moat is real and unclaimed:** no competitor combines hash-anchored (SHA-256) verification with
+  AST-native editing. Aider dominates *adoption* but is text-matching; Scalpel MCP is the closest
+  structural analog but has zero adoption and CodeRabbit-flagged critical issues and no hash/provenance/locks.
+- **Do not re-file these as gaps — they are shipped or tracked:** multi-agent file locking is **shipped**
+  (`src/core/locking.ts`); changeSets/undo (`snapshot.ts`), provenance (`provenance.ts`), and telemetry
+  are shipped; **MCP server is issue #25** and **benchmarks are issue #26** (both Sprint 3). See §6 of the
+  analysis. The remaining leverage is distribution (MCP) and proof (benchmark), not capability.
+
 ## Build/Test/Lint
 
 ```bash

@@ -85,6 +85,36 @@ body {
 
 .hero .sub strong { color: var(--text); }
 
+/* Positioning band */
+.positioning {
+  padding: 48px 0;
+}
+.positioning blockquote {
+  position: relative;
+  margin: 0;
+  padding: 32px 36px 32px 44px;
+  border-left: 4px solid var(--accent);
+  background: var(--surface);
+  border-radius: var(--radius);
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+.positioning .label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.positioning .cite {
+  margin-top: 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
 .badges {
   display: flex;
   gap: 8px;
@@ -544,6 +574,25 @@ body { overflow-x: hidden; }
   </div>
 </div>
 
+<hr>
+
+
+<section class="positioning">
+   <div class="container">
+       <blockquote>
+           <div class="label">Positioning</div>
+           <p>
+           HashPilot is the <strong>safe, verifiable, observable</strong> file-editing primitive
+           for coding agents. While other tools match text or rewrite whole files, HashPilot
+           anchors every edit to a cryptographic digest — <strong>if the hash doesn't match,
+           nothing changes.</strong> With AST-native editing, provenance trails, and a verify
+           pipeline, it gives agents <strong>deterministic control</strong> over how code changes
+           land on disk.
+           </p>
+           <div class="cite">The only position no competitor occupies: hash-anchored + AST-aware + provenance-tracked. <a href="https://github.com/bigknoxy/HashPilot/blob/main/docs/COMPETITIVE-ANALYSIS.md" style="color: var(--accent); text-decoration: none;">See COMPETITIVE-ANALYSIS.md →</a></div>
+       </blockquote>
+   </div>
+</section>
 <hr>
 
 <section id="problem">
