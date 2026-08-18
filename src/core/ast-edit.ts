@@ -298,6 +298,121 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
   return symbols;
 }
 
+/**
+* Node types whose presence in an ancestor chain marks an identifier as an
+* imported name (rather than a local use). Conservative across the six
+* grammars — better to over-flag a binding than to miss one.
+*/
+const IMPORT_CONTEXT = new Set([
+   // TypeScript / JavaScript
+  "import_statement", "import_clause", "named_import", "import",
+   // Python
+  "import_from_statement", "import_prefix", "alias", "dotted_name",
+   // Go
+  "import_declaration", "import_spec", "imported_path",
+   // Rust
+  "use_declaration", "use_as_clause", "nested_use_delimiter",
+  "identifier_path", "scoped_identifier",
+]);
+
+
+/**
+* Node types whose presence in an ancestor chain marks an identifier as a
+* *parameter*. A name bound as a parameter is a fresh scope, so two parameters
+* — or a parameter and a local — of the same name in one file are two bindings
+* (shadowing), and a file-wide rename is unsafe. Parameter node names differ
+* across the six grammars, so the list is approximate and deliberately
+* conservative (better to refuse than to clobber).
+*/
+const PARAM_CONTEXT = new Set([
+    // TypeScript / JavaScript
+    "function_parameter", "variable_pattern", "pattern",
+    // Python
+    "parameters", "typed_parameter", "default_parameter", "optional_parameter",
+    "required_parameter", "simple_parameter",
+    // Go / Rust
+    "parameter_declaration", "parameter_list", "function_parameter", "parameter",
+    "formal_parameters",
+]);
+
+/** A place in a file where a name is *bound* (declared or imported). */
+interface BindingSite {
+  row: number;
+  kind: string;
+}
+
+/**
+* Collect every location that binds `oldName`: each declaration whose symbol
+* name equals it (a shadow is simply a *second* declaration at an inner scope)
+* plus each import that binds the name. `rename-symbol` is file-safe only when
+* there is at most one such site; more than one means the name is genuinely
+* multi-bound and a file-wide textual rename would clobber an unintended one.
+*
+* Property keys, string literals, and comments are never `identifier`/
+* `type_identifier` nodes here, so they are excluded for free — the only gap
+* this fills is the *binding* gap (which of several same-named symbols targeted).
+*/
+function collectBindingSites(
+  tree: Parser.SyntaxTree,
+  oldName: string,
+  cfg: LangConfig
+): BindingSite[] {
+  const sites: BindingSite[] = [];
+  const seen = new Set<number>();
+  const push = (row: number, kind: string, idx: number) => {
+    if (!seen.has(idx)) {
+       seen.add(idx);
+      sites.push({ row, kind });
+     }
+   };
+
+  function isImportBinding(node: Parser.SyntaxNode): boolean {
+    let p = node.parent;
+    while (p && p.type) {
+      if (IMPORT_CONTEXT.has(p.type)) return true;
+      p = p.parent;
+      }
+    return false;
+    }
+
+  function isParamBinding(node: Parser.SyntaxNode): boolean {
+    let p = node.parent;
+    while (p && p.type) {
+      if (PARAM_CONTEXT.has(p.type)) return true;
+      p = p.parent;
+      }
+    return false;
+    }
+
+  function walk(node: Parser.SyntaxNode) {
+     // Declaration site: a symbol-kind node whose declared name matches.
+    if (cfg.symbolKinds.includes(node.type)) {
+      const nameNode =
+        node.childForFieldName("name") ||
+        node.children.find((c) => IDENTIFIER_TYPES.has(c.type));
+      if (nameNode && nameNode.text === oldName) {
+        push(node.startPosition.row + 1, node.type, node.startIndex);
+        }
+      }
+     // An identifier that is not a declaration may still bind the name as an
+     // import or as a parameter. Only one of those applies to a given node.
+    const isIdent = node.type === "identifier" || node.type === "type_identifier";
+    if (isIdent && node.text === oldName) {
+      if (isImportBinding(node)) {
+        push(node.startPosition.row + 1, "import", node.startIndex);
+        return; // an import is a binding on its own; don't re-count as a param
+        }
+      if (isParamBinding(node)) {
+        push(node.startPosition.row + 1, "parameter", node.startIndex);
+        }
+      }
+    for (const child of node.children) walk(child);
+    }
+
+  walk(tree.rootNode);
+  return sites;
+}
+
 function renameSymbolUnchecked(
   source: string,
   filePath: string,
@@ -313,6 +428,31 @@ function renameSymbolUnchecked(
   let changes = 0;
   const edits: { start: number; end: number; text: string }[] = [];
 
+   // #14 (B9): a file-wide rename is only safe when the name binds at most one
+   // symbol in this file. Detect the bindings first; if there is more than one
+   // (a shadow/local, a foreign import, or duplicate top-level declarations)
+   // refuse and name the sites. The node-type filter below already spares
+   // property keys, string literals, and comments.
+  const cfg = configFor(lang);
+  const bindingSites = cfg ? collectBindingSites(tree, oldName, cfg) : [];
+  if (bindingSites.length > 1) {
+    const where = bindingSites
+       .map((s) => `   line ${s.row} (${s.kind})`)
+       .join("\n");
+    return {
+      success: false,
+      path: filePath,
+      operation: "rename-symbol",
+      changes: 0,
+      message:
+         `Symbol '${oldName}' binds ${bindingSites.length} distinct locations in this ` +
+         `file (a shadow, a foreign import, or duplicate declarations); refusing a ` +
+         `file-wide rename that would clobber an unintended binding. Disambiguate by ` +
+         `scoping the rename or renaming each declaration separately:\n${where}`,
+      errorCode: ErrorCode.AMBIGUOUS_SYMBOL,
+      symbolFound: true,
+      };
+   }
   function findRefs(node: Parser.SyntaxNode) {
     if ((node.type === "identifier" || node.type === "type_identifier") && node.text === oldName) {
       edits.push({ start: node.startIndex, end: node.endIndex, text: newName });

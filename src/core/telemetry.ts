@@ -66,6 +66,14 @@ export enum ErrorCode {
   ROLLBACK_INCOMPLETE = "ROLLBACK_INCOMPLETE",
   /** The anchor could not be relocated unambiguously (multiple candidate matches). */
   AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR",
+   /**
+    * rename-symbol was asked to rename a name that binds **more than one**
+    * distinct symbol in the file — a shadowed local, a foreign import of the
+    * same name, or two top-level declarations. A file-wide textual rename would
+    * clobber a binding the caller did not mean to touch, so the operation
+    * refuses and names the contending binding sites.
+    */
+  AMBIGUOUS_SYMBOL = "AMBIGUOUS_SYMBOL",
   /** A file exists but could not be read (permissions, device error). Distinct from FILE_NOT_FOUND. */
   READ_FAILED = "READ_FAILED",
   /** Lock acquisition timed out — another process holds the advisory lock. */
