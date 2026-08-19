@@ -1,3 +1,10 @@
+# [4.2.0](https://github.com/bigknoxy/HashPilot/compare/v4.1.4...v4.2.0) (2026-08-19)
+
+
+### Features
+
+* **cli:** --format <json|text> global flag with TTY detection ([#19](https://github.com/bigknoxy/HashPilot/issues/19) B16) ([#92](https://github.com/bigknoxy/HashPilot/issues/92)) ([ebdcc3b](https://github.com/bigknoxy/HashPilot/commit/ebdcc3b5ef63f0d37ff7a1b5eac812d8e1ecf252))
+
 ## [4.1.4](https://github.com/bigknoxy/HashPilot/compare/v4.1.3...v4.1.4) (2026-08-19)
 
 
