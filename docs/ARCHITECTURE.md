@@ -404,7 +404,9 @@ sequenceDiagram
     `cargo test` when every change is an integration test). Every result reports
     `testScope.scoped` and a `reason`, so an unscoped fallback is visible rather
     than silent. `parseFailures()` extracts individual test names and returns
-    `null` — never an empty list — when the output shape is unrecognised.
+    `null` — never an empty list — when the output shape is unrecognised. Its
+    jest/vitest file marker is `FAIL` only: `✗` also prefixes a failing test
+    name, and matching it as a filename swallowed every failure on that line.
   - `src/verify-baseline.ts` — a pre-edit run of the same scope, cached under
     `~/.agentic-tools/verify-baselines/` keyed by root + commit SHA + runner +
     scope signature. `recordVerifyBaseline()` is called by `plan-executor` on the

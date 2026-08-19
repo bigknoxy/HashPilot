@@ -239,7 +239,10 @@ export function parseFailures(runner: string, output: string): string[] | null {
     case "jest": {
       let file = "";
       for (const line of lines) {
-        const f = line.match(/^\s*(?:FAIL|✗)\s+(\S+)/);
+        // Only FAIL marks a file. `✗` is left out deliberately: it also marks a
+        // failing test name below, and this branch runs first — matching it here
+        // would swallow every `✗ test name` line as a filename.
+        const f = line.match(/^\s*FAIL\s+(\S+)/);
         if (f) { file = f[1]; continue; }
         const t = line.match(/^\s*(?:✕|×|✗)\s+(.+?)(?:\s+\(\d+\s*m?s\))?\s*$/);
         if (t) out.push(`${file}::${t[1].trim()}`);
