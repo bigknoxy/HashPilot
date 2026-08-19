@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { parseIntent, findSymbolDefinition, findReferences, generatePlan, UnsupportedIntentError } from "../src/core/intent";
+import { parseIntent, findSymbolDefinition, findReferences, generatePlan, UnsupportedIntentError, resolveReferences } from "../src/core/intent";
 import { executePlan, executeIntent } from "../src/core/plan-executor";
 import type { VerifyResult } from "../src/core/verify";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
@@ -1056,4 +1056,155 @@ describe("executePlan verification / rollback correctness", () => {
     expect(await Bun.file(BAD_TS).text()).toBe(EDITED_BAD_TS);
   });
 
+});
+
+// ── findReferences — tree-sitter resolution (#15) ──────────────────────
+//
+// The pre-#15 implementation was `grep -w` plus `isDefinitionLine`, which both
+// matched the symbol inside comments/strings/foreign imports and — worse —
+// *dropped* genuine call sites that sat on a declaration line ("const x =
+// foo(1)"). These tests pin the syntactic behavior: exactly the genuine
+// references, decoys excluded, and unsupported languages reported as
+// `unresolved` rather than guessed.
+
+const B15 = join(import.meta.dir, "__tmp_b15__");
+
+function b15write(rel: string, content: string) {
+  const abs = join(B15, rel);
+  mkdirSync(join(abs, ".."), { recursive: true });
+  writeFileSync(abs, content);
+}
+
+describe("findReferences — tree-sitter resolution (#15)", () => {
+  beforeEach(() => {
+    rmSync(B15, { recursive: true, force: true });
+    mkdirSync(B15, { recursive: true });
+    writeFileSync(join(B15, "package.json"), JSON.stringify({ name: "b15" }));
+    writeFileSync(
+      join(B15, "tsconfig.json"),
+       JSON.stringify({ compilerOptions: { target: "ESNext", strict: false, noEmit: true }, include: ["*.ts"] })
+     );
+    b15write("src/a.ts", `// greet is a friendly function
+const note = "greet the user";
+
+export function greet(name: string): string {
+  return "hi " + name;
+}
+`);
+    b15write("src/b.ts", `// an unrelated same-named function in ANOTHER module
+export function greet(): number {
+  return 42;
+}
+`);
+    b15write("src/c.ts", `// aliased import: greet is imported under a different name
+import { greet as gg } from "./a";
+export function useAliased(): string {
+  return gg("x");
+}
+`);
+    b15write("src/d.ts", `import { greet } from "./a";
+export function h(): void {
+  greet(1);
+  greet(2);
+}
+`);
+    b15write("src/e.ts", `import { greet } from "./a";
+export function k(): string {
+  return greet("world");
+}
+`);
+   });
+
+  afterEach(() => {
+    rmSync(B15, { recursive: true, force: true });
+   });
+
+  // AC1–AC3, AC4: the target name appears in a comment, a string literal, a
+  // same-named unrelated function in another module, and an aliased import —
+  // none of those are references. The three genuine call sites are the only ones.
+  test("exactly three references: comment / string / foreign decl / aliased import excluded", async () => {
+    const { references, reconciliation } = await resolveReferences("greet", B15, join(B15, "src/a.ts"));
+    expect(references.length).toBe(3);
+    expect(reconciliation.resolved).toBe(3);
+    expect(reconciliation.ambiguous).toBe(0);
+    // the only files that should carry a reference are the genuine callers:
+    const files = new Set(references.map((r) => r.file).map((f) => f.split("/").pop()));
+    expect(files).toEqual(new Set(["d.ts", "e.ts"]));
+     // none of the decoys leaked in
+    expect(references.some((r) => /b\.ts/.test(r.file))).toBe(false);
+    expect(references.some((r) => /c\.ts/.test(r.file))).toBe(false);
+     // no reference is a comment or string literal
+    for (const r of references) {
+      expect(r.context.trimStart()).toMatch(/greet\(/);
+      expect(r.context.includes("greet the user")).toBe(false);
+      expect(/const note/.test(r.context)).toBe(false);
+       }
+    });
+
+  // AC3 regression: a call on a `const x = foo(1)` line was previously dropped
+  // because `isDefinitionLine` read the `const` line as the symbol's definition.
+  test("AC3 — a call on a `const x = foo(1)` line is a reference, not a definition", async () => {
+    b15write("src/reg.ts", `import { greet } from "./a";
+const total = greet("x");
+export function f(): string {
+  const local = greet("y");
+  return total + local;
+}
+`);
+    const { references } = await resolveReferences("greet", B15, join(B15, "src/a.ts"));
+    const reg = references.filter((r) => /reg\.ts/.test(r.file));
+    expect(reg.length).toBeGreaterThanOrEqual(2);
+    expect(reg.some((r) => /greet\(/.test(r.context))).toBe(true);
+     // isDefinitionLine no longer exists
+    await import("../src/core/intent").then((m) => {
+       // @ts-expect-error isDefinitionLine was deleted in #15
+      expect((m as Record<string, unknown>).isDefinitionLine).toBeUndefined();
+      });
+    });
+
+  // AC5: a file in an unparSED language that mentions the name is reported as
+  // `unresolved` and is NOT auto-edited.
+  test("AC5 — an unparSED language (.rb) is reported unresolved, not edited", async () => {
+    b15write("src/g.rb", `def greet(n); n; end
+x = greet(1)
+`);
+    const { references, unresolved, reconciliation } =
+       await resolveReferences("greet", B15, join(B15, "src/a.ts"));
+
+   expect(reconciliation.unresolved).toBeGreaterThanOrEqual(1);
+    expect(unresolved.some((u) => /g\.rb$/.test(u.file))).toBe(true);
+     // the unsupported file contributes no references and is not editable
+    expect(references.every((r) => !/\.rb$/.test(r.file))).toBe(true);
+    });
+
+  // The plan reports the reconciliation counts, and refuses to proceed while an
+  // unparSED file holds the symbol, unless the caller opts in with --yes.
+  test("AC6 — the plan surfaces reconciliation counts and refuses on unresolved-language", async () => {
+     b15write("src/g.rb", "def greet(n); n; end\n");
+     const { references, unresolved, reconciliation } =
+        await resolveReferences("greet", B15, join(B15, "src/a.ts"));
+     const p = generatePlan(
+     { operation: "rename-exported-symbol", symbol: "greet", newName: "hi" },
+     { file: join(B15, "src/a.ts"), name: "greet", kind: "function_declaration", line: 4, column: 17 },
+      references,
+        reconciliation);
+      for (const u of unresolved) p.unresolved.push(u);
+     expect(p.impactSummary).toContain("3 references found");
+     expect(p.impactSummary).toContain("reconciliation:");
+     expect(p.reconciliation!.resolved).toBe(3);
+     expect(p.reconciliation!.unresolved).toBeGreaterThanOrEqual(1);
+     // a partial plan is refused without --yes
+    const refused = await executeIntent(
+      JSON.stringify({ operation: "rename-exported-symbol", symbol: "greet", newName: "hi" }),
+        { projectRoot: B15, dryRun: true });
+     expect(refused.success).toBe(false);
+     expect(refused.plan.unresolved.some((u) => /g\.rb$/.test(u.file))).toBe(true);
+     // --yes bypasses the refusal but STILL never edits the unparSED file
+    const applied = await executeIntent(
+      JSON.stringify({ operation: "rename-exported-symbol", symbol: "greet", newName: "hi" }),
+        { projectRoot: B15, dryRun: true, yes: true });
+     expect(applied.success).toBe(true);
+     const touched = applied.plan.steps.map((s) => s.file);
+     expect(touched.some((f) => /\.rb$/.test(f ?? ""))).toBe(false);
+     });
 });

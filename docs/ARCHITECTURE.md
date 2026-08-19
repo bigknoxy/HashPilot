@@ -143,6 +143,18 @@ highest-frequency operations.
   instead; the executor refuses the whole plan with `UNSUPPORTED_OPERATION`
   (exit 1) unless `--yes` is given, in which case only the computable steps run.
 
+
+
+- **Tree-sitter reference resolution (#15).** \`findReferences\` was replaced by
+ \`resolveReferences\`, which walks every parsable file in the project with the
+ same \`getParser()\` as the AST route. A call site is a bare \`identifier\`/ \`type_identifier\` that is neither a declaration name, a member access, nor an
+ import binding. Per-language \`REF_QUERIES\` cover TS/TSX/JS/Python/Go/Rust.
+  The \`EditPlan\` now carries an optional \`reconciliation\` field
+ (\`{resolved, unresolved, ambiguous}\`): \`unresolved\` counts files in
+ languages HashPilot does not parse; \`ambiguous\` counts caller files that
+ bind the same name multiple times; both trigger refusal via the
+ \`plan.unresolved\` guard.
+
 #### `src/plan-executor.ts` — Edit Plan Execution
 - Executes `EditPlan` steps through the router
 - Supports: dry-run mode, per-step verify, revert-on-failure
