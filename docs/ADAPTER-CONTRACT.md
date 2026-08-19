@@ -305,6 +305,18 @@ fails with `STALE_ANCHOR` — re-read the file and retry with the fresh hash.
 Recovery can be disabled with `--no-recovery` (or `recovery: "off"` in the API),
 which turns any mismatch into an immediate `STALE_ANCHOR`.
 
+**Which hash is `newHash`.** On success it is the hash of the **content that was
+written** — the range, not the file — so `{newHash, newRange}` chains straight
+into the next call's `{oldHash, range}` with no intervening read. It used to be
+the whole-file hash on the success path while the `STALE_ANCHOR` paths returned
+the range hash, so one field carried two incompatible meanings and the value an
+agent naturally chained on could never match ([#101](../../issues/101)). The
+whole-file hash after the edit is now `fileHash`, which is reported for
+information and is **not** an anchor. On a whole-file edit (no `--range`) the
+region is the file, so the two agree. A replacement with a different line count
+moves the region, which is why `newRange` is returned alongside — reuse the
+original range and the next edit anchors on the wrong lines.
+
 **Range validation:** `--range` bounds must be integers, `1 <= start <= end`, and
 `end` no greater than the file's last line. Anything else is `INVALID_ARGUMENT`
 with no write attempted.
@@ -316,6 +328,8 @@ with no write attempted.
   "success": true,
   "oldHash": "abc123def456",
   "newHash": "789ghi012jkl",
+  "fileHash": "fedcba987654",
+  "newRange": { "start": 10, "end": 12 },
   "linesChanged": 3,
   "stale": false,
   "retries": 0,
@@ -331,6 +345,8 @@ with no write attempted.
   "success": true,
   "oldHash": "abc123def456",
   "newHash": "789ghi012jkl",
+  "fileHash": "fedcba987654",
+  "newRange": { "start": 12, "end": 14 },
   "linesChanged": 3,
   "stale": true,
   "retries": 1,

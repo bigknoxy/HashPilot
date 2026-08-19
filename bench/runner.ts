@@ -68,6 +68,35 @@ async function runCase(c: BenchCase, workRoot: string): Promise<CaseResult> {
     };
   }
 
+  // A chained case re-edits the same region using only what the first edit
+  // returned, with no intervening read (#101).
+  if (c.chain && routed.result?.success === true) {
+    const first: any = routed.result;
+    try {
+      routed = await routeEdit({
+        filePath: path,
+        operation: "replace-hash",
+        method: "hash",
+        oldHash: first.newHash,
+        range: first.newRange,
+        newContent: c.chain.newContent,
+      });
+    } catch (err) {
+      return {
+        id: c.id,
+        description: c.description,
+        language,
+        route: "hash",
+        outcome: "harness-error",
+        unparseable: false,
+        elapsed_ms: Date.now() - started,
+        detail: `chained routeEdit threw: ${err instanceof Error ? err.message : String(err)}`,
+        knownIssue: c.knownIssue,
+        tags: c.tags,
+      };
+    }
+  }
+
   const elapsed_ms = Date.now() - started;
   const after = existsSync(path) ? readFileSync(path, "utf8") : "";
   const route = routed.route ?? "unknown";

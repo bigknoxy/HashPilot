@@ -239,3 +239,49 @@ describe("hash edits are rejected when they would corrupt the file", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("newHash chains without a re-read (#101)", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+  const file = () => join(TMP_DIR, "sample.ts");
+
+  test("the returned newHash is the written range, not the whole file", async () => {
+    const before = readFileSync(file(), "utf-8").split("\n");
+    const first = await replaceHash(file(), computeHash(before[7]!), "  return 43;", { range: { start: 8, end: 8 } });
+    expect(first.success).toBe(true);
+    expect(first.newHash).toBe(computeHash("  return 43;"));
+    expect(first.fileHash).toBe(computeHash(readFileSync(file(), "utf-8")));
+    // The old bug: newHash was the file hash, so it could never match the range.
+    expect(first.newHash).not.toBe(first.fileHash);
+  });
+
+  test("a second edit using the returned newHash succeeds with no intervening read", async () => {
+    const before = readFileSync(file(), "utf-8").split("\n");
+    const first = await replaceHash(file(), computeHash(before[7]!), "  return 43;", { range: { start: 8, end: 8 } });
+    const second = await replaceHash(file(), first.newHash, "  return 44;", {
+      range: { start: first.newRange!.start, end: first.newRange!.end },
+    });
+    expect(second.success).toBe(true);
+    expect(second.stale).toBe(false);
+    expect(readFileSync(file(), "utf-8").split("\n")[7]).toBe("  return 44;");
+  });
+
+  test("newRange tracks a replacement that changes the line count", async () => {
+    const before = readFileSync(file(), "utf-8").split("\n");
+    const first = await replaceHash(file(), computeHash(before[7]!), "  const n = 43;\n  return n;", { range: { start: 8, end: 8 } });
+    expect(first.newRange).toEqual({ start: 8, end: 9 });
+    const second = await replaceHash(file(), first.newHash, "  return 45;", {
+      range: { start: first.newRange!.start, end: first.newRange!.end },
+    });
+    expect(second.success).toBe(true);
+    expect(readFileSync(file(), "utf-8").split("\n")[7]).toBe("  return 45;");
+  });
+
+  test("a whole-file edit reports the same hash for range and file", async () => {
+    const original = readFileSync(file(), "utf-8");
+    const next = "export const only = 1;\n";
+    const r = await replaceHash(file(), computeHash(original), next);
+    expect(r.success).toBe(true);
+    expect(r.newHash).toBe(r.fileHash);
+  });
+});

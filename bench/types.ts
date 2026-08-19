@@ -59,6 +59,15 @@ export interface BenchCase {
    * line range (1-indexed, inclusive) and injects it as `edit.oldHash`.
    */
   hashRange?: { start: number; end: number };
+  /**
+   * Second edit applied to the *result* of the first, anchored only on what the
+   * first edit returned (`newHash` + `newRange`) — no re-read of the file. This
+   * is the hash tier's central claim: an agent editing the same region twice
+   * should not have to pull the file back into context. Chaining used to be
+   * impossible because `newHash` was the whole-file hash (#101). `expected` is
+   * asserted after the chained edit.
+   */
+  chain?: { newContent: string };
   /** Free-form tags for slicing the report (e.g. "grouped-import", "unicode"). */
   tags?: string[];
   /**

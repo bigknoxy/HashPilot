@@ -200,6 +200,12 @@ hashpilot replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5
 hashpilot verify-changes src/main.ts --auto-detect
 ```
 
+Editing the same region twice needs no second read: a successful `replace-hash`
+returns `newHash` — the hash of the content it just wrote — plus `newRange`,
+where that content now lives. Feed the pair back as the next call's `oldHash`
+and `--range`. (`fileHash` is the whole file after the edit; it is reported for
+information and is not an anchor.)
+
 Every check is opt-in, so `--auto-detect` (or an explicit `--formatter` /
 `--linter` / `--typecheck` / `--test-runner`) is what makes the command verify
 anything. A run with no check reports `overall: "skipped"` and exits 4 rather
