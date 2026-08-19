@@ -499,7 +499,7 @@ hashpilot diff apply [options] <file>
 |------|---------|
 | `--patch <file>` | Patch file to apply (or '-' for stdin) |
 | `--dry-run` | Preview without writing |
-| `-f, --fuzzy <n>` | Fuzzy match tolerance (default: "3") |
+| `-f, --fuzzy <n>` | Fuzzy match tolerance in lines; 0 = strict (exact offset and content, refuses otherwise) (default: "3") |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |

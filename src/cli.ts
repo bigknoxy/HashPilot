@@ -711,7 +711,7 @@ diffCmd
   .argument("<file>", "File to patch")
   .option("--patch <file>", "Patch file to apply (or '-' for stdin)")
   .option("--dry-run", "Preview without writing")
-  .option("-f, --fuzzy <n>", "Fuzzy match tolerance", "3")
+  .option("-f, --fuzzy <n>", "Fuzzy match tolerance in lines; 0 = strict (exact offset and content, refuses otherwise)", "3")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
