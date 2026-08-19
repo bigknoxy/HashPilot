@@ -1,3 +1,10 @@
+## [4.4.6](https://github.com/bigknoxy/HashPilot/compare/v4.4.5...v4.4.6) (2026-08-19)
+
+
+### Bug Fixes
+
+* **grep:** parse grep output from the search roots, report a real column ([#115](https://github.com/bigknoxy/HashPilot/issues/115)) ([946bf9f](https://github.com/bigknoxy/HashPilot/commit/946bf9fd88abc87f07ae5c27e7591e21655f15ee)), closes [#105](https://github.com/bigknoxy/HashPilot/issues/105)
+
 ## [4.4.5](https://github.com/bigknoxy/HashPilot/compare/v4.4.4...v4.4.5) (2026-08-19)
 
 
