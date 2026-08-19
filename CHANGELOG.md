@@ -1,3 +1,10 @@
+## [4.4.2](https://github.com/bigknoxy/HashPilot/compare/v4.4.1...v4.4.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **diff:** property-test the diff engine, add strict fuzzy-0 mode ([#31](https://github.com/bigknoxy/HashPilot/issues/31)) ([#111](https://github.com/bigknoxy/HashPilot/issues/111)) ([2ca1ba5](https://github.com/bigknoxy/HashPilot/commit/2ca1ba558954f3c87314974265d44cff96883fa5))
+
 ## [4.4.1](https://github.com/bigknoxy/HashPilot/compare/v4.4.0...v4.4.1) (2026-08-19)
 
 
