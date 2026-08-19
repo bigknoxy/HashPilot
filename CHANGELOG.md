@@ -1,3 +1,10 @@
+# [4.3.0](https://github.com/bigknoxy/HashPilot/compare/v4.2.1...v4.3.0) (2026-08-19)
+
+
+### Features
+
+* **mcp:** expose HashPilot as an MCP server over stdio ([#25](https://github.com/bigknoxy/HashPilot/issues/25)) ([#94](https://github.com/bigknoxy/HashPilot/issues/94)) ([5073c11](https://github.com/bigknoxy/HashPilot/commit/5073c112224f2a22d48d2d4277c1fea976ffb7bd))
+
 ## [4.2.1](https://github.com/bigknoxy/HashPilot/compare/v4.2.0...v4.2.1) (2026-08-19)
 
 
