@@ -19,6 +19,7 @@ import { loadConfig, policyForce, RoutePolicy } from "./config";
 import { addWarning } from "./envelope";
 import { acquireLock, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
 import { readDecoded } from "./encoding";
+import { toPreview } from "./diff-engine";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -122,6 +123,11 @@ export async function routeEdit(params: {
   oldContent?: string;
   dryRun?: boolean;
   /**
+   * Dry runs return a unified diff instead of the whole post-edit file. Set this
+   * when you genuinely want the full text back (#98).
+   */
+  includeSource?: boolean;
+  /**
    * Internal: the caller already holds this file's advisory lock (`batch-edit`
    * locks its whole file set up front in sorted order, then routes each file).
    * The lock is not re-entrant on purpose — two genuinely concurrent writers in
@@ -137,7 +143,7 @@ export async function routeEdit(params: {
   const start = Date.now();
   let editSource: string | undefined;
   let editResult: string | undefined;
-  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, alreadyLocked, actor, taskId, reason } = params;
+  const { filePath, operation, method, policy, oldHash, newContent, range, oldName, newName, symbolName, newBody, importSpec, content: insertContent, oldContent, dryRun, includeSource, alreadyLocked, actor, taskId, reason } = params;
 
   let route: EditRoute;
   let explanation: RouteExplanation;
@@ -398,7 +404,10 @@ export async function routeEdit(params: {
     ...provenanceFields,
   });
 
-  return { route, routeReason, fallback, result, elapsed_ms: elapsed, explanation };
+  // A dry run previews; it does not dump the file back at the caller (#98).
+  const payload = dryRun ? toPreview(result, editSource, filePath, includeSource) : result;
+
+  return { route, routeReason, fallback, result: payload, elapsed_ms: elapsed, explanation };
 }
 
 /**

@@ -267,6 +267,7 @@ hashpilot ast rename-symbol [options] <file> <old-name> <new-name>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -288,6 +289,7 @@ hashpilot ast replace-body [options] <file> <symbol> <new-body>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -308,6 +310,7 @@ hashpilot ast add-import [options] <file> <import-spec>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -328,6 +331,7 @@ hashpilot ast remove-import [options] <file> <import-spec>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -349,6 +353,7 @@ hashpilot ast insert-before [options] <file> <symbol> <content>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -370,6 +375,7 @@ hashpilot ast insert-after [options] <file> <symbol> <content>
 | Flag | Meaning |
 |------|---------|
 | `--dry-run` | Preview only |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -402,6 +408,7 @@ hashpilot route-edit [options] <file> <operation>
 | `--content <text>` | Content (insert-before, insert-after, or @file) |
 | `--policy <json>` | Inline RoutePolicy JSON |
 | `--dry-run` | Preview without writing |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
@@ -435,6 +442,7 @@ hashpilot batch [options] <operation> <files...>
 | `--policy <json>` | Inline RoutePolicy JSON |
 | `--serial` | Execute sequentially instead of parallel |
 | `--dry-run` | Preview without writing |
+| `--include-source` | On a dry run, return the whole post-edit file instead of a diff |
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |

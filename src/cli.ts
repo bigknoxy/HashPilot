@@ -39,6 +39,7 @@ import {
   editManySerial,
   executeIntent,
   generateUnifiedDiff,
+  toPreview,
   applyPatch,
   ErrorCode,
   listSessions,
@@ -328,6 +329,7 @@ astCmd
   .argument("<old-name>", "Current symbol name")
   .argument("<new-name>", "New symbol name")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -347,7 +349,8 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, content, file, opts.includeSource) : result);
   });
 
 astCmd
@@ -357,6 +360,7 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<new-body>", "New body (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -378,7 +382,8 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, content, file, opts.includeSource) : result);
   });
 
 astCmd
@@ -387,6 +392,7 @@ astCmd
   .argument("<file>", "File path")
   .argument("<import-spec>", "Import spec (e.g. '{ Foo } from ./bar')")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -406,7 +412,8 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, content, file, opts.includeSource) : result);
   });
 
 astCmd
@@ -415,6 +422,7 @@ astCmd
   .argument("<file>", "File path")
   .argument("<import-spec>", "Import spec to remove")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -434,7 +442,8 @@ astCmd
       source: content, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, content, file, opts.includeSource) : result);
   });
 
 astCmd
@@ -444,6 +453,7 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<content>", "Content to insert (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -465,7 +475,8 @@ astCmd
       source: src, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, src, file, opts.includeSource) : result);
   });
 
 astCmd
@@ -475,6 +486,7 @@ astCmd
   .argument("<symbol>", "Symbol name")
   .argument("<content>", "Content to insert (or @file)")
   .option("--dry-run", "Preview only")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -496,7 +508,8 @@ astCmd
       source: src, newSource: result.newSource, filePath: file,
       actor: opts.actor, taskId: opts.taskId, reason: opts.reason,
     });
-    finish(result);
+    // A dry run previews the change; it does not hand back the whole file (#98).
+    finish(opts.dryRun ? toPreview(result, src, file, opts.includeSource) : result);
   });
 
 program
@@ -517,6 +530,7 @@ program
   .option("--content <text>", "Content (insert-before, insert-after, or @file)")
   .option("--policy <json>", "Inline RoutePolicy JSON")
   .option("--dry-run", "Preview without writing")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -545,6 +559,7 @@ program
       content: await resolveContent(opts.content),
       policy: opts.policy ? JSON.parse(opts.policy) : undefined,
       dryRun: opts.dryRun,
+      includeSource: opts.includeSource,
       actor: opts.actor,
       taskId: opts.taskId,
       reason: opts.reason,
@@ -572,6 +587,7 @@ program
   .option("--policy <json>", "Inline RoutePolicy JSON")
   .option("--serial", "Execute sequentially instead of parallel")
   .option("--dry-run", "Preview without writing")
+  .option("--include-source", "On a dry run, return the whole post-edit file instead of a diff")
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
@@ -600,6 +616,7 @@ program
       content: await resolveContent(opts.content),
       policy: opts.policy ? JSON.parse(opts.policy) : undefined,
       dryRun: opts.dryRun,
+      includeSource: opts.includeSource,
       actor: opts.actor,
       taskId: opts.taskId,
       reason: opts.reason,

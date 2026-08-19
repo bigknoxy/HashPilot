@@ -53,7 +53,7 @@ export {
   RETENTION_DAYS,
 } from "./telemetry";
 export type { TelemetryEvent, HealthReport, HealthTrend, SessionSummary } from "./telemetry";
-export { generateUnifiedDiff, parsePatch, applyPatchToSource, applyPatch } from "./diff-engine";
+export { generateUnifiedDiff, toPreview, parsePatch, applyPatchToSource, applyPatch } from "./diff-engine";
 export type { Hunk, PatchResult } from "./diff-engine";
 export { chooseRoute, routeEdit } from "./router";
 export type { EditRoute, RouterResult, RouteExplanation } from "./router";

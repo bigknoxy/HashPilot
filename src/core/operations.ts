@@ -95,8 +95,19 @@ const PROVENANCE_PARAMS: OperationParam[] = [
   { name: "actor", type: "string", required: false, description: "Your agent identity, recorded in the edit history." },
   { name: "taskId", type: "string", required: false, description: "Task or issue reference this edit belongs to." },
   { name: "reason", type: "string", required: false, description: "Why this edit is being made, in one line." },
-  { name: "dryRun", type: "boolean", required: false, description: "Compute the edit and report it without writing to disk." },
+  { name: "dryRun", type: "boolean", required: false, description: "Compute the edit and report it without writing to disk. The result is a unified `diff` of the changed hunks, not the whole file." },
 ];
+
+/**
+ * Opt-in on the operations whose dry run would otherwise hand back a whole file
+ * (#98). The hash tier already answers with a diff, so it does not carry this.
+ */
+const PREVIEW_PARAM: OperationParam = {
+  name: "includeSource",
+  type: "boolean",
+  required: false,
+  description: "On a dry run, return the full post-edit text as `newSource` instead of just the diff. Costs one whole file of context.",
+};
 
 /** Shared handler for every edit: one path, so locking and provenance are uniform. */
 function editHandler(
@@ -110,6 +121,7 @@ function editHandler(
       operation,
       method,
       dryRun: bool(args, "dryRun"),
+      includeSource: bool(args, "includeSource"),
       actor: str(args, "actor"),
       taskId: str(args, "taskId"),
       reason: str(args, "reason"),
@@ -287,6 +299,7 @@ export const OPERATIONS: Operation[] = [
       { name: "oldContent", type: "string", required: true, description: "Exact existing text to replace. Must occur exactly once." },
       { name: "newContent", type: "string", required: true, description: "Replacement text. An empty string deletes the block." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("replace-content", "diff", (a) => ({
@@ -312,6 +325,7 @@ export const OPERATIONS: Operation[] = [
       { name: "oldName", type: "string", required: true, description: "Current symbol name." },
       { name: "newName", type: "string", required: true, description: "New symbol name." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("rename-symbol", "ast", (a) => ({
@@ -334,6 +348,7 @@ export const OPERATIONS: Operation[] = [
       { name: "symbol", type: "string", required: true, description: "Name of the function or method." },
       { name: "newBody", type: "string", required: true, description: "Replacement body, including its braces or indentation block." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("replace-body", "ast", (a) => ({
@@ -354,6 +369,7 @@ export const OPERATIONS: Operation[] = [
       FILE_PARAM,
       { name: "importSpec", type: "string", required: true, description: "Import to add, e.g. '{ Foo } from ./bar'." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("add-import", "ast", (a) => ({ importSpec: str(a, "importSpec") })),
@@ -371,6 +387,7 @@ export const OPERATIONS: Operation[] = [
       FILE_PARAM,
       { name: "importSpec", type: "string", required: true, description: "Import to remove, in the same form as it appears." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("remove-import", "ast", (a) => ({ importSpec: str(a, "importSpec") })),
@@ -389,6 +406,7 @@ export const OPERATIONS: Operation[] = [
       { name: "symbol", type: "string", required: true, description: "Symbol to insert before." },
       { name: "content", type: "string", required: true, description: "Code to insert." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("insert-before", "ast", (a) => ({
@@ -410,6 +428,7 @@ export const OPERATIONS: Operation[] = [
       { name: "symbol", type: "string", required: true, description: "Symbol to insert after." },
       { name: "content", type: "string", required: true, description: "Code to insert." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: editHandler("insert-after", "ast", (a) => ({
@@ -444,6 +463,7 @@ export const OPERATIONS: Operation[] = [
       { name: "importSpec", type: "string", required: false, description: "Import spec, for add-import and remove-import." },
       { name: "content", type: "string", required: false, description: "Content, for insert-before and insert-after." },
       ...PROVENANCE_PARAMS,
+      PREVIEW_PARAM,
     ],
     mutates: true,
     handler: async (a) =>
@@ -462,6 +482,7 @@ export const OPERATIONS: Operation[] = [
         importSpec: str(a, "importSpec"),
         content: str(a, "content"),
         dryRun: bool(a, "dryRun"),
+        includeSource: bool(a, "includeSource"),
         actor: str(a, "actor"),
         taskId: str(a, "taskId"),
         reason: str(a, "reason"),

@@ -29,6 +29,13 @@ export interface CaseEdit {
   newContent?: string;
   oldHash?: string;
   range?: { start: number; end: number };
+  /**
+   * Preview the edit instead of applying it. A dry-run case asserts the two
+   * things a preview must get right: nothing reaches disk, and the payload is a
+   * diff rather than the whole post-edit file (#98).
+   */
+  dryRun?: boolean;
+  includeSource?: boolean;
 }
 
 export interface BenchCase {
@@ -68,6 +75,13 @@ export interface BenchCase {
    * asserted after the chained edit.
    */
   chain?: { newContent: string };
+  /**
+   * Assertions about a dry run's *payload*, not the file. `diff` requires the
+   * result to carry a unified diff and no `newSource`; `source` requires the
+   * opposite (the `includeSource` opt-in). A dry run that dumps the file when it
+   * promised a diff is the regression #98 was filed for.
+   */
+  expectPreview?: "diff" | "source";
   /** Free-form tags for slicing the report (e.g. "grouped-import", "unicode"). */
   tags?: string[];
   /**
