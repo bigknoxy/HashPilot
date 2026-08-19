@@ -16,6 +16,12 @@ export interface TelemetryConfig {
   maxFileSize?: number;
   maxRotatedFiles?: number;
   retentionDays?: number;
+  /**
+   * Cap on one serialized JSONL record, in bytes. Oversized payloads (a
+   * captured diff) are stored out-of-line by hash and referenced from the
+   * record, so the log stays a log rather than an object store (#20).
+   */
+  maxRecordBytes?: number;
 }
 
 export interface ProvenanceConfig {
@@ -50,7 +56,7 @@ export interface HashPilotConfig {
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
-  telemetry: { enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30 },
+  telemetry: { enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30, maxRecordBytes: 4096 },
 };
 
 const ROUTE_PRECEDENCE: EditRoute[] = ["diff", "hash", "ast"];

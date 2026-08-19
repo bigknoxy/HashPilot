@@ -2,6 +2,7 @@ import { mkdirSync, appendFileSync, readFileSync, existsSync, writeFileSync, ren
 import { join } from "path";
 import type { TelemetryConfig } from "./config";
 import { redactEvent } from "./redact";
+import { createHash } from "crypto";
 
 const LOG_DIR = join(process.env.HOME || "/root", ".agentic-tools", "logs");
 const LOG_FILE = join(LOG_DIR, "telemetry.jsonl");
@@ -11,12 +12,21 @@ const ROTATED_FILE_RE = /^telemetry-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.jsonl$/;
 export let MAX_FILE_SIZE = 10 * 1024 * 1024;
 export let MAX_ROTATED_FILES = 10;
 export let RETENTION_DAYS = 30;
+/**
+ * Cap on one serialized record. A captured diff is unbounded — one edit to a
+ * large file used to write megabytes into a line of the log, which made the
+ * log expensive to read, unbounded between rotation checks, and impossible to
+ * stream (#20). Oversized payloads move to a content-addressed store beside
+ * the log and the record keeps only the hash.
+ */
+export let MAX_RECORD_BYTES = 4096;
 
 export function configureTelemetry(cfg: TelemetryConfig | undefined): void {
   if (!cfg) return;
   if (cfg.maxFileSize !== undefined) MAX_FILE_SIZE = cfg.maxFileSize;
   if (cfg.maxRotatedFiles !== undefined) MAX_ROTATED_FILES = cfg.maxRotatedFiles;
   if (cfg.retentionDays !== undefined) RETENTION_DAYS = cfg.retentionDays;
+  if (cfg.maxRecordBytes !== undefined) MAX_RECORD_BYTES = cfg.maxRecordBytes;
   // `enabled` used to be parsed and then ignored, so opting out via config did
   // nothing. It is the lowest-priority switch: env and CLI still override it.
   if (cfg.enabled !== undefined) sessionEnabled = cfg.enabled;
@@ -120,6 +130,14 @@ export interface TelemetryEvent {
   afterHash?: string;
   /** Unified diff of the change */
   diff?: string;
+  /**
+   * Hash of a diff held in the payload store because inlining it would blow
+   * past `MAX_RECORD_BYTES` (#20). Readers rehydrate `diff` from it, so
+   * consumers never have to know which of the two a record was written with.
+   */
+  diffRef?: string;
+  /** Size of the spilled diff in bytes, so a reader can report it unresolved. */
+  diffBytes?: number;
   /** 0-indexed position of this step within a changeSet */
   stepIndex?: number;
   /** Total number of steps in the changeSet */
@@ -206,6 +224,83 @@ function maybeRotate(): void {
   }
 }
 
+/** Content-addressed store for payloads too large to inline in a record. */
+function payloadsDir(): string {
+  return join(LOG_DIR, "payloads");
+}
+
+function payloadPath(ref: string): string {
+  return join(payloadsDir(), `${ref}.txt`);
+}
+
+/**
+ * Write a payload out-of-line and return its hash. Content-addressed, so the
+ * same diff recorded twice costs one object. Written temp-then-rename: a reader
+ * must never see a half-written payload behind a reference that already landed
+ * in the log.
+ */
+function storePayload(content: string): string {
+  const ref = createHash("sha256").update(content).digest("hex").slice(0, 32);
+  const dest = payloadPath(ref);
+  if (existsSync(dest)) return ref;
+  mkdirSync(payloadsDir(), { recursive: true, mode: 0o700 });
+  const tmp = `${dest}.${process.pid}.tmp`;
+  writeFileSync(tmp, content, { mode: 0o600 });
+  renameSync(tmp, dest);
+  return ref;
+}
+
+function loadPayload(ref: string): string | undefined {
+  try {
+    return readFileSync(payloadPath(ref), "utf-8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Bring one record under `MAX_RECORD_BYTES`.
+ *
+ * The diff is the only genuinely unbounded field, so it spills to the payload
+ * store first and the record keeps `diffRef` plus the original byte count.
+ * `context` and `detail` are bounded by their own callers but can still be long
+ * enough to matter, so they are truncated as a backstop. A record that is still
+ * oversized after all that is written as-is: dropping telemetry to satisfy a
+ * size cap would lose the very events most worth having.
+ */
+export function capRecord(entry: TelemetryEvent): TelemetryEvent {
+  if (Buffer.byteLength(JSON.stringify(entry)) <= MAX_RECORD_BYTES) return entry;
+
+  const capped: TelemetryEvent = { ...entry };
+  if (capped.diff !== undefined) {
+    const diff = capped.diff;
+    capped.diffBytes = Buffer.byteLength(diff);
+    capped.diffRef = storePayload(diff);
+    delete capped.diff;
+  }
+  if (Buffer.byteLength(JSON.stringify(capped)) <= MAX_RECORD_BYTES) return capped;
+
+  for (const field of ["context", "detail"] as const) {
+    const value = capped[field];
+    if (typeof value !== "string" || value.length <= 200) continue;
+    capped[field] = value.slice(0, 200) + "...";
+    if (Buffer.byteLength(JSON.stringify(capped)) <= MAX_RECORD_BYTES) return capped;
+  }
+  return capped;
+}
+
+/**
+ * Put a spilled diff back on the record. Readers (health, provenance) see the
+ * same shape they always did; the out-of-line store is a storage detail, not a
+ * change to the query contract. A payload pruned by retention leaves the
+ * reference in place so the record still says a diff existed.
+ */
+function rehydrate(entry: TelemetryEvent): TelemetryEvent {
+  if (entry.diff !== undefined || entry.diffRef === undefined) return entry;
+  const diff = loadPayload(entry.diffRef);
+  return diff === undefined ? entry : { ...entry, diff };
+}
+
 // --- Core functions ---
 
 export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId">): void {
@@ -219,7 +314,7 @@ export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId
       timestamp: new Date().toISOString(),
       sessionId,
     });
-    appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n", { mode: 0o600 });
+    appendFileSync(LOG_FILE, JSON.stringify(capRecord(entry)) + "\n", { mode: 0o600 });
   } catch {}
 }
 
@@ -261,7 +356,7 @@ function parseLog(file: string): { events: TelemetryEvent[]; skipped: number } {
   for (const line of content.trim().split("\n")) {
     if (!line) continue;
     try {
-      events.push(JSON.parse(line));
+      events.push(rehydrate(JSON.parse(line)));
     } catch {
       skipped++;
     }
@@ -360,7 +455,27 @@ export function pruneEvents(olderThanDays: number = RETENTION_DAYS): number {
     }
   }
 
+  prunePayloads();
   return deleted;
+}
+
+/**
+ * Delete payload objects no surviving record points at. Pruning events without
+ * this leaves the store growing forever — the object outlives the only line
+ * that could ever ask for it.
+ */
+export function prunePayloads(): number {
+  if (!existsSync(payloadsDir())) return 0;
+  const referenced = new Set<string>();
+  for (const e of readAllEvents()) if (e.diffRef) referenced.add(e.diffRef);
+
+  let removed = 0;
+  for (const f of readdirSync(payloadsDir())) {
+    const ref = f.replace(/\.txt$/, "");
+    if (f === ref || referenced.has(ref)) continue;
+    try { unlinkSync(join(payloadsDir(), f)); removed++; } catch {}
+  }
+  return removed;
 }
 
 export function clearEvents(): void {
@@ -371,6 +486,13 @@ export function clearEvents(): void {
     // Also clean up rotated files
     for (const f of rotatedFiles()) {
       try { unlinkSync(f); } catch {}
+    }
+    // Payloads outlive the records that referenced them unless swept here, and
+    // a "cleared" log that still has megabytes of diffs under it is not clear.
+    if (existsSync(payloadsDir())) {
+      for (const f of readdirSync(payloadsDir())) {
+        try { unlinkSync(join(payloadsDir(), f)); } catch {}
+      }
     }
   } catch {}
 }

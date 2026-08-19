@@ -212,6 +212,8 @@ post-edit file, which used to make previewing an edit cost more context than
 making it. Pass `--include-source` (`includeSource: true`) when you really want
 the full text back.
 
+Telemetry stays a log, not an object store. Every record is capped at `telemetry.maxRecordBytes` (4 KB by default); a captured diff larger than that is written to a content-addressed store under `~/.agentic-tools/logs/payloads/` and referenced from the record by hash, which took one real edit's record from 27,526 bytes to 185. Reads rehydrate the diff, so `provenance query` and `telemetry health` see exactly what they saw before.
+
 Every check is opt-in, so `--auto-detect` (or an explicit `--formatter` /
 `--linter` / `--typecheck` / `--test-runner`) is what makes the command verify
 anything. A run with no check reports `overall: "skipped"` and exits 4 rather
