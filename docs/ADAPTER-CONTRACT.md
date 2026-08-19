@@ -570,9 +570,19 @@ hashpilot diff apply <file> [--patch <file>] [--dry-run] [-f <fuzzy>] [--actor <
   "hunksApplied": 1,
   "hunksFailed": 0,
   "message": "Applied 1 hunk(s)",
-  "newSource": "..."
+  "newSource": "...",
+  "placements": [{ "expectedAt": 12, "appliedAt": 12, "offset": 0 }],
+  "fuzzyPlacements": []
 }
 ```
+
+`placements` carries one entry per applied hunk, in patch order: `expectedAt` is the
+1-indexed line the patch recorded (adjusted for earlier hunks), `appliedAt` is where it
+landed, and `offset` is the difference. `fuzzyPlacements` is the subset with a non-zero
+`offset` — the hunks that slid — and when it is non-empty `message` says so.
+
+If the hunk context matches more than once inside the `--fuzzy` window, the patch is
+refused (`success: false`, no write) with a message naming every candidate line.
 
 ---
 

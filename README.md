@@ -378,7 +378,7 @@ demoted large files to the diff route.
 | Command | What It Does |
 |---------|-------------|
 | `diff generate <file> <old> <new>` | Generate a unified diff |
-| `diff apply <file> --patch <patch>` | Apply a patch with fuzzy matching (`--fuzzy 0` = strict: exact offset and content) |
+| `diff apply <file> --patch <patch>` | Apply a patch with fuzzy matching (`--fuzzy 0` = strict: exact offset and content). An ambiguous window — context matching more than once within `--fuzzy` lines — is refused with every candidate line named, and each applied hunk reports `expectedAt` / `appliedAt` / `offset` so a hunk that slid is visible |
 
 ### Multi-File & Intents
 
