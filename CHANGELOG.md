@@ -1,3 +1,10 @@
+## [4.4.10](https://github.com/bigknoxy/HashPilot/compare/v4.4.9...v4.4.10) (2026-08-19)
+
+
+### Bug Fixes
+
+* **diff:** refuse ambiguous fuzzy matches and report hunk placement ([#120](https://github.com/bigknoxy/HashPilot/issues/120)) ([793e649](https://github.com/bigknoxy/HashPilot/commit/793e649230892c2128731b40ad359ebd16a0e8c8)), closes [#33](https://github.com/bigknoxy/HashPilot/issues/33)
+
 ## [4.4.9](https://github.com/bigknoxy/HashPilot/compare/v4.4.8...v4.4.9) (2026-08-19)
 
 
