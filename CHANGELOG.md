@@ -1,3 +1,10 @@
+## [4.4.13](https://github.com/bigknoxy/HashPilot/compare/v4.4.12...v4.4.13) (2026-08-19)
+
+
+### Bug Fixes
+
+* **#39:** bound symbol search at depth 200 and report truncation ([#122](https://github.com/bigknoxy/HashPilot/issues/122)) ([5c0d3a2](https://github.com/bigknoxy/HashPilot/commit/5c0d3a201c63b17f6359d324ddf28055948eb81b)), closes [#39](https://github.com/bigknoxy/HashPilot/issues/39) [#39](https://github.com/bigknoxy/HashPilot/issues/39)
+
 ## [4.4.12](https://github.com/bigknoxy/HashPilot/compare/v4.4.11...v4.4.12) (2026-08-19)
 
 
