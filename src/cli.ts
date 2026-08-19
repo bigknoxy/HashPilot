@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 // Single source of truth for the version. Bun inlines this JSON import at build
 // time, so dist/ carries the real version instead of a hardcoded literal.
 import pkg from "../package.json" with { type: "json" };
@@ -195,14 +195,38 @@ program
 
 program
   .command("grep-many")
-  .description("Search pattern across multiple paths")
-  .argument("<pattern>", "Regex pattern")
-  .argument("<paths...>", "Paths to search")
+  .description(
+    'Search pattern across multiple paths. Usage: grep-many "safeWrite" src/ ' +
+      '(or the flag form: grep-many --pattern "safeWrite" --path src/)',
+  )
+  .argument("[pattern]", "Regex pattern (or use --pattern)")
+  .argument("[paths...]", "Paths to search (or use --path)")
   .option("-i, --ignore-case", "Case insensitive")
+  .option("--pattern <p>", "Regex pattern, flag form of the positional")
+  .option(
+    "--path <dir>",
+    "Path to search, flag form of the positional (repeatable)",
+    (value: string, previous: string[]) => previous.concat([value]),
+    [] as string[],
+  )
   .option("--file-pattern <glob>", "File pattern filter")
   .option("--max-results <n>", "Max results", parseInt)
 
-  .action(async (pattern: string, paths: string[], opts) => {
+  .action(async (patternArg: string | undefined, pathsArg: string[], opts) => {
+    if (patternArg !== undefined && opts.pattern !== undefined) {
+      return usageError('Pass the pattern positionally or as --pattern, not both.');
+    }
+    if (pathsArg.length > 0 && opts.path.length > 0) {
+      return usageError("Pass the paths positionally or as --path, not both.");
+    }
+    const pattern = patternArg ?? opts.pattern;
+    const paths = pathsArg.length > 0 ? pathsArg : opts.path;
+    if (!pattern) {
+      return usageError('A pattern is required: grep-many "<pattern>" <paths...> (or --pattern/--path).');
+    }
+    if (paths.length === 0) {
+      return usageError('At least one path is required: grep-many "<pattern>" <paths...> (or --pattern/--path).');
+    }
     const result = await grepMany(pattern, paths, {
       ignoreCase: opts.ignoreCase,
       filePattern: opts.filePattern,
@@ -1327,8 +1351,38 @@ function reportInternalError(err: unknown): void {
 process.on("uncaughtException", reportInternalError);
 process.on("unhandledRejection", reportInternalError);
 
+/**
+ * Route Commander's own parse failures (unknown flag, missing required
+ * argument, bad choice) through the JSON usage envelope instead of letting a
+ * bare `error: unknown option '--x'` line escape to stderr. An agent that
+ * cannot parse the failure cannot self-correct from it (#57).
+ *
+ * `--help` and `--version` also arrive here as CommanderErrors; those already
+ * wrote their output to stdout and must exit with their own code.
+ */
+function applyExitOverride(cmd: Command): void {
+  cmd.exitOverride();
+  cmd.configureOutput({ writeErr: () => {} });
+  for (const sub of cmd.commands) applyExitOverride(sub as Command);
+}
+
+applyExitOverride(program);
+
 try {
   program.parse();
 } catch (err) {
-  reportInternalError(err);
+  if (err instanceof CommanderError) {
+    if (err.code === "commander.helpDisplayed" || err.code === "commander.version" || err.code === "commander.help") {
+      process.exit(err.exitCode);
+    }
+    const attempted = process.argv[2];
+    if (attempted && program.commands.some((c) => (c as Command).name() === attempted)) {
+      setCommand(attempted);
+    }
+    usageError(err.message.replace(/^error: /, ""), {
+      recovery: `Run \`hashpilot ${attempted && !attempted.startsWith("-") ? attempted + " " : ""}--help\` for the accepted arguments.`,
+    });
+  } else {
+    reportInternalError(err);
+  }
 }

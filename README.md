@@ -317,7 +317,7 @@ diffable, and CI fails on any case that regresses from green.
 |---------|-------------|
 | `read-many <files...>` | Batch read files with SHA-256 content hashes |
 | `read-hash <file> <line>` | Read a specific line with context hash |
-| `grep-many <pattern> <paths...>` | Regex search across files |
+| `grep-many <pattern> <paths...>` | Regex search across files. Both forms work: `hashpilot grep-many "safeWrite" src/` or `hashpilot grep-many --pattern "safeWrite" --path src/` (`--path` repeatable); supplying both is a usage error. Any parse error — unknown flag, missing argument, unknown subcommand — returns the JSON usage envelope with `INVALID_ARGUMENT` and exit 1 rather than a bare Commander line on stderr |
 | `symbol-lookup-many <paths...> --names n1,n2` | Find symbol definitions by name |
 
 ### Upgrade

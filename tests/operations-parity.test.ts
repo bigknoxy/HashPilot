@@ -72,7 +72,10 @@ describe("registry ↔ CLI parity", () => {
           text.includes(`<${k}...>`) ||
           text.includes(`[${k}]`) ||
           // Plural positionals: `files` ← `<files...>`, `paths` ← `<paths...>`.
-          text.includes(`<${k}...>`);
+          text.includes(`<${k}...>`) ||
+          // Optional plural positionals, used where a flag form also exists:
+          // `paths` ← `[paths...]` on `grep-many` (#57).
+          text.includes(`[${k}...]`);
         if (!present) problems.push(`${op.name}.${p.name} (no --${k} or <${k}> on "${op.cliCommand.join(" ")}")`);
       }
     }

@@ -32,7 +32,13 @@ describe("documented invocation shapes", () => {
     expect(JSON.parse(ok.stdout).data.results.length).toBeGreaterThan(0);
   });
 
-  test("grep-many rejects the --pattern/--paths flags an agent might guess", () => {
+  test("grep-many also accepts the --pattern/--path flag form", () => {
+    const ok = run(["grep-many", "--pattern", "hashpilot", "--path", "package.json"]);
+    expect(ok.code).toBe(0);
+    expect(JSON.parse(ok.stdout).data.results.length).toBeGreaterThan(0);
+  });
+
+  test("grep-many rejects --paths, which is not the flag name", () => {
     const bad = run(["grep-many", "--pattern", "hashpilot", "--paths", "package.json"]);
     expect(bad.code).toBe(1);
   });
