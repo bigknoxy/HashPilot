@@ -1,3 +1,10 @@
+## [4.4.15](https://github.com/bigknoxy/HashPilot/compare/v4.4.14...v4.4.15) (2026-08-19)
+
+
+### Bug Fixes
+
+* **#51:** clone config defaults, null-unset route overrides, resettable session, telemetry on every command ([#126](https://github.com/bigknoxy/HashPilot/issues/126)) ([a7b351c](https://github.com/bigknoxy/HashPilot/commit/a7b351c3f120bf5507dca5d5727807df09c4b01f)), closes [#51](https://github.com/bigknoxy/HashPilot/issues/51) [#51](https://github.com/bigknoxy/HashPilot/issues/51) [#40](https://github.com/bigknoxy/HashPilot/issues/40) [#105](https://github.com/bigknoxy/HashPilot/issues/105)
+
 ## [4.4.14](https://github.com/bigknoxy/HashPilot/compare/v4.4.13...v4.4.14) (2026-08-19)
 
 
