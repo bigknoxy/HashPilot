@@ -148,16 +148,26 @@ read and recover from. The payload is the standard envelope:
 {
   "apiVersion": "1",
   "ok": false,
+  "command": "replace_hash",
+  "data": null,
   "error": {
     "code": "STALE_ANCHOR",
     "message": "the file changed since the hash was taken",
     "recovery": "Re-read the file and retry with the new hash."
-  }
+  },
+  "warnings": []
 }
 ```
 
 Act on `error.code`; `error.recovery` says what to do next. The codes are the
 same ones the CLI reports — see [ADAPTER-CONTRACT.md](ADAPTER-CONTRACT.md).
+
+Every tool response — success or failure — carries all five envelope fields,
+byte-for-byte the shape the CLI writes: `command` names the tool that answered,
+`data` and `error` are both present with one of them `null`, and `warnings`
+reports route fallbacks and relocated hash anchors. That last one is the reason
+this matters: an AST edit that quietly became a diff edit is otherwise
+indistinguishable from one that stayed on the AST tier ([#104](../../issues/104)).
 
 ## Write boundary
 

@@ -12,7 +12,7 @@
  */
 
 import { OPERATIONS, getOperation, inputSchemaFor } from "../core/operations";
-import { API_VERSION } from "../core/envelope";
+import { API_VERSION, setCommand, takeWarnings } from "../core/envelope";
 
 /** The MCP revision we implement. Echoed back in `initialize`. */
 export const PROTOCOL_VERSION = "2024-11-05";
@@ -110,15 +110,18 @@ function isNumeric(v: unknown): boolean {
  * "re-read the file and retry", not as a stack trace.
  */
 export async function callTool(name: string, rawArgs: unknown): Promise<Record<string, unknown>> {
+  // Scopes the envelope's `command` and clears any warnings left by a prior
+  // call, so `warnings` reports only what this tool call produced.
+  setCommand(name);
   const op = getOperation(name);
   if (!op) {
-    return errorResult("UNKNOWN_TOOL", `No such tool: ${name}`, "Call tools/list to see the available tools.");
+    return errorResult(name, "UNKNOWN_TOOL", `No such tool: ${name}`, "Call tools/list to see the available tools.");
   }
 
   const args = (rawArgs && typeof rawArgs === "object" ? rawArgs : {}) as Record<string, unknown>;
   const invalid = validateArgs(op, args);
   if (invalid) {
-    return errorResult("INVALID_ARGUMENTS", invalid, "Check the tool's inputSchema and call it again.");
+    return errorResult(name, "INVALID_ARGUMENTS", invalid, "Check the tool's inputSchema and call it again.");
   }
 
   try {
@@ -126,17 +129,18 @@ export async function callTool(name: string, rawArgs: unknown): Promise<Record<s
     const failure = findFailure(data);
     if (failure) {
       return errorResult(
+        name,
         String(failure.errorCode || failure.code || "EDIT_FAILED"),
         String(failure.error || failure.message || "the edit did not apply"),
         typeof failure.recovery === "string" ? failure.recovery : undefined,
         data as Record<string, unknown>
       );
     }
-    return okResult(data);
+    return okResult(name, data);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const code = (err as { errorCode?: string })?.errorCode || "INTERNAL_ERROR";
-    return errorResult(code, message);
+    return errorResult(name, code, message);
   }
 }
 
@@ -162,8 +166,17 @@ function findFailure(data: unknown): Record<string, unknown> | null {
  * directly, and a host that wants structure gets the same object back under
  * `structuredContent`.
  */
-function okResult(data: unknown): Record<string, unknown> {
-  const payload = { apiVersion: API_VERSION, ok: true, data };
+function okResult(command: string, data: unknown): Record<string, unknown> {
+  // The full five-field envelope, identical to the CLI's: an adapter written
+  // against docs/ADAPTER-CONTRACT.md must not have to special-case MCP (#104).
+  const payload = {
+    apiVersion: API_VERSION,
+    ok: true,
+    command,
+    data: data ?? null,
+    error: null,
+    warnings: takeWarnings(),
+  };
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
     structuredContent: payload,
@@ -171,11 +184,20 @@ function okResult(data: unknown): Record<string, unknown> {
   };
 }
 
-function errorResult(code: string, message: string, recovery?: string, details?: unknown): Record<string, unknown> {
+function errorResult(
+  command: string,
+  code: string,
+  message: string,
+  recovery?: string,
+  details?: unknown
+): Record<string, unknown> {
   const payload = {
     apiVersion: API_VERSION,
     ok: false,
+    command,
+    data: details ?? null,
     error: { code, message, ...(recovery ? { recovery } : {}), ...(details ? { details } : {}) },
+    warnings: takeWarnings(),
   };
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],

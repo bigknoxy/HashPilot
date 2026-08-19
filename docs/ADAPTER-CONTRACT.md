@@ -21,7 +21,7 @@ Every command writes the same top-level shape. Schema: [`schema/hashpilot-envelo
 |-------|---------|
 | `apiVersion` | Envelope version. `"1"` today; bumped only if the envelope's own shape breaks. |
 | `ok` | True exactly when the exit code is 0. `ok` and `$?` never disagree — check either, not both. |
-| `command` | Space-separated subcommand path, e.g. `"telemetry show"`. |
+| `command` | Space-separated subcommand path, e.g. `"telemetry show"`. Over MCP it is the tool name, e.g. `"replace_hash"`. |
 | `data` | The per-command payload. **Every example below shows what goes here, not the top level.** |
 | `error` | `null` when `ok`; otherwise `{ code, message, recovery?, details? }`. `code` is an `ErrorCode` — branch on it, never on `message`. |
 | `warnings` | Non-fatal notices, each `{ code, message, ... }`. Codes: `ROUTE_FALLBACK` (the edit was downgraded to a less safe route), `ANCHOR_RELOCATED` (the anchor moved; the edit landed elsewhere), `TELEMETRY_LOG_CORRUPT` (malformed log lines were skipped). |

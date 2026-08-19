@@ -293,3 +293,80 @@ describe("content fidelity", () => {
     expect(JSON.parse((res.content as any)[0].text).error.code).toBe("FILE_NOT_FOUND");
   });
 });
+
+/**
+ * Envelope conformance (#104).
+ *
+ * The MCP server used to emit a three-field envelope ({apiVersion, ok, data}),
+ * so `command` and `warnings` were unreachable over the integration path the
+ * docs recommend, and a relocated hash anchor or a route fallback looked
+ * identical to a clean hit.
+ */
+describe("MCP envelope matches the adapter contract (#104)", () => {
+  const KEYS = ["apiVersion", "ok", "command", "data", "error", "warnings"];
+
+  function payloadOf(res: Record<string, unknown>): Record<string, unknown> {
+    return JSON.parse((res.content as any)[0].text);
+  }
+
+  test("a successful call carries all five documented fields", async () => {
+    const res = await callTool("read_many", { files: ["package.json"] });
+    const payload = payloadOf(res);
+    expect(Object.keys(payload).sort()).toEqual([...KEYS].sort());
+    expect(payload.ok).toBe(true);
+    expect(payload.command).toBe("read_many");
+    expect(payload.error).toBeNull();
+    expect(Array.isArray(payload.warnings)).toBe(true);
+    expect(payload.data).not.toBeNull();
+    // structuredContent must be the same object, not the old shorter one.
+    expect(Object.keys(res.structuredContent as object).sort()).toEqual([...KEYS].sort());
+  });
+
+  test("a failing call carries the same fields, with error populated", async () => {
+    const res = await callTool("find_symbols", { file: "does/not/exist.ts" });
+    const payload = payloadOf(res);
+    expect(Object.keys(payload).sort()).toEqual([...KEYS].sort());
+    expect(payload.ok).toBe(false);
+    expect(payload.command).toBe("find_symbols");
+    expect((payload.error as any).code).toBe("FILE_NOT_FOUND");
+    expect(Array.isArray(payload.warnings)).toBe(true);
+  });
+
+  test("an unknown tool and a bad argument still produce a full envelope", async () => {
+    for (const [tool, args] of [
+      ["no_such_tool", {}],
+      ["read_hash", { file: "package.json", line: [] }],
+    ] as const) {
+      const payload = payloadOf(await callTool(tool, args));
+      expect(Object.keys(payload).sort()).toEqual([...KEYS].sort());
+      expect(payload.command).toBe(tool);
+    }
+  });
+
+  test("every tool responds with a full envelope naming itself", async () => {
+    // Arguments are deliberately absent: whether the call succeeds or is
+    // refused for a missing argument, the envelope shape must not vary.
+    for (const op of OPERATIONS) {
+      const payload = payloadOf(await callTool(op.name, {}));
+      expect(Object.keys(payload).sort()).toEqual([...KEYS].sort());
+      expect(payload.command).toBe(op.name);
+    }
+  });
+  test("a route fallback reaches the caller as a warning", async () => {
+    // The point of the fix: an AST edit that silently became a diff edit used
+    // to look identical over MCP to one that stayed on the AST tier.
+    const dir = makeFixtureDir("mcp-warn-");
+    const file = join(dir, "n.txt");
+    writeFileSync(file, "alpha\nbeta\n");
+    const payload = payloadOf(
+      await callTool("route_edit", {
+        file,
+        operation: "rename-symbol",
+        oldName: "alpha",
+        newName: "gamma",
+      })
+    );
+    expect((payload.warnings as any[]).map((w) => w.code)).toContain("ROUTE_FALLBACK");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
