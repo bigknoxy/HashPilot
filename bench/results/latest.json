@@ -1,26 +1,26 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.4.9",
-  "commit": "3ed6c63",
-  "generatedAt": "2026-08-19T16:37:16.554Z",
+  "hashpilotVersion": "4.4.11",
+  "commit": "c72fddb",
+  "generatedAt": "2026-08-19T18:48:32.143Z",
   "totals": {
-    "cases": 32,
+    "cases": 34,
     "correct": 25,
     "silentCorruption": 0,
     "falseRefusal": 0,
-    "correctRefusal": 7,
+    "correctRefusal": 9,
     "harnessError": 0,
     "correctnessRate": 1,
     "silentCorruptionRate": 0,
-    "totalElapsedMs": 41
+    "totalElapsedMs": 51
   },
   "byRoute": {
     "ast": {
-      "cases": 14,
+      "cases": 16,
       "correct": 12,
       "silentCorruption": 0,
       "falseRefusal": 0,
-      "correctRefusal": 2
+      "correctRefusal": 4
     },
     "hash": {
       "cases": 9,
@@ -39,11 +39,11 @@
   },
   "byLanguage": {
     "typescript": {
-      "cases": 12,
+      "cases": 14,
       "correct": 10,
       "silentCorruption": 0,
       "falseRefusal": 0,
-      "correctRefusal": 2
+      "correctRefusal": 4
     },
     "python": {
       "cases": 1,
@@ -74,7 +74,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 6,
+      "elapsed_ms": 7,
       "tags": [
         "rename",
         "typescript"
@@ -100,7 +100,7 @@
       "language": "go",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 3,
       "tags": [
         "rename",
         "go"
@@ -126,7 +126,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "replace-body",
         "typescript"
@@ -139,7 +139,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "insert",
         "typescript"
@@ -152,7 +152,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "import",
         "typescript",
@@ -249,7 +249,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "rename",
         "typescript",
@@ -258,12 +258,42 @@
       "outcome": "correct"
     },
     {
+      "id": "insert-after-parameter-name-refused",
+      "description": "a name that exists only as a parameter refuses instead of splicing into the parameter list",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 0,
+      "tags": [
+        "insert-after",
+        "typescript",
+        "anchor",
+        "38"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "insert-after-ambiguous-method-refused",
+      "description": "two methods with the same name refuse rather than picking the first",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 0,
+      "tags": [
+        "insert-after",
+        "typescript",
+        "ambiguity",
+        "38"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
       "id": "hash-replace-exact",
       "description": "replace a line range whose hash still matches",
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "hash"
       ],
@@ -275,7 +305,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 3,
       "tags": [
         "hash",
         "chaining"
@@ -301,7 +331,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "hash",
         "stale-anchor"
@@ -327,7 +357,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "hash",
         "multiline"
@@ -391,7 +421,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "diff",
         "ambiguity"
@@ -404,7 +434,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "diff"
       ],

@@ -360,8 +360,8 @@ Retention defaults to 200 changeSets / 7 days, configurable under `snapshots` in
 | `ast replace-body <file> <symbol> <body>` | Replace a function/method body |
 | `ast add-import <file> <spec>` | Add an import with grouped-import merging |
 | `ast remove-import <file> <spec>` | Remove an import statement |
-| `ast insert-before <file> <symbol> <content>` | Insert content before a named symbol |
-| `ast insert-after <file> <symbol> <content>` | Insert content after a named symbol |
+| `ast insert-before <file> <symbol> <content>` | Insert content before a named symbol. Only declarations anchor an insertion — a name that is only a parameter or import specifier is refused, and an ambiguous name lists every candidate. Content is indented to match the anchor |
+| `ast insert-after <file> <symbol> <content>` | Insert content after a named symbol (same anchor rules and indentation as `insert-before`) |
 
 AST edits are guarded at both ends. A file that does not already parse is refused
 (`PARSE_ERROR`, exit 2, with the line and column of the break) rather than edited
