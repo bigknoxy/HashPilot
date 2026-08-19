@@ -747,32 +747,311 @@ function removeImportUnchecked(
     return removeRustImport(source, tree, filePath, importSpec);
   }
 
-  // --- Other languages: remove entire import node containing the spec ---
-  const removals: { start: number; end: number }[] = [];
-  function collectRemovals(node: Parser.SyntaxNode) {
-    if (icfg && icfg.nodeTypes.includes(node.type) && node.text.includes(importSpec)) {
-      removals.push({ start: node.startIndex, end: node.endIndex });
-      return;
-    }
-    for (let i = 0; i < node.childCount; i++) {
-      collectRemovals(node.child(i));
+  // --- Other languages: binding-level surgical removal (#102) ---
+  return removeImportGeneric(source, tree, filePath, importSpec, lang);
+}
+
+/** One removable binding inside an import statement. */
+interface ImportItem {
+  node: Parser.SyntaxNode;
+  /** Every token that may legitimately select this binding. */
+  names: string[];
+}
+
+/** An import statement reduced to the pieces remove-import can act on. */
+interface ImportModel {
+  node: Parser.SyntaxNode;
+  /** Module identifiers that select the whole statement. */
+  modules: string[];
+  items: ImportItem[];
+  /**
+   * Rewrite the statement so only `keep` survives. Returns null when nothing
+   * survives, which means the caller should delete the whole statement.
+   */
+  rewrite: (keep: ImportItem[]) => { start: number; end: number; replace: string } | null;
+}
+
+/** Strip surrounding quotes from a string literal's source text. */
+function unquoteLiteral(text: string): string {
+  return text.replace(/^['"`]|['"`]$/g, "");
+}
+
+/**
+ * Split an importSpec into an optional binding name and optional module.
+ * Accepts the bare form (`statSync`, `node:fs`) and the documented full forms
+ * (`{ statSync } from "node:fs"`, `statSync from "node:fs"`,
+ * `from node:fs import statSync`). #102: the full form used to fail outright
+ * because it was matched as a literal substring.
+ */
+function parseImportSpecForm(spec: string): { name?: string; module?: string } {
+  const trimmed = spec.trim();
+  const jsForm = trimmed.match(/^\{?\s*([A-Za-z_$][\w$]*)\s*\}?\s+from\s+['"]([^'"]+)['"]$/);
+  if (jsForm) return { name: jsForm[1], module: jsForm[2] };
+  const pyForm = trimmed.match(/^from\s+([\w.]+)\s+import\s+([\w.]+)$/);
+  if (pyForm) return { name: pyForm[2], module: pyForm[1] };
+  const pyPlain = trimmed.match(/^import\s+([\w.]+)$/);
+  if (pyPlain) return { name: pyPlain[1] };
+  return {};
+}
+
+/** Names that select a TS/JS import specifier: the imported name and its alias. */
+function tsSpecifierNames(spec: Parser.SyntaxNode): string[] {
+  const names: string[] = [];
+  for (const c of spec.children) {
+    if (c.type === "identifier" || c.type === "type_identifier") names.push(c.text);
+  }
+  return names.length > 0 ? names : [spec.text.trim()];
+}
+
+function buildTsImportModel(node: Parser.SyntaxNode): ImportModel {
+  const clause = findChildByType(node, "import_clause");
+  const modules: string[] = [];
+  for (const c of node.children) {
+    if (c.type === "string") modules.push(unquoteLiteral(c.text));
+  }
+
+  let defaultItem: ImportItem | null = null;
+  let nsItem: ImportItem | null = null;
+  const named: ImportItem[] = [];
+  if (clause) {
+    for (const c of clause.children) {
+      if (c.type === "identifier") {
+        defaultItem = { node: c, names: [c.text] };
+      } else if (c.type === "namespace_import") {
+        const id = findLastIdentifier(c);
+        nsItem = { node: c, names: id ? [id.text] : [] };
+      } else if (c.type === "named_imports") {
+        for (const s of c.children) {
+          if (s.type === "import_specifier") named.push({ node: s, names: tsSpecifierNames(s) });
+        }
+      }
     }
   }
-  collectRemovals(tree.rootNode);
 
-  if (removals.length === 0) {
+  const items = [defaultItem, nsItem, ...named].filter((i): i is ImportItem => i !== null);
+
+  return {
+    node,
+    modules,
+    items,
+    rewrite(keep) {
+      if (!clause) return null;
+      const parts: string[] = [];
+      if (defaultItem && keep.includes(defaultItem)) parts.push(defaultItem.node.text);
+      if (nsItem && keep.includes(nsItem)) {
+        parts.push(nsItem.node.text);
+      } else {
+        const keptNamed = named.filter((n) => keep.includes(n));
+        if (keptNamed.length > 0) parts.push("{ " + keptNamed.map((n) => n.node.text).join(", ") + " }");
+      }
+      if (parts.length === 0) return null;
+      return { start: clause.startIndex, end: clause.endIndex, replace: parts.join(", ") };
+    },
+  };
+}
+
+/** Names that select a Python imported item: full dotted path, last segment, alias. */
+function pyItemNames(item: Parser.SyntaxNode): string[] {
+  const names = new Set<string>();
+  const add = (t: string) => {
+    names.add(t);
+    const last = t.split(".").pop();
+    if (last) names.add(last);
+  };
+  if (item.type === "aliased_import") {
+    for (const c of item.children) if (c.type !== "as") add(c.text);
+  } else {
+    add(item.text);
+  }
+  return [...names];
+}
+
+function buildPyImportModel(node: Parser.SyntaxNode): ImportModel {
+  const isFrom = node.type === "import_from_statement";
+  const modules: string[] = [];
+  const itemNodes: Parser.SyntaxNode[] = [];
+  let seenImportKeyword = !isFrom;
+
+  for (const c of node.children) {
+    if (c.type === "import" || c.text === "import") {
+      seenImportKeyword = true;
+      continue;
+    }
+    if (c.type === "from" || c.type === "," || c.type === "(" || c.type === ")") continue;
+    if (!seenImportKeyword) {
+      modules.push(c.text);
+      continue;
+    }
+    if (c.type === "wildcard_import") continue;
+    itemNodes.push(c);
+  }
+
+  const items = itemNodes.map((n) => ({ node: n, names: pyItemNames(n) }));
+
+  return {
+    node,
+    modules,
+    items,
+    rewrite(keep) {
+      const kept = items.filter((i) => keep.includes(i));
+      if (kept.length === 0 || itemNodes.length === 0) return null;
+      return {
+        start: itemNodes[0].startIndex,
+        end: itemNodes[itemNodes.length - 1].endIndex,
+        replace: kept.map((i) => i.node.text).join(", "),
+      };
+    },
+  };
+}
+
+/** Names that select a Go import spec: full path, last path segment, alias. */
+function goSpecNames(spec: Parser.SyntaxNode): string[] {
+  const names = new Set<string>();
+  for (const c of spec.children) {
+    if (c.type === "interpreted_string_literal" || c.type === "raw_string_literal") {
+      const path = unquoteLiteral(c.text);
+      names.add(path);
+      const last = path.split("/").pop();
+      if (last) names.add(last);
+    } else if (c.type === "package_identifier" || c.type === "identifier" || c.type === "dot" || c.type === "blank_identifier") {
+      names.add(c.text);
+    }
+  }
+  if (names.size === 0) {
+    const path = unquoteLiteral(spec.text);
+    names.add(path);
+    const last = path.split("/").pop();
+    if (last) names.add(last);
+  }
+  return [...names];
+}
+
+function buildGoImportModel(node: Parser.SyntaxNode): ImportModel {
+  const specList = findChildByType(node, "import_spec_list");
+  const specNodes: Parser.SyntaxNode[] = [];
+  const container = specList ?? node;
+  for (const c of container.children) {
+    if (c.type === "import_spec") specNodes.push(c);
+    else if (!specList && (c.type === "interpreted_string_literal" || c.type === "raw_string_literal")) specNodes.push(c);
+  }
+
+  const items = specNodes.map((n) => ({ node: n, names: goSpecNames(n) }));
+
+  return {
+    node,
+    modules: [],
+    items,
+    rewrite(keep) {
+      const kept = items.filter((i) => keep.includes(i));
+      if (kept.length === 0 || specNodes.length === 0) return null;
+      return {
+        start: specNodes[0].startIndex,
+        end: specNodes[specNodes.length - 1].endIndex,
+        replace: kept.map((i) => i.node.text).join("\n\t"),
+      };
+    },
+  };
+}
+
+function buildImportModel(node: Parser.SyntaxNode, lang: string): ImportModel | null {
+  if (lang === "typescript" || lang === "tsx" || lang === "javascript") {
+    return node.type === "import_statement" ? buildTsImportModel(node) : null;
+  }
+  if (lang === "python") {
+    return node.type === "import_statement" || node.type === "import_from_statement" ? buildPyImportModel(node) : null;
+  }
+  if (lang === "go") {
+    return node.type === "import_declaration" ? buildGoImportModel(node) : null;
+  }
+  return null;
+}
+
+/**
+ * Binding-level remove-import for TS/TSX/JS/Python/Go (#102).
+ *
+ * The old implementation deleted any import statement whose text *contained*
+ * importSpec, so removing `statSync` from
+ * `import { readFileSync, writeFileSync, statSync } from "node:fs"` silently
+ * deleted all three bindings, and `"fs"` matched `from "node:fs"`. Matching is
+ * now against parsed binding tokens: a name that is one of several bindings is
+ * removed from the clause, and the statement is deleted only when nothing
+ * survives it.
+ */
+function removeImportGeneric(
+  source: string,
+  tree: Parser,
+  filePath: string,
+  importSpec: string,
+  lang: string
+): ASTEditResult {
+  const icfg = IMPORT_CONFIGS[lang];
+  const form = parseImportSpecForm(importSpec);
+  const wantModule = form.module;
+  const wantName = form.name ?? (wantModule ? undefined : importSpec.trim());
+
+  const models: ImportModel[] = [];
+  function collect(node: Parser.SyntaxNode) {
+    if (icfg && icfg.nodeTypes.includes(node.type)) {
+      const model = buildImportModel(node, lang);
+      if (model) {
+        models.push(model);
+        return;
+      }
+    }
+    for (const child of node.children) collect(child);
+  }
+  collect(tree.rootNode);
+
+  const edits: { start: number; end: number; replace?: string }[] = [];
+  let changeCount = 0;
+
+  for (const model of models) {
+    if (wantModule !== undefined && !model.modules.includes(wantModule)) continue;
+
+    if (wantName === undefined) {
+      // Module-only spec: the whole statement goes.
+      edits.push({ start: model.node.startIndex, end: model.node.endIndex });
+      changeCount++;
+      continue;
+    }
+
+    const matched = model.items.filter((i) => i.names.includes(wantName));
+    if (matched.length === 0) {
+      // A bare spec may name the module rather than a binding.
+      if (wantModule === undefined && model.modules.includes(wantName)) {
+        edits.push({ start: model.node.startIndex, end: model.node.endIndex });
+        changeCount++;
+      }
+      continue;
+    }
+
+    const keep = model.items.filter((i) => !matched.includes(i));
+    const rewrite = keep.length > 0 ? model.rewrite(keep) : null;
+    if (rewrite) {
+      edits.push(rewrite);
+    } else {
+      edits.push({ start: model.node.startIndex, end: model.node.endIndex });
+    }
+    changeCount += matched.length;
+  }
+
+  if (edits.length === 0) {
     return { success: false, path: filePath, operation: "remove-import", changes: 0, message: `No import for '${importSpec}' found` };
   }
 
-  removals.sort((a, b) => b.start - a.start);
+  edits.sort((a, b) => b.start - a.start);
   let newSource = source;
-  for (const r of removals) {
-    let end = r.end;
-    while (end < newSource.length && newSource[end] === "\n") end++;
-    newSource = newSource.slice(0, r.start) + newSource.slice(end);
+  for (const e of edits) {
+    if (e.replace !== undefined) {
+      newSource = newSource.slice(0, e.start) + e.replace + newSource.slice(e.end);
+    } else {
+      let end = e.end;
+      while (end < newSource.length && newSource[end] === "\n") end++;
+      newSource = newSource.slice(0, e.start) + newSource.slice(end);
+    }
   }
 
-  return { success: true, path: filePath, operation: "remove-import", changes: removals.length, message: `Removed ${removals.length} import(s) for '${importSpec}'`, newSource };
+  return { success: true, path: filePath, operation: "remove-import", changes: changeCount, message: `Removed ${changeCount} import(s) for '${importSpec}'`, newSource };
 }
 
 /**
