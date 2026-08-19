@@ -112,7 +112,7 @@ looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0
 
 <!-- BEGIN GENERATED: command reference -->
 
-_35 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
+_36 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
 ### Global options
 
@@ -674,6 +674,18 @@ hashpilot undo [options] [changeSetId]
 | `--last` | Undo the most recent changeSet |
 | `--force` | Restore even files modified since the edit was applied |
 | `--dry-run` | Report what would be restored without touching the disk |
+
+#### `mcp`
+
+Run HashPilot as an MCP server over stdio
+
+```
+hashpilot mcp [options]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--stdio` | Speak MCP over stdin/stdout (the only transport, and the default) |
 
 #### `doctor`
 

@@ -24,3 +24,4 @@ tests/__tmp_*/
 
 # Local task tracking
 tasks/
+.hashpilot-test-tmp/

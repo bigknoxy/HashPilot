@@ -16,7 +16,7 @@
 > AST-aware + provenance-tracked. See [`docs/COMPETITIVE-ANALYSIS.md`](docs/COMPETITIVE-ANALYSIS.md).
 
 Landing page: **[https://bigknoxy.github.io/HashPilot/](https://bigknoxy.github.io/HashPilot/)**
-Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · CLI reference: **[docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
+Architecture: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · MCP setup: **[docs/INTEGRATION-MCP.md](docs/INTEGRATION-MCP.md)** · CLI reference: **[docs/CLI-QUICKREF.md](docs/CLI-QUICKREF.md)** · Roadmap & backlog: **[ROADMAP.md](ROADMAP.md)**
 
 Every edit is anchored by a SHA-256 hash — not a fragile line number or a fuzzy text match. If the hash matches, you're editing the right content. No guessing, no retries, no silent corruption.
 
@@ -469,6 +469,21 @@ HashPilot installs adapters for the three major coding agent platforms:
 | **Claude Code** | HashPilot section injected into `~/.claude/CLAUDE.md` teaching Claude to use `hashpilot` commands |
 | **OpenCode** | Skill at `~/.config/opencode/skills/hashpilot/` + subagent at `~/.config/opencode/agent/hashpilot.md` |
 | **Pi** | Native extension at `~/.pi/agent/extensions/hashpilot.ts` with 7 custom tools and `/hp` slash command |
+
+### MCP (recommended)
+
+HashPilot is also an MCP server, which is the recommended way to wire it into any
+MCP-capable host — Claude Code, Claude Desktop, Cursor, Zed, and others:
+
+```bash
+claude mcp add hashpilot -- hashpilot mcp --stdio
+```
+
+Every tier shows up as a typed tool with the same locking, provenance, and
+undo guarantees the CLI has, and multi-line content with quotes or backticks
+rides inside JSON instead of fighting the shell. Copy-paste configs per host:
+**[docs/INTEGRATION-MCP.md](docs/INTEGRATION-MCP.md)**. The CLI remains fully
+supported and is the fallback for hosts without MCP, and for shell and CI use.
 
 All adapters follow the [Adapter Contract](docs/ADAPTER-CONTRACT.md) — a machine-readable JSON protocol any agent can consume.
 

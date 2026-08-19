@@ -124,6 +124,14 @@ describe("the envelope is uniform across every command", () => {
     });
   }
 
+  /**
+   * `mcp` owns stdout for the whole process: it is a JSON-RPC stream, and an
+   * envelope written into it would corrupt the protocol. It is the one command
+   * that legitimately emits no envelope, and its own framing is covered by
+   * `tests/mcp-server.test.ts`. Any other exemption is a bug.
+   */
+  const NO_ENVELOPE = new Set(["mcp"]);
+
   test("every leaf command in --help is covered by the sweep", () => {
     // Otherwise a new command ships unvalidated and nobody notices.
     const covered = new Set(INVOCATIONS.map(([, args]) => args.slice(0, 2).join(" ")));
@@ -138,6 +146,7 @@ describe("the envelope is uniform across every command", () => {
       .filter((c): c is string => Boolean(c) && c !== "help");
 
     for (const cmd of top) {
+      if (NO_ENVELOPE.has(cmd)) continue;
       if (groups.includes(cmd)) {
         const sub = run([cmd, "--help"]).stdout;
         const leaves = sub

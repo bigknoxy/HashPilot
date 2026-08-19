@@ -13,6 +13,23 @@ This installs the `hashpilot` CLI and injects the sections below into `~/.claude
 This session has HashPilot Claude active at user scope.
 HashPilot Core (`hashpilot`) is available on PATH.
 
+### Preferred: use the MCP server
+
+If this host speaks MCP, register HashPilot once and use its tools directly
+instead of shelling out:
+
+```bash
+claude mcp add hashpilot -- hashpilot mcp --stdio
+```
+
+The MCP tools mirror the CLI one-for-one (`rename_symbol`, `replace_hash`,
+`route_edit`, `verify_changes`, and the read/search tools), and multi-line
+content with quotes or backticks rides inside JSON rather than through shell
+quoting. Setup for other hosts: `docs/INTEGRATION-MCP.md`.
+
+The CLI commands below remain fully supported and are the fallback when MCP is
+not available in this host.
+
 **Use HashPilot when:** editing existing files, renaming symbols, replacing function bodies, managing imports, batch reading, or verifying changes.
 
 **Skip HashPilot when:** creating new files, deleting files, moving/renaming files, simple one-off edits, or file system operations — use direct commands instead.
