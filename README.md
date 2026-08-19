@@ -161,8 +161,10 @@ parse. It hands off to Bun and forwards Bun's exit status unchanged, so a Node-o
 gets one actionable line instead of a syntax-error stack trace.
 
 ```bash
-# Verify it works (human-readable summary; add --json for machine output)
-hashpilot doctor
+# Verify it works — human-readable by default in a TTY, JSON when piped or in CI
+hashpilot doctor           # TTY: human-readable summary
+hashpilot doctor --format json
+# --json still works but is deprecated (emits a warning on stderr)
 hashpilot doctor --json
 
 # See your merged config
