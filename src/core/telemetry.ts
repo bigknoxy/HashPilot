@@ -166,7 +166,7 @@ export interface SessionSummary {
 // long-lived process serving many unrelated tasks, and a single permanent id
 // collapses all of them into one session, making per-task analysis impossible.
 // Hosts call `newSession()` (or `setSessionId`) at a task boundary (#51).
-let sessionId = crypto.randomUUID();
+let sessionId: string = crypto.randomUUID();
 
 let sessionEnabled = true;
 
@@ -333,6 +333,53 @@ function rehydrate(entry: TelemetryEvent): TelemetryEvent {
   return diff === undefined ? entry : { ...entry, diff };
 }
 
+/**
+ * Total bytes the telemetry store occupies: the active log, every rotated log,
+ * and the payload objects. Reported by `telemetry health` and `doctor` — an
+ * unbounded store nobody can see the size of is one nobody prunes (#50).
+ */
+export function diskUsage(): number {
+  if (!existsSync(LOG_DIR)) return 0;
+  let total = 0;
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      try {
+        const st = statSync(full);
+        if (st.isDirectory()) walk(full);
+        else total += st.size;
+      } catch {}
+    }
+  };
+  try { walk(LOG_DIR); } catch {}
+  return total;
+}
+
+/** Warn past this many bytes on disk. */
+export const DISK_WARN_BYTES = 100 * 1024 * 1024;
+
+const PRUNE_MARKER = join(LOG_DIR, ".last-prune");
+const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Enforce `retentionDays` without anyone running `telemetry prune`. The prune
+ * itself reads every event (payload GC needs the full reference set), so it
+ * must not run per write: a marker file gates it to once a day, and the cost on
+ * every other invocation is a single `statSync` (#50).
+ */
+function maybeAutoPrune(): void {
+  try {
+    if (existsSync(PRUNE_MARKER)) {
+      const age = Date.now() - statSync(PRUNE_MARKER).mtimeMs;
+      if (age < PRUNE_INTERVAL_MS) return;
+    }
+    // Touch first: a prune that throws must not re-run on every subsequent
+    // write, and losing one day of retention beats a hot loop over the log.
+    writeFileSync(PRUNE_MARKER, new Date().toISOString(), { mode: 0o600 });
+    pruneEvents();
+  } catch {}
+}
+
 // --- Core functions ---
 
 export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId">): void {
@@ -341,6 +388,7 @@ export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId
     ensureLogDir();
     tightenLogPermissions();
     maybeRotate();
+    maybeAutoPrune();
     const entry: TelemetryEvent = redactEvent({
       ...event,
       timestamp: new Date().toISOString(),
@@ -560,10 +608,12 @@ export interface HealthReport {
   perLanguage: Record<string, { operations: number; failures: number }>;
   verifyFailures: { total: number; byCheck: Record<string, number> };
   topFallbackCauses: { reason: string; count: number }[];
+  /** Bytes on disk across the active log, rotated logs, and the payload store. */
+  diskBytes: number;
   warnings: string[];
 }
 
-function computeHealthFromEvents(events: TelemetryEvent[], windowDays: number): Omit<HealthReport, "topFallbackCauses" | "warnings"> {
+function computeHealthFromEvents(events: TelemetryEvent[], windowDays: number): Omit<HealthReport, "topFallbackCauses" | "diskBytes" | "warnings"> {
   const routeDistribution: Record<string, { count: number; success: number }> = {};
   for (const e of events) {
     const r = routeDistribution[e.route] || (routeDistribution[e.route] = { count: 0, success: 0 });
@@ -673,9 +723,17 @@ export function health(windowDays: number = 7): HealthReport {
     }
   }
 
+  const diskBytes = diskUsage();
+  if (diskBytes > DISK_WARN_BYTES) {
+    warnings.push(
+      `Telemetry store is ${(diskBytes / (1024 * 1024)).toFixed(1)} MB, past the ${(DISK_WARN_BYTES / (1024 * 1024)).toFixed(0)} MB threshold — run 'hashpilot telemetry prune' or lower telemetry.retentionDays`
+    );
+  }
+
   return {
     ...base,
     topFallbackCauses,
+    diskBytes,
     warnings,
   };
 }
@@ -715,6 +773,9 @@ function healthFromWindow(pastDays: number, offsetDays: number): HealthReport {
   return {
     ...base,
     topFallbackCauses: [],
+    // The previous window is a historical slice; disk usage is a
+    // point-in-time property of the store, so it belongs only to `current`.
+    diskBytes: 0,
     warnings: [],
   };
 }

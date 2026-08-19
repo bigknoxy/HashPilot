@@ -1148,6 +1148,7 @@ Default window is 7 days.
   },
   "verifyFailures": { "total": 22, "byCheck": { "formatter": 6 } },
   "topFallbackCauses": [{ "reason": "stale-anchor", "count": 5 }],
+  "diskBytes": 4823194,
   "warnings": [
     "Stale-anchor rate 43% exceeds threshold of 10%"
   ]
@@ -1159,6 +1160,9 @@ Default window is 7 days.
 - Fallback-to-diff rate > 10% of all events
 - Verify-changes failure rate > 20%
 - Per-language failure rate > 30% (when >= 3 operations)
+- Telemetry store on disk > 100 MB
+
+`diskBytes` is the total size of the telemetry store — the active log, every rotated log, and the payload objects. It is a point-in-time property of the store, so on `--trend` output it is populated on `current` and always `0` on `previous`.
 
 ### telemetry health --trend
 

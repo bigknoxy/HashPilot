@@ -47,6 +47,8 @@ export {
   exportEvents,
   pruneEvents,
   prunePayloads,
+  diskUsage,
+  DISK_WARN_BYTES,
   configureTelemetry,
   enableTelemetry,
   resolveTelemetryEnabled,
