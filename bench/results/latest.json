@@ -1,18 +1,18 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.4.7",
-  "commit": "03bf296",
-  "generatedAt": "2026-08-19T15:03:57.466Z",
+  "hashpilotVersion": "4.4.9",
+  "commit": "3ed6c63",
+  "generatedAt": "2026-08-19T16:37:16.554Z",
   "totals": {
-    "cases": 31,
+    "cases": 32,
     "correct": 25,
     "silentCorruption": 0,
     "falseRefusal": 0,
-    "correctRefusal": 6,
+    "correctRefusal": 7,
     "harnessError": 0,
     "correctnessRate": 1,
     "silentCorruptionRate": 0,
-    "totalElapsedMs": 47
+    "totalElapsedMs": 41
   },
   "byRoute": {
     "ast": {
@@ -30,11 +30,11 @@
       "correctRefusal": 2
     },
     "diff": {
-      "cases": 8,
+      "cases": 9,
       "correct": 6,
       "silentCorruption": 0,
       "falseRefusal": 0,
-      "correctRefusal": 2
+      "correctRefusal": 3
     }
   },
   "byLanguage": {
@@ -60,11 +60,11 @@
       "correctRefusal": 0
     },
     "unknown": {
-      "cases": 17,
+      "cases": 18,
       "correct": 13,
       "silentCorruption": 0,
       "falseRefusal": 0,
-      "correctRefusal": 4
+      "correctRefusal": 5
     }
   },
   "results": [
@@ -126,7 +126,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "replace-body",
         "typescript"
@@ -152,7 +152,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "import",
         "typescript",
@@ -180,7 +180,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "import",
         "typescript"
@@ -193,7 +193,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 2,
       "tags": [
         "import",
         "typescript",
@@ -235,7 +235,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "rename",
         "typescript",
@@ -249,7 +249,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "rename",
         "typescript",
@@ -263,7 +263,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "hash"
       ],
@@ -301,7 +301,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "hash",
         "stale-anchor"
@@ -391,7 +391,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "diff",
         "ambiguity"
@@ -404,7 +404,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "diff"
       ],
@@ -444,7 +444,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "diff",
         "reserved-tokens",
@@ -477,6 +477,20 @@
         "encoding"
       ],
       "outcome": "correct"
+    },
+    {
+      "id": "diff-repeated-blocks-ambiguous",
+      "description": "a file of near-identical blocks refuses rather than patching the wrong one",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff",
+        "ambiguity",
+        "33"
+      ],
+      "outcome": "correct-refusal"
     }
   ]
 }
