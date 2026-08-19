@@ -44,6 +44,7 @@ export {
   listSessions,
   exportEvents,
   pruneEvents,
+  prunePayloads,
   configureTelemetry,
   enableTelemetry,
   resolveTelemetryEnabled,
@@ -51,6 +52,7 @@ export {
   MAX_FILE_SIZE,
   MAX_ROTATED_FILES,
   RETENTION_DAYS,
+  MAX_RECORD_BYTES,
 } from "./telemetry";
 export type { TelemetryEvent, HealthReport, HealthTrend, SessionSummary } from "./telemetry";
 export { generateUnifiedDiff, toPreview, parsePatch, applyPatchToSource, applyPatch } from "./diff-engine";
