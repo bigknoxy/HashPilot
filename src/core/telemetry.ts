@@ -161,10 +161,24 @@ export interface SessionSummary {
   durationMs: number;
 }
 
-// Generated once per CLI invocation at module load
-const sessionId = crypto.randomUUID();
+// Generated once at module load. For the CLI that is exactly right — one
+// process, one session. A library embedding or the MCP server, though, is a
+// long-lived process serving many unrelated tasks, and a single permanent id
+// collapses all of them into one session, making per-task analysis impossible.
+// Hosts call `newSession()` (or `setSessionId`) at a task boundary (#51).
+let sessionId = crypto.randomUUID();
 
 let sessionEnabled = true;
+
+// How many events this process has recorded. `finish()` consults it so a
+// command that records nothing of its own still lands one event, closing the
+// silent holes in the health report's operation coverage (#51).
+let recordedEventCount = 0;
+
+/** Events recorded by this process so far (successful writes only). */
+export function getRecordedEventCount(): number {
+  return recordedEventCount;
+}
 
 export function enableTelemetry(on: boolean = true): void {
   sessionEnabled = on;
@@ -172,6 +186,18 @@ export function enableTelemetry(on: boolean = true): void {
 
 export function getSessionId(): string {
   return sessionId;
+}
+
+/** Start a new telemetry session and return its id. */
+export function newSession(): string {
+  sessionId = crypto.randomUUID();
+  return sessionId;
+}
+
+/** Adopt a caller-supplied session id, e.g. one that matches the host's task id. */
+export function setSessionId(id: string): void {
+  if (!id) throw new Error("setSessionId requires a non-empty id");
+  sessionId = id;
 }
 
 // --- File helpers ---
@@ -321,6 +347,7 @@ export function recordEvent(event: Omit<TelemetryEvent, "timestamp" | "sessionId
       sessionId,
     });
     appendFileSync(LOG_FILE, JSON.stringify(capRecord(entry)) + "\n", { mode: 0o600 });
+    recordedEventCount++;
   } catch {}
 }
 

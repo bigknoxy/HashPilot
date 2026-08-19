@@ -1,5 +1,5 @@
-import { ErrorCode } from "./telemetry";
-import { wrap } from "./envelope";
+import { ErrorCode, recordEvent, getRecordedEventCount } from "./telemetry";
+import { wrap, currentCommandName } from "./envelope";
 import { resolveFormat, renderText, OutputFormat } from "./format";
 
 /**
@@ -132,8 +132,38 @@ export { resolveFormat, renderText };
  * and must not be degraded. Commands without a renderer fall back to a compact
  * key/value dump; never raw JSON in text mode.
  */
+// `telemetry *` reads, clears, and prunes the log; recording an event there
+// would grow the very file the command is inspecting and skew its own report.
+// `uninstall` removes the log directory outright.
+const TELEMETRY_EXEMPT_COMMANDS = ["uninstall"];
+
+const processStart = Date.now();
+
+/**
+ * CLAUDE.md says every command records a telemetry event, but a dozen commands
+ * (`capabilities`, `route`, `config`, `undo`, `provenance query`, …) recorded
+ * nothing, leaving silent holes in the health report's operation coverage.
+ * Rather than thread a recordEvent call through every action and its several
+ * finish() call sites, emit a fallback here — the one choke point every command
+ * already funnels through — but only when the action recorded nothing itself,
+ * so commands with richer events are not double-counted (#51).
+ */
+function recordFallbackEvent(exit: ExitCode): void {
+  const command = currentCommandName();
+  if (!command) return;
+  if (getRecordedEventCount() > 0) return;
+  if (command.startsWith("telemetry") || TELEMETRY_EXEMPT_COMMANDS.includes(command)) return;
+  recordEvent({
+    operation: command,
+    route: "other",
+    success: exit === ExitCode.OK,
+    elapsed_ms: Date.now() - processStart,
+  });
+}
+
 export function finish(payload: unknown, code?: ExitCode): void {
   const exit = code ?? exitCodeFor(payload as ResultLike);
+  recordFallbackEvent(exit);
     // In text mode: success payloads get the compact renderer; errors always emit JSON.
   if (outputFormat === "text" && (payload as { success?: boolean }).success !== false) {
       // `wrap()` produces { apiVersion, ok, command, data, ... }; `data` carries
