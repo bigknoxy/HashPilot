@@ -357,8 +357,8 @@ Retention defaults to 200 changeSets / 7 days, configurable under `snapshots` in
 | `ast capabilities` | Show supported languages, operations, and limitations |
 | `ast find-symbols <file>` | List all symbols (functions, classes, variables), with 1-indexed `startLine`/`endLine`/`startColumn`/`endColumn` (matching the hash tier's `range`) alongside the raw 0-indexed tree-sitter `startRow`/`endRow`/`startCol`/`endCol`. Returns `{ symbols, truncated }`; the walk is bounded at depth 200, and `truncated: true` (plus a `SEARCH_TRUNCATED` warning) means symbols nested deeper were not visited |
 | `ast rename-symbol <file> <old> <new>` | Rename a symbol and all its references within **one file**, binding-aware — refuses with `AMBIGUOUS_SYMBOL` (exit `2`) when the name binds more than one symbol (a shadowed local, a foreign import, or a duplicate declaration) |
-| `ast replace-body <file> <symbol> <body>` | Replace a function/method body |
-| `ast add-import <file> <spec>` | Add an import with grouped-import merging |
+| `ast replace-body <file> <symbol> <body>` | Replace a function/method body. The body is **statements only** — no surrounding braces, no leading indentation; the command owns both and re-indents each line to the symbol. Passing either back is silent: the file still parses (#108) |
+| `ast add-import <file> <spec>` | Add an import with grouped-import merging. The spec is parsed as source, so the module path is quoted: `'{ Foo } from "./bar"'`; unquoted is a `PARSE_ERROR` (#109) |
 | `ast remove-import <file> <spec>` | Remove an import statement |
 | `ast insert-before <file> <symbol> <content>` | Insert content before a named symbol. Only declarations anchor an insertion — a name that is only a parameter or import specifier is refused, and an ambiguous name lists every candidate. Content is indented to match the anchor |
 | `ast insert-after <file> <symbol> <content>` | Insert content after a named symbol (same anchor rules and indentation as `insert-before`) |
