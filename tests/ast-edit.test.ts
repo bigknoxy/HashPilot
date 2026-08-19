@@ -865,6 +865,93 @@ describe("addImport — Go without package declaration", () => {
 
 // ── removeImport edge cases ────────────────────────────────────────────
 
+// ── removeImport binding-level removal (#102) ─────────────────────────
+
+describe("removeImport — grouped bindings (#102)", () => {
+  const GROUPED_TS = 'import { readFileSync, writeFileSync, statSync } from "node:fs";\nconst x = 1;\n';
+
+  test("removes one name from a grouped TS import, leaving the rest", () => {
+    const result = removeImport(GROUPED_TS, "svc.ts", "statSync");
+    expect(result.success).toBe(true);
+    expect(result.changes).toBe(1);
+    expect(result.newSource).toBe('import { readFileSync, writeFileSync } from "node:fs";\nconst x = 1;\n');
+  });
+
+  test("accepts the documented full spec form", () => {
+    const result = removeImport(GROUPED_TS, "svc.ts", '{ statSync } from "node:fs"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import { readFileSync, writeFileSync } from "node:fs";\nconst x = 1;\n');
+  });
+
+  test("refuses a substring of the module path", () => {
+    const result = removeImport(GROUPED_TS, "svc.ts", "fs");
+    expect(result.success).toBe(false);
+    expect(result.changes).toBe(0);
+  });
+
+  test("refuses a substring of a binding name", () => {
+    const result = removeImport(GROUPED_TS, "svc.ts", "read");
+    expect(result.success).toBe(false);
+    expect(result.changes).toBe(0);
+  });
+
+  test("the exact module path still removes the whole statement", () => {
+    const result = removeImport(GROUPED_TS, "svc.ts", "node:fs");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe("const x = 1;\n");
+  });
+
+  test("removing the last named binding drops the statement", () => {
+    const result = removeImport('import { a } from "m";\nconst x = 1;\n', "svc.ts", "a");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe("const x = 1;\n");
+  });
+
+  test("keeps the default import when a named binding is removed", () => {
+    const result = removeImport('import def, { a } from "m";\n', "svc.ts", "a");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import def from "m";\n');
+  });
+
+  test("keeps named bindings when the default import is removed", () => {
+    const result = removeImport('import def, { a } from "m";\n', "svc.ts", "def");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import { a } from "m";\n');
+  });
+
+  test("matches a named import by its alias", () => {
+    const result = removeImport('import { a as b, c } from "m";\n', "svc.ts", "b");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import { c } from "m";\n');
+  });
+
+  test("removes one name from a Python from-import", () => {
+    const result = removeImport("from os.path import join, dirname\n", "svc.py", "join");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe("from os.path import dirname\n");
+  });
+
+  test("removes one module from a Python multi-import", () => {
+    const result = removeImport("import os, sys\n", "svc.py", "sys");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe("import os\n");
+  });
+
+  test("removes one spec from a Go grouped import", () => {
+    const src = 'package main\n\nimport (\n\t"fmt"\n\t"os"\n)\n';
+    const result = removeImport(src, "svc.go", "os");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('package main\n\nimport (\n\t"fmt"\n)\n');
+  });
+
+  test("matches a Go import by its last path segment", () => {
+    const src = 'package main\n\nimport (\n\t"net/http"\n\t"os"\n)\n';
+    const result = removeImport(src, "svc.go", "http");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('package main\n\nimport (\n\t"os"\n)\n');
+  });
+});
+
 describe("removeImport — edge cases", () => {
   test("returns error for unsupported language (.rb)", () => {
     const result = removeImport(SAMPLE_TS, "test.rb", "anything");

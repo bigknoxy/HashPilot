@@ -162,7 +162,6 @@ export const astCases: BenchCase[] = [
       "}",
       "",
     ].join("\n"),
-    knownIssue: 102,
     tags: ["import", "typescript", "grouped-import"],
   },
   {
