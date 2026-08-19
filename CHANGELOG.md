@@ -1,3 +1,10 @@
+## [4.4.7](https://github.com/bigknoxy/HashPilot/compare/v4.4.6...v4.4.7) (2026-08-19)
+
+
+### Bug Fixes
+
+* **verify:** a run with no checks is "skipped", not "pass" ([#116](https://github.com/bigknoxy/HashPilot/issues/116)) ([471b265](https://github.com/bigknoxy/HashPilot/commit/471b265de1c68804fd52789b53c9df5dc0b9cb7a)), closes [#106](https://github.com/bigknoxy/HashPilot/issues/106)
+
 ## [4.4.6](https://github.com/bigknoxy/HashPilot/compare/v4.4.5...v4.4.6) (2026-08-19)
 
 
