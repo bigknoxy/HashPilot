@@ -274,4 +274,22 @@ export const astCases: BenchCase[] = [
     expectPreview: "source",
     tags: ["rename", "typescript", "dry-run"],
   },
+  {
+    id: "insert-after-parameter-name-refused",
+    description: "a name that exists only as a parameter refuses instead of splicing into the parameter list",
+    file: "handler.ts",
+    source: 'function handler(config: string): void {\n  console.log(config);\n}\n',
+    edit: { operation: "insert-after", symbolName: "config", content: "const injected = 1;" },
+    expectRefusal: "the only match is a parameter: inserting a statement there produces a syntax error the tool reports as success (#38)",
+    tags: ["insert-after", "typescript", "anchor", "38"],
+  },
+  {
+    id: "insert-after-ambiguous-method-refused",
+    description: "two methods with the same name refuse rather than picking the first",
+    file: "twoclasses.ts",
+    source: 'class A {\n  run() {}\n}\nclass B {\n  run() {}\n}\n',
+    edit: { operation: "insert-after", symbolName: "run", content: "// note" },
+    expectRefusal: "both classes define run: choosing one silently is the failure mode (#38)",
+    tags: ["insert-after", "typescript", "ambiguity", "38"],
+  },
 ];

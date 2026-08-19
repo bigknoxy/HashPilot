@@ -534,6 +534,18 @@ hashpilot ast insert-before <file> <symbol-name> <content> [--dry-run] [--includ
 hashpilot ast insert-after <file> <symbol-name> <content> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
+**Anchor selection:** only statement- and declaration-level nodes anchor an
+insertion (functions, classes, interfaces, type aliases, enums, methods, fields,
+and the declaration a `const`/`type`/`var` declarator belongs to). A name that
+resolves only to a parameter, an import specifier, a type parameter, or an
+object key is refused with `SYMBOL_NOT_FOUND` and a message naming the node type
+found — inserting there would splice a statement into an expression. A name that
+resolves to more than one legal anchor is refused with `AMBIGUOUS_SYMBOL` and
+every candidate listed as `<node-type> at line <n>`.
+
+**Indentation:** inserted content lands on its own line, indented to match the
+anchor. Multi-line content keeps its internal relative indentation.
+
 ---
 
 ### diff generate

@@ -1339,6 +1339,151 @@ function findLastIdentifier(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
   return null;
 }
 
+/**
+ * Statement- and declaration-level node types that may anchor an insertion (#38).
+ *
+ * `insert-before`/`insert-after` used to match any node carrying a `name` field.
+ * In tree-sitter grammars that includes function parameters, import specifiers,
+ * object properties and type parameters, so inserting relative to a name that
+ * also appears as a parameter spliced a whole statement into the middle of a
+ * parameter list — and reported success.
+ */
+const INSERT_ANCHOR_TYPES: Record<string, Set<string>> = {
+  typescript: new Set([
+    "function_declaration", "generator_function_declaration", "class_declaration",
+    "abstract_class_declaration", "interface_declaration", "type_alias_declaration",
+    "enum_declaration", "internal_module", "module", "method_definition",
+    "public_field_definition", "variable_declarator",
+  ]),
+  python: new Set(["function_definition", "class_definition"]),
+  go: new Set([
+    "function_declaration", "method_declaration", "type_spec", "const_spec", "var_spec",
+  ]),
+  rust: new Set([
+    "function_item", "struct_item", "enum_item", "trait_item", "mod_item",
+    "const_item", "static_item", "type_item", "union_item",
+  ]),
+};
+
+/**
+ * Nodes that name a declaration but are not themselves the statement: anchoring
+ * on them would insert inside `const a = 1, b = 2;` rather than around it.
+ */
+const ANCHOR_PROMOTIONS: Record<string, string[]> = {
+  variable_declarator: ["lexical_declaration", "variable_declaration"],
+  type_spec: ["type_declaration"],
+  const_spec: ["const_declaration"],
+  var_spec: ["var_declaration"],
+  function_definition: ["decorated_definition"],
+  class_definition: ["decorated_definition"],
+};
+
+function anchorTypesFor(lang: string): Set<string> {
+  return INSERT_ANCHOR_TYPES[lang] ?? INSERT_ANCHOR_TYPES.typescript;
+}
+
+/** Walk up from a named node to the statement that should carry the insertion. */
+function promoteAnchor(node: Parser.SyntaxNode): Parser.SyntaxNode {
+  const wanted = ANCHOR_PROMOTIONS[node.type];
+  if (!wanted) return node;
+  let cur = node.parent;
+  for (let hops = 0; cur && hops < 3; hops++, cur = cur.parent) {
+    if (wanted.includes(cur.type)) return cur;
+  }
+  return node;
+}
+
+interface AnchorLookup {
+  node?: Parser.SyntaxNode;
+  /** Nodes carrying the name that are not legal anchors, for the refusal message. */
+  rejected: Parser.SyntaxNode[];
+  /** Legal anchors; more than one means ambiguous. */
+  candidates: Parser.SyntaxNode[];
+}
+
+function findInsertAnchor(tree: Parser.Tree, lang: string, symbolName: string): AnchorLookup {
+  const allowed = anchorTypesFor(lang);
+  const candidates: Parser.SyntaxNode[] = [];
+  const rejected: Parser.SyntaxNode[] = [];
+
+  function walk(node: Parser.SyntaxNode) {
+    const nameNode = node.childForFieldName("name");
+    if (nameNode && nameNode.text === symbolName) {
+      if (allowed.has(node.type)) candidates.push(promoteAnchor(node));
+      else rejected.push(node);
+    }
+    for (const child of node.children) walk(child);
+  }
+  walk(tree.rootNode);
+
+  // Promotion can map two declarators onto the same statement.
+  const seen = new Set<number>();
+  const unique = candidates.filter((c) => (seen.has(c.startIndex) ? false : (seen.add(c.startIndex), true)));
+  return unique.length === 1
+    ? { node: unique[0], rejected, candidates: unique }
+    : { rejected, candidates: unique };
+}
+
+/** 1-based line number of a byte offset, for refusal messages. */
+function lineOf(source: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i++) if (source.charCodeAt(i) === 10) line++;
+  return line;
+}
+
+/** Leading whitespace of the line containing `index`. */
+function indentAt(source: string, index: number): string {
+  const lineStart = source.lastIndexOf("\n", Math.max(0, index - 1)) + 1;
+  return source.slice(lineStart).match(/^[ \t]*/)![0];
+}
+
+/**
+ * Re-indent inserted content to the anchor's own indentation, preserving the
+ * content's internal relative structure. The previous insert-after computed an
+ * indent string that was always empty, so every insertion landed at column 0.
+ */
+function reindent(content: string, indent: string): string {
+  const lines = content.replace(/\n+$/, "").split("\n");
+  const base = lines
+    .filter((l) => l.trim().length > 0)
+    .reduce((min, l) => Math.min(min, l.match(/^[ \t]*/)![0].length), Infinity);
+  const strip = Number.isFinite(base) ? base : 0;
+  return lines.map((l) => (l.trim().length === 0 ? "" : indent + l.slice(strip))).join("\n");
+}
+
+/** Build the refusal for a lookup that produced no single anchor. */
+function anchorFailure(
+  source: string,
+  filePath: string,
+  operation: "insert-before" | "insert-after",
+  symbolName: string,
+  lookup: AnchorLookup
+): ASTEditResult {
+  if (lookup.candidates.length > 1) {
+    const where = lookup.candidates
+      .map((c) => `${c.type} at line ${lineOf(source, c.startIndex)}`)
+      .join(", ");
+    return {
+      success: false, path: filePath, operation, changes: 0,
+      message: `Symbol '${symbolName}' is ambiguous: ${where}. Narrow the target, or use the hash tier to anchor on content.`,
+      errorCode: ErrorCode.AMBIGUOUS_SYMBOL,
+    };
+  }
+  if (lookup.rejected.length > 0) {
+    const found = [...new Set(lookup.rejected.map((r) => r.type))].join(", ");
+    return {
+      success: false, path: filePath, operation, changes: 0,
+      message: `Symbol '${symbolName}' names a ${found}, not a statement or declaration; inserting there would splice code into an expression. Target a declaration, or use the hash tier.`,
+      errorCode: ErrorCode.SYMBOL_NOT_FOUND,
+    };
+  }
+  return {
+    success: false, path: filePath, operation, changes: 0,
+    message: `Symbol '${symbolName}' not found`,
+    errorCode: ErrorCode.SYMBOL_NOT_FOUND,
+  };
+}
+
 function insertBeforeSymbolUnchecked(
   source: string,
   filePath: string,
@@ -1351,27 +1496,15 @@ function insertBeforeSymbolUnchecked(
   if (!parser) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
   const tree = parseSource(parser, source);
-  let insertPos = -1;
+  const lookup = findInsertAnchor(tree, lang, symbolName);
+  if (!lookup.node) return anchorFailure(source, filePath, "insert-before", symbolName, lookup);
 
-  function find(node: Parser.SyntaxNode): boolean {
-    const nameNode = node.childForFieldName("name");
-    if (nameNode && nameNode.text === symbolName) {
-      insertPos = node.startIndex;
-      return true;
-    }
-    for (const child of node.children) {
-      if (find(child)) return true;
-    }
-    return false;
-  }
-  find(tree.rootNode);
-
-  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-before", changes: 0, message: `Symbol '${symbolName}' not found`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
-
-  const lineStart = source.lastIndexOf("\n", insertPos) + 1;
-  const indent = source.slice(lineStart, insertPos).match(/^\s*/)?.[0] || "";
-  const indented = content.split("\n").map((l) => indent + l).join("\n") + "\n";
-  const newSource = source.slice(0, insertPos) + indented + source.slice(insertPos);
+  const anchor = lookup.node;
+  const indent = indentAt(source, anchor.startIndex);
+  // Insert at the start of the anchor's line so the statement lands on its own
+  // line even when the anchor shares a line with something else.
+  const insertPos = source.lastIndexOf("\n", Math.max(0, anchor.startIndex - 1)) + 1;
+  const newSource = source.slice(0, insertPos) + reindent(content, indent) + "\n" + source.slice(insertPos);
   return { success: true, path: filePath, operation: "insert-before", changes: 1, message: `Inserted content before '${symbolName}'`, newSource };
 }
 
@@ -1387,29 +1520,16 @@ function insertAfterSymbolUnchecked(
   if (!parser) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
   const tree = parseSource(parser, source);
-  let insertPos = -1;
+  const lookup = findInsertAnchor(tree, lang, symbolName);
+  if (!lookup.node) return anchorFailure(source, filePath, "insert-after", symbolName, lookup);
 
-  function find(node: Parser.SyntaxNode): boolean {
-    const nameNode = node.childForFieldName("name");
-    if (nameNode && nameNode.text === symbolName) {
-      insertPos = node.endIndex;
-      return true;
-    }
-    for (const child of node.children) {
-      if (find(child)) return true;
-    }
-    return false;
-  }
-  find(tree.rootNode);
-
-  if (insertPos === -1) return { success: false, path: filePath, operation: "insert-after", changes: 0, message: `Symbol '${symbolName}' not found`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
-
-  const nextNewline = source.indexOf("\n", insertPos);
+  const anchor = lookup.node;
+  const indent = indentAt(source, anchor.startIndex);
+  // Past the rest of the anchor's final line (trailing semicolon, comment).
+  const nextNewline = source.indexOf("\n", anchor.endIndex);
   const pos = nextNewline !== -1 ? nextNewline + 1 : source.length;
-  const lineStart = source.lastIndexOf("\n", pos - 1) + 1;
-  const indent = source.slice(lineStart, pos).match(/^\s*/)?.[0] || "";
-  const indented = content.split("\n").map((l) => indent + l).join("\n") + "\n";
-  const newSource = source.slice(0, pos) + indented + source.slice(pos);
+  const prefix = pos === source.length && !source.endsWith("\n") ? "\n" : "";
+  const newSource = source.slice(0, pos) + prefix + reindent(content, indent) + "\n" + source.slice(pos);
   return { success: true, path: filePath, operation: "insert-after", changes: 1, message: `Inserted content after '${symbolName}'`, newSource };
 }
 

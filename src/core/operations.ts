@@ -400,7 +400,10 @@ export const OPERATIONS: Operation[] = [
       "Place new code directly above a named declaration — a decorator, a helper, " +
       "a comment block. Anchored to the symbol, so it stays correct even if line " +
       "numbers moved since you read the file. " +
-      "Do NOT use it to add an import; `add_import` handles placement and grouping.",
+      "Do NOT use it to add an import; `add_import` handles placement and grouping. " +
+      "The symbol must name a declaration: a name resolving only to a parameter, import " +
+      "specifier, or type parameter is refused rather than spliced into an expression, and " +
+      "a name matching more than one declaration is refused with every candidate listed.",
     params: [
       FILE_PARAM,
       { name: "symbol", type: "string", required: true, description: "Symbol to insert before." },
