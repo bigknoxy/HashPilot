@@ -1,0 +1,377 @@
+{
+  "harnessVersion": "1",
+  "hashpilotVersion": "4.3.2",
+  "commit": "27a1ce6",
+  "generatedAt": "2026-08-19T04:46:29.034Z",
+  "totals": {
+    "cases": 23,
+    "correct": 15,
+    "silentCorruption": 2,
+    "falseRefusal": 0,
+    "correctRefusal": 6,
+    "harnessError": 0,
+    "correctnessRate": 0.8824,
+    "silentCorruptionRate": 0.087,
+    "totalElapsedMs": 32
+  },
+  "byRoute": {
+    "ast": {
+      "cases": 10,
+      "correct": 6,
+      "silentCorruption": 2,
+      "falseRefusal": 0,
+      "correctRefusal": 2
+    },
+    "hash": {
+      "cases": 7,
+      "correct": 5,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 2
+    },
+    "diff": {
+      "cases": 6,
+      "correct": 4,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 2
+    }
+  },
+  "byLanguage": {
+    "typescript": {
+      "cases": 8,
+      "correct": 4,
+      "silentCorruption": 2,
+      "falseRefusal": 0,
+      "correctRefusal": 2
+    },
+    "python": {
+      "cases": 1,
+      "correct": 1,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 0
+    },
+    "go": {
+      "cases": 1,
+      "correct": 1,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 0
+    },
+    "unknown": {
+      "cases": 13,
+      "correct": 9,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 4
+    }
+  },
+  "results": [
+    {
+      "id": "ast-rename-ts-local",
+      "description": "rename a function and its call sites in TypeScript",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 6,
+      "tags": [
+        "rename",
+        "typescript"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-rename-py-local",
+      "description": "rename a function and its call sites in Python",
+      "language": "python",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 3,
+      "tags": [
+        "rename",
+        "python"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-rename-go-local",
+      "description": "rename a function and its call sites in Go",
+      "language": "go",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 2,
+      "tags": [
+        "rename",
+        "go"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-rename-absent-symbol",
+      "description": "renaming a symbol that does not exist must be refused, not silently applied",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "rename",
+        "typescript"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "ast-replace-body-ts",
+      "description": "replace a function body without disturbing the signature or neighbours",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "replace-body",
+        "typescript"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-insert-after-ts",
+      "description": "insert a declaration after a named symbol",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "insert",
+        "typescript"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-merge-ts",
+      "description": "adding a name from an already-imported module must merge, not duplicate the module",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 2,
+      "knownIssue": 103,
+      "tags": [
+        "import",
+        "typescript",
+        "grouped-import"
+      ],
+      "outcome": "silent-corruption",
+      "detail": "reported success; result differs from expected\n--- expected\nimport { readFileSync, writeFileSync } from \"node:fs\";\n\nexport function go(): string {\n  return String(readFileSync(\"a\"));\n}\n\n--- actual\nimport { readFileSync } from \"node:fs\";\n\n\nimport { writeFileSync } from \"node:fs\";\nexport function go(): string {\n  return String(readFileSync(\"a\"));\n}\n"
+    },
+    {
+      "id": "ast-remove-import-one-name-ts",
+      "description": "removing one name from a grouped import must leave the other bindings intact",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "knownIssue": 102,
+      "tags": [
+        "import",
+        "typescript",
+        "grouped-import"
+      ],
+      "outcome": "silent-corruption",
+      "detail": "reported success; result differs from expected\n--- expected\nimport { readFileSync, writeFileSync } from \"node:fs\";\n\nexport function go(): void {\n  writeFileSync(\"a\", String(readFileSync(\"b\")));\n}\n\n--- actual\nexport function go(): void {\n  writeFileSync(\"a\", String(readFileSync(\"b\")));\n}\n"
+    },
+    {
+      "id": "ast-refuse-broken-source",
+      "description": "a file that already has a syntax error must be refused rather than edited blind",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": true,
+      "elapsed_ms": 1,
+      "tags": [
+        "parse-gate",
+        "typescript"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "ast-rename-deep-nesting",
+      "description": "rename must reach a reference nested more than ten blocks deep",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 3,
+      "knownIssue": 39,
+      "tags": [
+        "rename",
+        "typescript",
+        "depth-cap"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-replace-exact",
+      "description": "replace a line range whose hash still matches",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-stale-anchor-refused",
+      "description": "a hash that matches nothing in the file must be refused, never applied to the range anyway",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash",
+        "stale-anchor"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "hash-relocate-moved-content",
+      "description": "an anchor whose content moved and appears exactly once must relocate rather than refuse",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash",
+        "relocation"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-replace-multiline-range",
+      "description": "replace a multi-line range and preserve everything outside it",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash",
+        "multiline"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-delete-range",
+      "description": "an empty replacement removes the range's lines without eating its neighbours",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash",
+        "deletion"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-unicode-preserved",
+      "description": "a hash edit next to astral-plane characters leaves them byte-identical",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "hash",
+        "unicode"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-out-of-range-refused",
+      "description": "a range past the end of the file must be refused",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 0,
+      "tags": [
+        "hash",
+        "range-validation"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "diff-replace-unique",
+      "description": "replace content that appears exactly once",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "diff-ambiguous-refused",
+      "description": "content appearing more than once must be refused with a disambiguation hint",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff",
+        "ambiguity"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "diff-absent-refused",
+      "description": "content that is not in the file must be refused",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 0,
+      "tags": [
+        "diff"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "diff-reserved-tokens",
+      "description": "content whose lines begin with unified-diff reserved tokens round-trips intact",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "knownIssue": 32,
+      "tags": [
+        "diff",
+        "reserved-tokens"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "diff-multiline-block",
+      "description": "replace a multi-line block bounded by identical neighbours",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff",
+        "multiline"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "diff-trailing-newline-preserved",
+      "description": "a file with no trailing newline keeps its shape after an edit",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff",
+        "encoding"
+      ],
+      "outcome": "correct"
+    }
+  ]
+}
