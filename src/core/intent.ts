@@ -174,8 +174,8 @@ export async function findSymbolDefinition(
           file: hintFile,
           name: match.name,
           kind: match.kind,
-          line: match.startRow + 1,
-          column: match.startCol + 1,
+          line: match.startLine,
+          column: match.startColumn,
         };
       }
     } catch {}
@@ -193,8 +193,8 @@ export async function findSymbolDefinition(
           file: absPath,
           name: match.name,
           kind: match.kind,
-          line: match.startRow + 1,
-          column: match.startCol + 1,
+          line: match.startLine,
+          column: match.startColumn,
         };
       }
     } catch {}

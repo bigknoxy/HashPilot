@@ -392,10 +392,26 @@ hashpilot ast find-symbols <file>
     "startRow": 0,
     "endRow": 2,
     "startCol": 0,
-    "endCol": 1
+    "endCol": 1,
+    "startLine": 1,
+    "endLine": 3,
+    "startColumn": 1,
+    "endColumn": 2
   }
 ]
 ```
+
+**Line and column indexing.** Two conventions are reported side by side:
+
+| Fields | Base | Use |
+|--------|------|-----|
+| `startLine`, `endLine`, `startColumn`, `endColumn` | 1-indexed | **Prefer these.** They match the `range` accepted by the hash tier, the `line` argument to `read-hash`, and editor jump-to-line. |
+| `startRow`, `endRow`, `startCol`, `endCol` | 0-indexed | Raw tree-sitter coordinates. Retained for backward compatibility. |
+
+Passing a `startRow` where a `range` is expected targets the line **above** the
+symbol. That is not always an error: if the neighbouring line's content hash
+happens to match the anchor you supply, the edit applies silently to the wrong
+line (#99).
 
 ---
 

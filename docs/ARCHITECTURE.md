@@ -87,7 +87,10 @@ highest-frequency operations.
 - Tree-sitter parsing for TS, TSX, JS, Python, Go, Rust
 - `.d.ts` files excluded from AST editing
 - Operations:
-  - `findSymbols(file)` — enumerate all functions, classes, methods, variables
+  - `findSymbols(file)` — enumerate all functions, classes, methods, variables. Reports
+    1-indexed `startLine`/`endLine`/`startColumn`/`endColumn` (matching the hash tier's
+    `range` and `read-hash`) alongside the raw 0-indexed tree-sitter
+    `startRow`/`endRow`/`startCol`/`endCol` kept for compatibility (#99).
   - `renameSymbol(file, oldName, newName)` — rename + all references via tree queries
   - `replaceBody(file, symbolName, newBody)` — replace function/method body
   - `addImport(file, specifier, source)` — add import with grouped-import merging

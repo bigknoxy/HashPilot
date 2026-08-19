@@ -205,6 +205,11 @@ export const OPERATIONS: Operation[] = [
     summary: "List every symbol declared in one file.",
     description:
       "Parse a file and list the symbols it declares, with their kinds and lines. " +
+      "Line and column numbers come in two conventions: `startLine`/`endLine`/" +
+      "`startColumn`/`endColumn` are 1-indexed and are what you want — they match " +
+      "the `range` the hash tier accepts. `startRow`/`endRow`/`startCol`/`endCol` " +
+      "are the raw 0-indexed tree-sitter coordinates, kept for compatibility; " +
+      "passing one of those as a `range` targets the line above the symbol. " +
       "Use it to orient yourself in an unfamiliar file before an AST edit. " +
       "Do NOT use it on an unsupported language — check `ast_capabilities` first, " +
       "or the call returns a parse error.",
