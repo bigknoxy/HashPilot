@@ -438,6 +438,20 @@ sequenceDiagram
 - `editManySerial(operation, files)`: Serial execution for dependent operations
 - Parallel mode uses `Promise.all` for concurrent file processing
 
+#### `src/core/operations.ts` — Operation Registry (#25)
+- One declarative list of every operation both front doors expose: name, CLI command, params, and handler
+- MCP tool schemas are generated from it, so the MCP surface cannot silently drift from the documented CLI
+- Every handler delegates to `routeEdit`, so an MCP caller gets the same locking, compare-and-swap, snapshot, and provenance guarantees a CLI caller does
+- `tests/operations-parity.test.ts` drives the real Commander `--help` tree and asserts every registry param exists as a real CLI flag or argument
+
+#### `src/mcp/server.ts` — MCP Server (#25)
+- Newline-delimited JSON-RPC 2.0 over stdio, protocol revision `2024-11-05`; no SDK dependency
+- Methods: `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`
+- Protocol errors (`-32700`/`-32600`/`-32601`/`-32603`) are the host's to handle; a failed edit comes back as `isError: true` on a successful result, for the model to read and recover from
+- Requests are handled strictly in order: the advisory lock is not re-entrant, so concurrent handling would deadlock
+- `hashpilot mcp --stdio` owns stdout for the whole process — it is the one command that emits no JSON envelope
+- Host setup: [INTEGRATION-MCP.md](INTEGRATION-MCP.md)
+
 #### `src/index.ts` — Barrel File
 - Re-exports all public API surface from core modules
 

@@ -17,6 +17,23 @@ This installs the `hashpilot` CLI and registers the OpenCode skill + subagent.
 
 HashPilot is a global, tool-agnostic structured editing system that improves coding-agent efficiency by preferring syntax-aware edits when possible, hash-anchored edits otherwise, and providing verification batching.
 
+### Preferred: use the MCP server
+
+If your host speaks MCP, register HashPilot once and call its tools directly
+instead of shelling out:
+
+```json
+{ "mcpServers": { "hashpilot": { "command": "hashpilot", "args": ["mcp", "--stdio"] } } }
+```
+
+The MCP tools mirror the CLI one-for-one (`rename_symbol`, `replace_hash`,
+`route_edit`, `verify_changes`, plus the read and search tools), and multi-line
+content with quotes or backticks rides inside JSON rather than through shell
+quoting. Per-host setup lives in `docs/INTEGRATION-MCP.md`.
+
+The CLI commands below remain fully supported and are the fallback when MCP is
+not available.
+
 ## When to Use This Skill
 
 - **Editing supported languages**: Use AST commands for precise symbol-level edits (TypeScript, TSX, JavaScript, Python, Go, Rust)

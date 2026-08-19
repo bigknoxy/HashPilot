@@ -17,6 +17,23 @@ This installs the `hashpilot` CLI and registers the Pi extension with `/hp` slas
 
 You have access to HashPilot structured editing tools that are more reliable and token-efficient than raw text editing.
 
+### Preferred: use the MCP server
+
+If your host speaks MCP, register HashPilot once and call its tools directly
+instead of shelling out:
+
+```json
+{ "mcpServers": { "hashpilot": { "command": "hashpilot", "args": ["mcp", "--stdio"] } } }
+```
+
+The MCP tools mirror the CLI one-for-one (`rename_symbol`, `replace_hash`,
+`route_edit`, `verify_changes`, plus the read and search tools), and multi-line
+content with quotes or backticks rides inside JSON rather than through shell
+quoting. Per-host setup lives in `docs/INTEGRATION-MCP.md`.
+
+The CLI commands below remain fully supported and are the fallback when MCP is
+not available.
+
 ## When to Use
 
 - Editing existing files in supported AST languages (TS/JS/Python/Go/Rust)
