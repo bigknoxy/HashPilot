@@ -167,9 +167,12 @@ log "Removing PATH entries..."
 for rc in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.bash_profile" "${HOME}/.profile"; do
   if [[ -f "$rc" ]]; then
     if grep -q "# >>> hashpilot path >>>" "$rc" 2>/dev/null; then
-      sed -i '/^# >>> hashpilot path >>>/,/^# <<< hashpilot path <<</d' "$rc"
+      # BSD sed (macOS) requires an explicit backup suffix after -i; GNU sed
+      # accepts the empty one, so `-i ''` is not portable either. Pick per-platform.
+      if sed --version >/dev/null 2>&1; then SED_INPLACE=(sed -i); else SED_INPLACE=(sed -i ''); fi
+      "${SED_INPLACE[@]}" '/^# >>> hashpilot path >>>/,/^# <<< hashpilot path <<</d' "$rc"
       # Clean up trailing blank lines
-      sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$rc" 2>/dev/null || true
+      "${SED_INPLACE[@]}" -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$rc" 2>/dev/null || true
       detail "Removed PATH entry from $rc"
       REMOVED=$((REMOVED+1))
     fi

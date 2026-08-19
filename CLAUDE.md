@@ -25,7 +25,7 @@ knowing up front:
 bun install                 # Install dependencies (Bun 1.2+)
 bun test                    # Run all tests
 bun run build               # Bundle src/cli.ts to dist/
-bun run install-cli         # Symlink CLI into ~/.agentic-tools/bin/
+bun run install-cli         # Symlink CLI into ~/.agentic-tools/bin/ and add it to your shell rc PATH
 bun run src/cli.ts doctor   # Exercise the CLI directly without installing
 bash scripts/doctor.sh      # Check local installation environment
 bun run lint:docs           # CLI quickref matches --help + ROADMAP.md is consistent

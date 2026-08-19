@@ -129,6 +129,21 @@ curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/ins
 
 </details>
 
+### Install from a checkout (development)
+
+```bash
+bun install
+bun run install-cli   # symlinks the launcher AND adds ~/.agentic-tools/bin to your shell rc
+exec $SHELL -l        # or: export PATH="$HOME/.agentic-tools/bin:$PATH"
+hashpilot doctor
+```
+
+`install-cli` writes a marked block (`# >>> hashpilot path >>>`) into the rc file
+for your current `$SHELL`; `hashpilot uninstall` removes it. `doctor`'s
+`bin-on-path` check reports when the directory is missing from `PATH`, so a
+launcher that exists but cannot be resolved is a visible failure rather than a
+silent one.
+
 ### Upgrade
 
 ```bash
