@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { loadConfig } from "./config";
+import { diskUsage, DISK_WARN_BYTES } from "./telemetry";
 
 const HOME = process.env.HOME || "/root";
 const AGENTIC_TOOLS = join(HOME, ".agentic-tools");
@@ -96,12 +97,34 @@ export function doctor(): DoctorReport {
   // 9. Telemetry directory writable
   checks.push(checkWritable(LOG_DIR, "telemetry-writable"));
 
-  // 10. Manifest
+  // 10. Telemetry footprint
+  checks.push(checkTelemetrySize());
+
+  // 11. Manifest
   checks.push(checkFile(MANIFEST, "manifest"));
 
   const healthy = checks.every((c) => c.status === "pass");
 
   return { checks, healthy, timestamp, version: HASH_VERSION };
+}
+
+/**
+ * Report the telemetry store's size. Retention is enforced automatically, but
+ * a machine that was never pruned by an older version — or one running with a
+ * long `retentionDays` — can still be carrying hundreds of megabytes nobody
+ * knows about (#50). A warn, never a fail: a large log is not a broken install.
+ */
+function checkTelemetrySize(): DoctorCheck {
+  const bytes = diskUsage();
+  const mb = (bytes / (1024 * 1024)).toFixed(1);
+  if (bytes > DISK_WARN_BYTES) {
+    return {
+      name: "telemetry-size",
+      status: "warn",
+      message: `Telemetry store is ${mb} MB (threshold ${(DISK_WARN_BYTES / (1024 * 1024)).toFixed(0)} MB) — run 'hashpilot telemetry prune' or lower telemetry.retentionDays`,
+    };
+  }
+  return { name: "telemetry-size", status: "pass", message: `Telemetry store is ${mb} MB` };
 }
 
 /**

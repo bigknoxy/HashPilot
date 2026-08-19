@@ -152,9 +152,15 @@ if [ -d "$TARGET_DIR/structured-editing" ]; then
   rm -rf "$TARGET_DIR/structured-editing/node_modules"
   # Preserve telemetry if requested
   if [ "$KEEP_TELEMETRY" == "true" ] && [ -f "$TARGET_DIR/logs/telemetry.jsonl" ]; then
-    mkdir -p /tmp/hashpilot-telemetry-backup
-    cp "$TARGET_DIR/logs/telemetry.jsonl" /tmp/hashpilot-telemetry-backup/
-    detail "Backed up telemetry to /tmp/hashpilot-telemetry-backup/"
+    # The log can contain source diffs. A fixed path under a world-writable
+    # /tmp is readable by any local user and is a symlink-attack target, so
+    # back up beside the data itself, in a 0700 directory with an
+    # unpredictable name (#50).
+    TELEMETRY_BACKUP_DIR="$(mktemp -d "$TARGET_DIR/.telemetry-backup.XXXXXX")"
+    chmod 700 "$TELEMETRY_BACKUP_DIR"
+    cp "$TARGET_DIR/logs/telemetry.jsonl" "$TELEMETRY_BACKUP_DIR/"
+    chmod 600 "$TELEMETRY_BACKUP_DIR/telemetry.jsonl"
+    detail "Backed up telemetry to $TELEMETRY_BACKUP_DIR/"
   fi
 fi
 
@@ -325,11 +331,11 @@ CONFIG
 fi
 
 # ── Restore telemetry ───────────────────────────────────────────────────
-if [ "$KEEP_TELEMETRY" == "true" ] && [ -f /tmp/hashpilot-telemetry-backup/telemetry.jsonl ]; then
+if [ "$KEEP_TELEMETRY" == "true" ] && [ -n "${TELEMETRY_BACKUP_DIR:-}" ] && [ -f "$TELEMETRY_BACKUP_DIR/telemetry.jsonl" ]; then
   mkdir -p "$TARGET_DIR/logs"
-  cp /tmp/hashpilot-telemetry-backup/telemetry.jsonl "$TARGET_DIR/logs/"
+  cp "$TELEMETRY_BACKUP_DIR/telemetry.jsonl" "$TARGET_DIR/logs/"
   detail "Restored telemetry from backup"
-  rm -rf /tmp/hashpilot-telemetry-backup
+  rm -rf "$TELEMETRY_BACKUP_DIR"
 fi
 
 # ── Write manifest ───────────────────────────────────────────────────────

@@ -528,6 +528,15 @@ blocks, `Authorization` headers, passwords in connection strings, and any
 `[REDACTED]`. The log directory is created `0700` and the log file `0600`;
 pre-existing logs from older versions are tightened on the next write.
 
+**Retention is enforced automatically.** The log rotates at
+`telemetry.maxFileSize` (10 MB) keeping `telemetry.maxRotatedFiles` (10), and
+rotated logs past `telemetry.retentionDays` (30) are deleted without anyone
+running `hashpilot telemetry prune` — the sweep is gated by a marker file to at
+most once a day, so the cost on every other invocation is a single `stat`.
+Orphaned diff payloads are collected in the same pass. `telemetry health`
+reports `diskBytes` and `hashpilot doctor` reports the store size, both warning
+past 100 MB.
+
 ---
 
 ## Integrations
