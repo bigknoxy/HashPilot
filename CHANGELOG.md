@@ -1,3 +1,10 @@
+## [4.4.5](https://github.com/bigknoxy/HashPilot/compare/v4.4.4...v4.4.5) (2026-08-19)
+
+
+### Bug Fixes
+
+* **mcp:** emit the full five-field envelope from every tool response ([#104](https://github.com/bigknoxy/HashPilot/issues/104)) ([#114](https://github.com/bigknoxy/HashPilot/issues/114)) ([7181ed1](https://github.com/bigknoxy/HashPilot/commit/7181ed164482a59dd99cc6383f99c8e14bcd4470))
+
 ## [4.4.4](https://github.com/bigknoxy/HashPilot/compare/v4.4.3...v4.4.4) (2026-08-19)
 
 
