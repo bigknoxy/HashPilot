@@ -1,3 +1,10 @@
+## [4.4.11](https://github.com/bigknoxy/HashPilot/compare/v4.4.10...v4.4.11) (2026-08-19)
+
+
+### Bug Fixes
+
+* **telemetry:** cap record size and store oversized diffs out-of-line ([#20](https://github.com/bigknoxy/HashPilot/issues/20)) ([#119](https://github.com/bigknoxy/HashPilot/issues/119)) ([c30e22d](https://github.com/bigknoxy/HashPilot/commit/c30e22dc881b4bde1b2badcb49395c3b73441e93))
+
 ## [4.4.10](https://github.com/bigknoxy/HashPilot/compare/v4.4.9...v4.4.10) (2026-08-19)
 
 
