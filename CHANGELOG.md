@@ -1,3 +1,10 @@
+## [4.4.4](https://github.com/bigknoxy/HashPilot/compare/v4.4.3...v4.4.4) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ast:** merge add-import into an existing module import, preserve blank lines ([#103](https://github.com/bigknoxy/HashPilot/issues/103)) ([#113](https://github.com/bigknoxy/HashPilot/issues/113)) ([a6db57c](https://github.com/bigknoxy/HashPilot/commit/a6db57cbff8b649214aa0809747fc53f56daf5b6))
+
 ## [4.4.3](https://github.com/bigknoxy/HashPilot/compare/v4.4.2...v4.4.3) (2026-08-19)
 
 
