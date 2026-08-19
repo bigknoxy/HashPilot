@@ -58,9 +58,9 @@ describe("grepMany", () => {
       expect(r.match).toBe("foo");
     });
     expect(result.elapsed_ms).toBeGreaterThanOrEqual(0);
-    // Verify column defaults to 1 for multi-file format
+    // `column` is the real 1-indexed offset of the match, not a placeholder (#105).
     result.results.forEach((r) => {
-      expect(r.column).toBe(1);
+      expect(r.column).toBe(r.content.indexOf("foo") + 1);
     });
   });
 
@@ -72,7 +72,7 @@ describe("grepMany", () => {
     expect(result.results.length).toBe(2); // "const foo" and "const foobar"
     result.results.forEach((r) => {
       expect(r.path).toBe(singlePath);
-      expect(r.column).toBe(1);
+      expect(r.column).toBe(r.content.indexOf("foo") + 1);
     });
   });
 
@@ -223,5 +223,52 @@ describe("symbolLookupMany", () => {
     const names = results.map((r) => r.name);
     expect(names.filter((n) => n === "foo").length).toBe(2);
     expect(names.filter((n) => n === "bar").length).toBe(1);
+  });
+});
+
+describe("grepMany line parsing (#105)", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  test("content beginning with digits and a colon is returned verbatim", async () => {
+    // The old parser read `42:` as a column field emitted by grep — a format
+    // GNU grep never produces — so it ate the prefix and reported column 42.
+    const file = join(TMP_DIR, "g2.ts");
+    writeFileSync(file, "42: TARGET note\n");
+    const result = await grepMany("TARGET", [file]);
+    expect(result.results.length).toBe(1);
+    const r = result.results[0];
+    expect(r.path).toBe(file);
+    expect(r.line).toBe(1);
+    expect(r.content).toBe("42: TARGET note");
+    expect(r.column).toBe(5);
+  });
+
+  test("a path containing a colon parses without losing content", async () => {
+    const dir = join(TMP_DIR, "we:ird");
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, "c.ts");
+    writeFileSync(file, "const TARGET = 1;\n");
+    const result = await grepMany("TARGET", [file]);
+    expect(result.results.length).toBe(1);
+    expect(result.results[0].path).toBe(file);
+    expect(result.results[0].content).toBe("const TARGET = 1;");
+    expect(result.results[0].column).toBe(7);
+  });
+
+  test("a line containing colons keeps every one of them", async () => {
+    const file = join(TMP_DIR, "g3.ts");
+    writeFileSync(file, 'const url = "http://x:8080/TARGET";\n');
+    const result = await grepMany("TARGET", [file]);
+    expect(result.results[0].content).toBe('const url = "http://x:8080/TARGET";');
+  });
+
+  test("an unmatchable-in-JS pattern still reports a column rather than throwing", async () => {
+    const file = join(TMP_DIR, "g4.ts");
+    writeFileSync(file, "const alnum = 1;\n");
+    const result = await grepMany("[[:alpha:]]+num", [file]);
+    expect(result.results.length).toBe(1);
+    expect(result.results[0].column).toBe(1);
+    expect(result.results[0].content).toBe("const alnum = 1;");
   });
 });

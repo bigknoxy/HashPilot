@@ -243,6 +243,12 @@ hashpilot grep-many <pattern> <path1> [path2] ... [-i] [--file-pattern <glob>] [
 }
 ```
 
+`content` is the matched line verbatim — nothing is stripped, including a line
+that itself begins with `12:`. `column` is the 1-indexed offset of the match
+within `content`, computed in process because grep does not report columns; it
+falls back to `1` for a POSIX pattern JavaScript's regex engine cannot compile
+([#105](../../issues/105)). `match` echoes the pattern, not the matched text.
+
 ---
 
 ### symbol-lookup-many
