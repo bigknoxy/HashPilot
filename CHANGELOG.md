@@ -1,3 +1,10 @@
+## [4.4.1](https://github.com/bigknoxy/HashPilot/compare/v4.4.0...v4.4.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ast:** report 1-indexed symbol lines alongside tree-sitter rows ([#99](https://github.com/bigknoxy/HashPilot/issues/99)) ([#100](https://github.com/bigknoxy/HashPilot/issues/100)) ([1a44e47](https://github.com/bigknoxy/HashPilot/commit/1a44e4776fa47cf655c7f6861f89eaba03edd70c))
+
 # [4.4.0](https://github.com/bigknoxy/HashPilot/compare/v4.3.2...v4.4.0) (2026-08-19)
 
 
