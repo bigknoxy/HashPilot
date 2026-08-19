@@ -351,6 +351,67 @@ describe("addImport — TypeScript", () => {
   });
 });
 
+describe("addImport — merging into an existing module import (#103)", () => {
+  const BASE = 'import { readFileSync } from "node:fs";\n\nexport function go(): string {\n  return String(readFileSync("a"));\n}\n';
+
+  test("merges a new name into the existing grouped import", () => {
+    const result = addImport(BASE, "svc.ts", '{ writeFileSync } from "node:fs"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe(
+      'import { readFileSync, writeFileSync } from "node:fs";\n\nexport function go(): string {\n  return String(readFileSync("a"));\n}\n'
+    );
+  });
+
+  test("merges several names at once", () => {
+    const result = addImport(BASE, "svc.ts", '{ a, b } from "node:fs"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toContain('import { readFileSync, a, b } from "node:fs";');
+  });
+
+  test("refuses a name already bound from that module", () => {
+    const result = addImport(BASE, "svc.ts", '{ readFileSync } from "node:fs"');
+    expect(result.success).toBe(false);
+    expect(result.changes).toBe(0);
+  });
+
+  test("refuses a name already bound under an alias", () => {
+    const result = addImport('import { a as z } from "m";\n', "svc.ts", '{ a as z } from "m"');
+    expect(result.success).toBe(false);
+  });
+
+  test("adds named bindings alongside an existing default import", () => {
+    const result = addImport('import def from "m";\n\nconst x = 1;\n', "svc.ts", '{ a } from "m"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import def, { a } from "m";\n\nconst x = 1;\n');
+  });
+
+  test("adds a default import alongside existing named bindings", () => {
+    const result = addImport('import { a } from "m";\n\nconst x = 1;\n', "svc.ts", 'def from "m"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import def, { a } from "m";\n\nconst x = 1;\n');
+  });
+
+  test("inserts a separate statement for a different module without eating the blank line", () => {
+    const result = addImport(BASE, "svc.ts", '{ join } from "node:path"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe(
+      'import { readFileSync } from "node:fs";\nimport { join } from "node:path";\n\nexport function go(): string {\n  return String(readFileSync("a"));\n}\n'
+    );
+  });
+
+  test("falls back to a separate statement for a namespace import", () => {
+    const result = addImport('import * as ns from "m";\n\nconst x = 1;\n', "svc.ts", '{ a } from "m"');
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe('import * as ns from "m";\nimport { a } from "m";\n\nconst x = 1;\n');
+  });
+
+  test("preserves the blank line after a Python import block", () => {
+    const result = addImport("import os\n\nx = 1\n", "svc.py", "json");
+    expect(result.success).toBe(true);
+    expect(result.newSource).toBe("import os\nimport json\n\nx = 1\n");
+  });
+});
+
 describe("addImport — Python", () => {
   const PY_NO_IMPORTS = "def greet():\n    return 1\n";
   const PY_WITH_IMPORTS = "import os\n\nx = 1\n";

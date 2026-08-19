@@ -663,6 +663,124 @@ const IMPORT_CONFIGS: Record<string, ImportConfig> = {
   rust: { nodeTypes: ["use_declaration"], lineTemplate: "use {spec};\n" },
 };
 
+/** The clause of a JS/TS import spec, split into the pieces a merge needs. */
+interface JsImportSpecParts {
+  module: string;
+  /** Named bindings as written, e.g. `writeFileSync`, `a as b`. */
+  named: string[];
+  defaultName?: string;
+}
+
+/** The local binding a named specifier introduces: `a as b` binds `b`. */
+function jsLocalName(specifierText: string): string {
+  const parts = specifierText.split(/\s+as\s+/);
+  return (parts[parts.length - 1] ?? specifierText).trim();
+}
+
+/**
+ * Parse a JS/TS importSpec (`{ a, b as c } from "mod"`, `def from "mod"`).
+ * Returns null for forms with no merge semantics (namespace imports,
+ * side-effect imports, anything without a `from` clause).
+ */
+function parseJsImportSpec(spec: string): JsImportSpecParts | null {
+  const m = spec.trim().match(/^(.*?)\s+from\s+['"]([^'"]+)['"];?$/);
+  if (!m) return null;
+  const clause = m[1].trim();
+  const module = m[2];
+  if (clause.startsWith("*")) return null;
+
+  const named: string[] = [];
+  const namedMatch = clause.match(/\{([^}]*)\}/);
+  if (namedMatch) {
+    for (const part of namedMatch[1].split(",")) {
+      const t = part.trim();
+      if (t) named.push(t);
+    }
+  }
+  const before = namedMatch ? clause.slice(0, namedMatch.index).replace(/,\s*$/, "").trim() : clause;
+  if (before.startsWith("*")) return null;
+  const defaultName = before.length > 0 ? before : undefined;
+  if (named.length === 0 && !defaultName) return null;
+  return { module, named, defaultName };
+}
+
+/**
+ * Merge a JS/TS import into an existing statement for the same module (#103).
+ *
+ * Returns null when there is nothing to merge into, so the caller falls through
+ * to inserting a fresh statement. Previously every add-import inserted a new
+ * statement, so an agent adding one name at a time accumulated one duplicate
+ * `import ... from "node:fs"` per call while each call reported success.
+ */
+function addJsImportMerged(
+  source: string,
+  tree: Parser,
+  filePath: string,
+  importSpec: string
+): ASTEditResult | null {
+  const parts = parseJsImportSpec(importSpec);
+  if (!parts) return null;
+
+  let target: Parser.SyntaxNode | null = null;
+  function findTarget(node: Parser.SyntaxNode) {
+    if (target) return;
+    if (node.type === "import_statement") {
+      for (const c of node.children) {
+        if (c.type === "string" && unquoteLiteral(c.text) === parts!.module) {
+          target = node;
+          return;
+        }
+      }
+    }
+    for (const child of node.children) findTarget(child);
+  }
+  findTarget(tree.rootNode);
+  if (!target) return null;
+
+  const clause = findChildByType(target, "import_clause");
+  if (!clause) return null; // side-effect import: nothing to merge into
+
+  let namedNode: Parser.SyntaxNode | null = null;
+  let defaultNode: Parser.SyntaxNode | null = null;
+  for (const c of clause.children) {
+    if (c.type === "named_imports") namedNode = c;
+    else if (c.type === "identifier") defaultNode = c;
+    else if (c.type === "namespace_import") return null; // `import * as ns` has no merge form
+  }
+
+  const existing: string[] = [];
+  if (namedNode) {
+    for (const s of namedNode.children) {
+      if (s.type === "import_specifier") existing.push(s.text.trim());
+    }
+  }
+  const existingLocals = new Set(existing.map(jsLocalName));
+  const fresh = parts.named.filter((n) => !existingLocals.has(jsLocalName(n)));
+  const needDefault = parts.defaultName !== undefined && defaultNode === null;
+
+  if (fresh.length === 0 && !needDefault) {
+    return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
+  }
+
+  const clauseParts: string[] = [];
+  const defaultText = defaultNode ? defaultNode.text : needDefault ? parts.defaultName! : null;
+  if (defaultText) clauseParts.push(defaultText);
+  const allNamed = [...existing, ...fresh];
+  if (allNamed.length > 0) clauseParts.push("{ " + allNamed.join(", ") + " }");
+
+  const newSource =
+    source.slice(0, clause.startIndex) + clauseParts.join(", ") + source.slice(clause.endIndex);
+
+  return {
+    success: true,
+    path: filePath,
+    operation: "add-import",
+    changes: 1,
+    message: `Added import: ${importSpec}`,
+    newSource,
+  };
+}
+
 function addImportUnchecked(
   source: string,
   filePath: string,
@@ -675,13 +793,21 @@ function addImportUnchecked(
   const parser = getParser(lang);
   if (!parser) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
+  const tree = parseSource(parser, source);
+
+  // JS/TS merge into an existing import of the same module, which also covers
+  // the duplicate check for that module (#103).
+  if (lang === "typescript" || lang === "tsx" || lang === "javascript") {
+    const merged = addJsImportMerged(source, tree, filePath, importSpec);
+    if (merged) return merged;
+  }
+
   // Dedup check: search source for existing import containing the spec text
   const dedupPattern = new RegExp(`(import|from|use).*${escapeRegex(importSpec)}`);
   if (dedupPattern.test(source)) {
     return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
   }
 
-  const tree = parseSource(parser, source);
   let lastImportEnd = 0;
   function findLastImport(node: Parser.SyntaxNode) {
     if (icfg!.nodeTypes.includes(node.type)) lastImportEnd = Math.max(lastImportEnd, node.endIndex);
@@ -707,9 +833,13 @@ function addImportUnchecked(
     if (groupedResult !== null) {
       newSource = groupedResult;
     } else {
+      // Insert on the line right after the last import: consume exactly one
+      // newline, never the blank line that separates the import block from the
+      // code below it (#103).
       let insertPos = lastImportEnd;
-      while (source[insertPos] === "\n") insertPos++;
-      newSource = source.slice(0, insertPos) + "\n" + newImportLine + source.slice(insertPos);
+      if (source[insertPos] === "\r") insertPos++;
+      if (source[insertPos] === "\n") insertPos++;
+      newSource = source.slice(0, insertPos) + newImportLine + source.slice(insertPos);
     }
   } else if (icfg.fallbackInsert) {
     const pos = icfg.fallbackInsert(tree.rootNode);

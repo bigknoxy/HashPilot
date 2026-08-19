@@ -1,24 +1,24 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.4.1",
-  "commit": "2ca1ba5",
-  "generatedAt": "2026-08-19T13:11:10.362Z",
+  "hashpilotVersion": "4.4.2",
+  "commit": "c2fc901",
+  "generatedAt": "2026-08-19T13:30:44.142Z",
   "totals": {
     "cases": 25,
-    "correct": 18,
-    "silentCorruption": 1,
+    "correct": 19,
+    "silentCorruption": 0,
     "falseRefusal": 0,
     "correctRefusal": 6,
     "harnessError": 0,
-    "correctnessRate": 0.9474,
-    "silentCorruptionRate": 0.04,
-    "totalElapsedMs": 38
+    "correctnessRate": 1,
+    "silentCorruptionRate": 0,
+    "totalElapsedMs": 33
   },
   "byRoute": {
     "ast": {
       "cases": 10,
-      "correct": 7,
-      "silentCorruption": 1,
+      "correct": 8,
+      "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
     },
@@ -40,8 +40,8 @@
   "byLanguage": {
     "typescript": {
       "cases": 8,
-      "correct": 5,
-      "silentCorruption": 1,
+      "correct": 6,
+      "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
     },
@@ -74,7 +74,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 7,
+      "elapsed_ms": 6,
       "tags": [
         "rename",
         "typescript"
@@ -100,7 +100,7 @@
       "language": "go",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 2,
       "tags": [
         "rename",
         "go"
@@ -113,7 +113,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "rename",
         "typescript"
@@ -126,7 +126,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "replace-body",
         "typescript"
@@ -153,14 +153,12 @@
       "route": "ast",
       "unparseable": false,
       "elapsed_ms": 2,
-      "knownIssue": 103,
       "tags": [
         "import",
         "typescript",
         "grouped-import"
       ],
-      "outcome": "silent-corruption",
-      "detail": "reported success; result differs from expected\n--- expected\nimport { readFileSync, writeFileSync } from \"node:fs\";\n\nexport function go(): string {\n  return String(readFileSync(\"a\"));\n}\n\n--- actual\nimport { readFileSync } from \"node:fs\";\n\n\nimport { writeFileSync } from \"node:fs\";\nexport function go(): string {\n  return String(readFileSync(\"a\"));\n}\n"
+      "outcome": "correct"
     },
     {
       "id": "ast-remove-import-one-name-ts",
@@ -168,7 +166,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "import",
         "typescript",
@@ -182,7 +180,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": true,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "parse-gate",
         "typescript"
@@ -210,7 +208,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "hash"
       ],
@@ -235,7 +233,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "hash",
         "relocation"
@@ -287,7 +285,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "hash",
         "range-validation"
