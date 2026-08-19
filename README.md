@@ -254,6 +254,42 @@ The router auto-selects. A single `route-edit` command tries AST first, falls ba
 
 ---
 
+## Measured Behavior
+
+HashPilot ships a benchmark harness so its safety claims are checkable rather
+than asserted. `bun run bench` replays every case in [`bench/`](bench/) through
+the real routing entry point and classifies the result.
+
+**Baseline — harness v1, HashPilot v4.3.2, 23 cases:**
+
+| Metric | Value |
+|--------|-------|
+| Correct | 15 |
+| Correct refusals (ambiguous / stale / unparseable input, refused untouched) | 6 |
+| False refusals | 0 |
+| **Silent corruption** — reported success, wrong bytes on disk | **2 (8.7%)** |
+| Correctness rate (excludes correct refusals) | 88.2% |
+
+Both silent-corruption cases are grouped-import handling on the AST tier
+([#102](https://github.com/bigknoxy/HashPilot/issues/102),
+[#103](https://github.com/bigknoxy/HashPilot/issues/103)) and are committed as
+red regression guards. The hash and diff tiers are at 100% across their cases,
+including stale-anchor refusal, anchor relocation, ambiguous-content refusal, and
+unified-diff reserved tokens (`---`, `+++`, `@@`) appearing as ordinary file
+content.
+
+**Silent corruption is the number that matters.** An apply-success rate counts an
+edit that "succeeded" while quietly deleting three imports as a win; this harness
+counts it as corruption. A refusal costs a retry — a confident wrong answer gets
+committed.
+
+Methodology, case format, and the honest scope limits are in
+[`bench/README.md`](bench/README.md). Results are committed as JSON
+([`bench/results/latest.json`](bench/results/latest.json)) so trends are
+diffable, and CI fails on any case that regresses from green.
+
+---
+
 ## Commands
 
 ### Read & Search

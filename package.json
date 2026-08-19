@@ -1,6 +1,6 @@
 {
   "name": "hashpilot",
-  "version": "4.3.2",
+  "version": "4.4.0",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "engines": {
@@ -17,7 +17,8 @@
     "gen:cli-quickref": "bun run scripts/gen-cli-quickref.ts",
     "gen:cli-quickref:check": "bun run scripts/gen-cli-quickref.ts --check",
     "lint:roadmap": "bun run scripts/roadmap-lint.ts",
-    "lint:docs": "bun run gen:cli-quickref:check && bun run lint:roadmap"
+    "lint:docs": "bun run gen:cli-quickref:check && bun run lint:roadmap",
+    "bench": "bun run bench/runner.ts"
   },
   "files": [
     "src/",

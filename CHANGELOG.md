@@ -1,3 +1,10 @@
+# [4.4.0](https://github.com/bigknoxy/HashPilot/compare/v4.3.2...v4.4.0) (2026-08-19)
+
+
+### Features
+
+* **bench:** add benchmark harness with silent-corruption metric ([#26](https://github.com/bigknoxy/HashPilot/issues/26)) ([#107](https://github.com/bigknoxy/HashPilot/issues/107)) ([806bd25](https://github.com/bigknoxy/HashPilot/commit/806bd250cf9c95007e96cd7ef0fc5e518cfec473)), closes [#102](https://github.com/bigknoxy/HashPilot/issues/102) [#103](https://github.com/bigknoxy/HashPilot/issues/103)
+
 ## [4.3.2](https://github.com/bigknoxy/HashPilot/compare/v4.3.1...v4.3.2) (2026-08-19)
 
 
