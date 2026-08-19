@@ -1,3 +1,10 @@
+## [4.4.3](https://github.com/bigknoxy/HashPilot/compare/v4.4.2...v4.4.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ast:** remove a single binding from grouped imports for TS/JS/Python/Go ([#102](https://github.com/bigknoxy/HashPilot/issues/102)) ([#112](https://github.com/bigknoxy/HashPilot/issues/112)) ([c2fc901](https://github.com/bigknoxy/HashPilot/commit/c2fc901fb71473ff20f42500b60729844d40c0ca)), closes [#103](https://github.com/bigknoxy/HashPilot/issues/103)
+
 ## [4.4.2](https://github.com/bigknoxy/HashPilot/compare/v4.4.1...v4.4.2) (2026-08-19)
 
 
