@@ -141,6 +141,32 @@ export const astCases: BenchCase[] = [
     tags: ["import", "typescript", "grouped-import"],
   },
   {
+    id: "ast-add-import-type-no-merge-ts",
+    description: "a value import must not merge into `import type`, whose bindings are erased at compile time",
+    file: "svc.ts",
+    source: ['import type { Foo } from "./m";', "", "export const x = 1;", ""].join("\n"),
+    edit: { operation: "add-import", importSpec: '{ bar } from "./m"' },
+    expected: [
+      'import type { Foo } from "./m";',
+      'import { bar } from "./m";',
+      "",
+      "export const x = 1;",
+      "",
+    ].join("\n"),
+    tags: ["import", "typescript", "type-import"],
+  },
+  {
+    id: "ast-add-import-no-trailing-newline-ts",
+    description: "inserting after a last import that ends at EOF must not glue both statements onto one line",
+    file: "svc.ts",
+    source: 'import { a } from "./a";',
+    edit: { operation: "add-import", importSpec: '{ b } from "./b"' },
+    // The encoding layer preserves the file's missing trailing newline, so the
+    // guard here is only that the two statements land on separate lines.
+    expected: ['import { a } from "./a";', 'import { b } from "./b";'].join("\n"),
+    tags: ["import", "typescript"],
+  },
+  {
     id: "ast-remove-import-one-name-ts",
     description: "removing one name from a grouped import must leave the other bindings intact",
     file: "svc.ts",

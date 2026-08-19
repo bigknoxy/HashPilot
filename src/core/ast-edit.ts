@@ -669,6 +669,8 @@ interface JsImportSpecParts {
   /** Named bindings as written, e.g. `writeFileSync`, `a as b`. */
   named: string[];
   defaultName?: string;
+  /** True for `import type { .. } from "m"`. Type and value imports never merge. */
+  isType: boolean;
 }
 
 /** The local binding a named specifier introduces: `a as b` binds `b`. */
@@ -685,8 +687,13 @@ function jsLocalName(specifierText: string): string {
 function parseJsImportSpec(spec: string): JsImportSpecParts | null {
   const m = spec.trim().match(/^(.*?)\s+from\s+['"]([^'"]+)['"];?$/);
   if (!m) return null;
-  const clause = m[1].trim();
+  let clause = m[1].trim();
   const module = m[2];
+  let isType = false;
+  if (/^type\s/.test(clause)) {
+    isType = true;
+    clause = clause.slice(4).trim();
+  }
   if (clause.startsWith("*")) return null;
 
   const named: string[] = [];
@@ -701,7 +708,7 @@ function parseJsImportSpec(spec: string): JsImportSpecParts | null {
   if (before.startsWith("*")) return null;
   const defaultName = before.length > 0 ? before : undefined;
   if (named.length === 0 && !defaultName) return null;
-  return { module, named, defaultName };
+  return { module, named, defaultName, isType };
 }
 
 /**
@@ -725,10 +732,15 @@ function addJsImportMerged(
   function findTarget(node: Parser.SyntaxNode) {
     if (target) return;
     if (node.type === "import_statement") {
-      for (const c of node.children) {
-        if (c.type === "string" && unquoteLiteral(c.text) === parts!.module) {
-          target = node;
-          return;
+      // `import type { .. }` erases its bindings at compile time, so merging a
+      // value import into one would silently delete it from the output (#103).
+      const stmtIsType = node.children.some((c) => c.type === "type");
+      if (stmtIsType === parts!.isType) {
+        for (const c of node.children) {
+          if (c.type === "string" && unquoteLiteral(c.text) === parts!.module) {
+            target = node;
+            return;
+          }
         }
       }
     }
@@ -838,8 +850,10 @@ function addImportUnchecked(
       // code below it (#103).
       let insertPos = lastImportEnd;
       if (source[insertPos] === "\r") insertPos++;
-      if (source[insertPos] === "\n") insertPos++;
-      newSource = source.slice(0, insertPos) + newImportLine + source.slice(insertPos);
+      // No newline after the last import (EOF without a trailing newline): open
+      // one, otherwise the two statements would be glued onto the same line.
+      const prefix = source[insertPos] === "\n" ? (insertPos++, "") : "\n";
+      newSource = source.slice(0, insertPos) + prefix + newImportLine + source.slice(insertPos);
     }
   } else if (icfg.fallbackInsert) {
     const pos = icfg.fallbackInsert(tree.rootNode);

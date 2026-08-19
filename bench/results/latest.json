@@ -1,23 +1,23 @@
 {
   "harnessVersion": "1",
   "hashpilotVersion": "4.4.2",
-  "commit": "c2fc901",
-  "generatedAt": "2026-08-19T13:30:44.142Z",
+  "commit": "c17aace",
+  "generatedAt": "2026-08-19T14:11:45.842Z",
   "totals": {
-    "cases": 25,
-    "correct": 19,
+    "cases": 27,
+    "correct": 21,
     "silentCorruption": 0,
     "falseRefusal": 0,
     "correctRefusal": 6,
     "harnessError": 0,
     "correctnessRate": 1,
     "silentCorruptionRate": 0,
-    "totalElapsedMs": 33
+    "totalElapsedMs": 30
   },
   "byRoute": {
     "ast": {
-      "cases": 10,
-      "correct": 8,
+      "cases": 12,
+      "correct": 10,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
@@ -39,8 +39,8 @@
   },
   "byLanguage": {
     "typescript": {
-      "cases": 8,
-      "correct": 6,
+      "cases": 10,
+      "correct": 8,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
@@ -74,7 +74,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 6,
+      "elapsed_ms": 5,
       "tags": [
         "rename",
         "typescript"
@@ -113,7 +113,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "rename",
         "typescript"
@@ -152,11 +152,38 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "tags": [
         "import",
         "typescript",
         "grouped-import"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-type-no-merge-ts",
+      "description": "a value import must not merge into `import type`, whose bindings are erased at compile time",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "import",
+        "typescript",
+        "type-import"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-no-trailing-newline-ts",
+      "description": "inserting after a last import that ends at EOF must not glue both statements onto one line",
+      "language": "typescript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "import",
+        "typescript"
       ],
       "outcome": "correct"
     },
@@ -180,7 +207,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": true,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "parse-gate",
         "typescript"
@@ -193,7 +220,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 1,
       "knownIssue": 39,
       "tags": [
         "rename",
@@ -220,7 +247,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "hash",
         "stale-anchor"
@@ -335,7 +362,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "knownIssue": 32,
       "tags": [
         "diff",
