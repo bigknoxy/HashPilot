@@ -1,3 +1,10 @@
+## [4.4.9](https://github.com/bigknoxy/HashPilot/compare/v4.4.8...v4.4.9) (2026-08-19)
+
+
+### Bug Fixes
+
+* **dry-run:** preview edits as a diff instead of dumping the whole file ([#98](https://github.com/bigknoxy/HashPilot/issues/98)) ([#118](https://github.com/bigknoxy/HashPilot/issues/118)) ([ef3d7ae](https://github.com/bigknoxy/HashPilot/commit/ef3d7ae1eb8d80079f415d6a0ee847e9b6649292))
+
 ## [4.4.8](https://github.com/bigknoxy/HashPilot/compare/v4.4.7...v4.4.8) (2026-08-19)
 
 
