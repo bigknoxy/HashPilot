@@ -1,3 +1,10 @@
+## [4.3.2](https://github.com/bigknoxy/HashPilot/compare/v4.3.1...v4.3.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **install:** stop the installer overwriting the checkout through a symlink ([#97](https://github.com/bigknoxy/HashPilot/issues/97)) ([420eac2](https://github.com/bigknoxy/HashPilot/commit/420eac2014acda62f3894e4dc5537b08f587248f)), closes [#96](https://github.com/bigknoxy/HashPilot/issues/96)
+
 ## [4.3.1](https://github.com/bigknoxy/HashPilot/compare/v4.3.0...v4.3.1) (2026-08-19)
 
 
