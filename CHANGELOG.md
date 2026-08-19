@@ -1,3 +1,10 @@
+## [4.3.1](https://github.com/bigknoxy/HashPilot/compare/v4.3.0...v4.3.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **install:** put ~/.agentic-tools/bin on PATH from install-cli ([#95](https://github.com/bigknoxy/HashPilot/issues/95)) ([58ff8a1](https://github.com/bigknoxy/HashPilot/commit/58ff8a12f480453e51ed9f4424c964b15fc3e377))
+
 # [4.3.0](https://github.com/bigknoxy/HashPilot/compare/v4.2.1...v4.3.0) (2026-08-19)
 
 
