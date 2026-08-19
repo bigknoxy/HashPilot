@@ -300,7 +300,7 @@ Retention defaults to 200 changeSets / 7 days, configurable under `snapshots` in
 | Command | What It Does |
 |---------|-------------|
 | `ast capabilities` | Show supported languages, operations, and limitations |
-| `ast find-symbols <file>` | List all symbols (functions, classes, variables) |
+| `ast find-symbols <file>` | List all symbols (functions, classes, variables), with 1-indexed `startLine`/`endLine`/`startColumn`/`endColumn` (matching the hash tier's `range`) alongside the raw 0-indexed tree-sitter `startRow`/`endRow`/`startCol`/`endCol` |
 | `ast rename-symbol <file> <old> <new>` | Rename a symbol and all its references within **one file**, binding-aware — refuses with `AMBIGUOUS_SYMBOL` (exit `2`) when the name binds more than one symbol (a shadowed local, a foreign import, or a duplicate declaration) |
 | `ast replace-body <file> <symbol> <body>` | Replace a function/method body |
 | `ast add-import <file> <spec>` | Add an import with grouped-import merging |

@@ -256,10 +256,24 @@ export interface ASTEditResult {
 export interface SymbolInfo {
   name: string;
   kind: string;
+  /**
+   * Zero-indexed tree-sitter coordinates. Kept for backward compatibility;
+   * prefer the 1-indexed `startLine`/`endLine`/`startColumn`/`endColumn` below,
+   * which match every other line number HashPilot reports — notably the `range`
+   * accepted by the hash tier and the lines returned by `read-hash` (#99).
+   */
   startRow: number;
   endRow: number;
   startCol: number;
   endCol: number;
+  /** 1-indexed line of the symbol's first character. */
+  startLine: number;
+  /** 1-indexed line of the symbol's last character. */
+  endLine: number;
+  /** 1-indexed column of the symbol's first character. */
+  startColumn: number;
+  /** 1-indexed column of the symbol's last character. */
+  endColumn: number;
 }
 
 export function findSymbols(source: string, filePath: string): SymbolInfo[] {
@@ -279,6 +293,10 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
         node.childForFieldName("name") ||
         node.children.find((c) => IDENTIFIER_TYPES.has(c.type));
       if (nameNode) {
+        // tree-sitter counts rows and columns from 0. Everything else
+        // HashPilot reports — `read-hash`, the hash tier's `range`, editor
+        // jump-to-line — counts from 1, so emit both rather than leaving each
+        // caller to remember which convention this one function uses (#99).
         symbols.push({
           name: nameNode.text,
           kind: node.type,
@@ -286,6 +304,10 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
           endRow: node.endPosition.row,
           startCol: node.startPosition.column,
           endCol: node.endPosition.column,
+          startLine: node.startPosition.row + 1,
+          endLine: node.endPosition.row + 1,
+          startColumn: node.startPosition.column + 1,
+          endColumn: node.endPosition.column + 1,
         });
       }
     }
