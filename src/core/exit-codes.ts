@@ -46,6 +46,10 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
   // not conclude — but carries its own error code so an agent can tell "your
   // change broke the tests" from "the suite ran out of time".
   [ErrorCode.VERIFY_TIMEOUT]: ExitCode.VERIFY_FAILED,
+  // Same band again: the edit applied, verification produced no verdict. A
+  // separate code so an agent can tell "nothing was checked" from "the checks
+  // failed" and re-run with the flags it forgot (#106).
+  [ErrorCode.VERIFY_NO_CHECKS]: ExitCode.VERIFY_FAILED,
   // Deliberately IO, not VERIFY_FAILED: a half-reverted tree is a filesystem
   // problem the agent must stop and inspect, not a retryable test failure.
   [ErrorCode.ROLLBACK_INCOMPLETE]: ExitCode.IO,

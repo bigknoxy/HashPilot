@@ -268,7 +268,11 @@ export async function executePlan(
   // It is still not a pass — the plan reports `success: false` with
   // VERIFY_TIMEOUT so the caller decides what to do.
   const verifyTimedOut = verification?.overall === "timeout";
-  const allPassed = !stepFailed && !verifyFailed && !verifyTimedOut;
+  // No check ran, so the plan is unverified. Like a timeout this is not a
+  // failure and must not roll back — but it is not a pass either, and reporting
+  // one would be the false green of #106 laundered through the planner.
+  const verifySkipped = verification?.overall === "skipped";
+  const allPassed = !stepFailed && !verifyFailed && !verifyTimedOut && !verifySkipped;
 
   // Rollback on step failure OR verification failure.
   //
@@ -323,7 +327,9 @@ export async function executePlan(
         ? ErrorCode.VERIFY_TIMEOUT
         : verifyFailed
           ? ErrorCode.VERIFY_FAILED
-          : undefined;
+          : verifySkipped
+            ? ErrorCode.VERIFY_NO_CHECKS
+            : undefined;
 
   recordEvent({
     operation: `intent-${plan.intent.operation}`,

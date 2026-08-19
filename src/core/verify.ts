@@ -7,6 +7,7 @@ import { computeHash } from "./read";
 import { safeWrite, findProjectRoot as findWriteRoot } from "./paths";
 import { recordEvent, ErrorCode } from "./telemetry";
 import { buildTestInvocation, parseFailures, type TestInvocation } from "./verify-scope";
+import { addWarning } from "./envelope";
 import {
   compareToBaseline,
   currentCommit,
@@ -38,12 +39,25 @@ export interface VerifyResult {
    * `timeout` is deliberately its own state: a suite that ran out of time says
    * nothing about the edit, so collapsing it into `fail` both misreports the
    * change and (with --revert-on-failure) destroys it.
+   *
+   * `skipped` is the same argument one step earlier: every check is opt-in, so
+   * a caller that requested none used to get `pass` — a vacuous truth over an
+   * empty check set, indistinguishable from a fully green run on the one
+   * assertion this command exists to make (#106).
    */
-  overall: "pass" | "fail" | "timeout";
+  overall: "pass" | "fail" | "timeout" | "skipped";
   /** Which checks timed out, when `overall` is "timeout". */
   timedOut?: string[];
+  /**
+   * Which checks actually ran. Empty means nothing was verified — see
+   * `overall: "skipped"`. Present on every result so a caller never has to
+   * infer coverage from which optional keys happen to be absent (#106).
+   */
+  checksRun: string[];
   /** Set on any non-pass outcome so callers get a stable exit code. */
   errorCode?: string;
+  /** Human-readable reason, set alongside `errorCode` on a non-pass outcome. */
+  message?: string;
   /** How the test command was scoped — `scoped: false` means the full suite ran. */
   testScope?: TestInvocation;
   /** Baseline comparison, when one was requested. */
@@ -490,6 +504,9 @@ async function testRootFor(files: string[]): Promise<string> {
   return findProjectRoot(files[0].split("/").slice(0, -1).join("/") || ".");
 }
 
+const NO_CHECKS_MESSAGE =
+  "no checks ran: every check is opt-in and none was requested or detected, so nothing about these files was verified";
+
 // ---- Main entry point ----
 
 export async function verifyChanges(
@@ -600,10 +617,27 @@ export async function verifyChanges(
     ["tests", tests],
   ] as const).filter(([, run]) => run?.timedOut).map(([name]) => name);
 
+  const checksRun = ([
+    ["formatter", formatter],
+    ["linter", linter],
+    ["typecheck", typecheck],
+    ["tests", tests],
+  ] as const).filter(([, run]) => run !== undefined && run !== null).map(([name]) => name);
+
   // Timeout outranks failure: a check that never finished has not judged the
   // edit, and reporting "fail" would license a revert on no evidence.
-  const overall: "pass" | "fail" | "timeout" =
-    timedOut.length > 0 ? "timeout" : allPass ? "pass" : "fail";
+  // "skipped" outranks both — with no check at all there is no evidence to
+  // weigh, and `allPass` is vacuously true over the empty set (#106).
+  const overall: "pass" | "fail" | "timeout" | "skipped" =
+    checksRun.length === 0 ? "skipped" : timedOut.length > 0 ? "timeout" : allPass ? "pass" : "fail";
+
+  if (overall === "skipped") {
+    addWarning({
+      code: "VERIFY_NO_CHECKS",
+      message: NO_CHECKS_MESSAGE,
+      recovery: "Pass --auto-detect, or name a check explicitly with --formatter/--linter/--typecheck/--test-runner.",
+    });
+  }
 
   const result: VerifyResult = {
     files,
@@ -612,13 +646,17 @@ export async function verifyChanges(
     typecheck: typecheck || undefined,
     tests: tests || undefined,
     overall,
+    checksRun,
+    message: overall === "skipped" ? NO_CHECKS_MESSAGE : undefined,
     timedOut: timedOut.length > 0 ? [...timedOut] : undefined,
     errorCode:
-      overall === "timeout"
-        ? ErrorCode.VERIFY_TIMEOUT
-        : overall === "fail"
-          ? ErrorCode.VERIFY_FAILED
-          : undefined,
+      overall === "skipped"
+        ? ErrorCode.VERIFY_NO_CHECKS
+        : overall === "timeout"
+          ? ErrorCode.VERIFY_TIMEOUT
+          : overall === "fail"
+            ? ErrorCode.VERIFY_FAILED
+            : undefined,
     testScope,
     baseline: baselineReport,
     elapsed_ms: elapsed,

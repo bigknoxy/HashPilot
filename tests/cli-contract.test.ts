@@ -217,3 +217,31 @@ describe("--format output mode (#19 B16)", () => {
     expect(res.stdout).toContain("HashPilot Doctor");
    });
 });
+
+describe("verify-changes never reports a green it did not earn (#106)", () => {
+  test("no check requested exits 4 with VERIFY_NO_CHECKS, not 0", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hp-noverify-"));
+    const file = join(dir, "s.ts");
+    writeFileSync(file, "const x = 1;\n");
+    const res = run(["verify-changes", file]);
+    expect(res.code).toBe(4);
+    const env = JSON.parse(res.stdout);
+    expect(env.ok).toBe(false);
+    expect(env.data.overall).toBe("skipped");
+    expect(env.data.checksRun).toEqual([]);
+    expect(env.error.code).toBe("VERIFY_NO_CHECKS");
+    // The recovery has to name a flag the agent can actually pass.
+    expect(env.warnings.map((w: any) => w.code)).toContain("VERIFY_NO_CHECKS");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("text mode says nothing was verified rather than 'all checks passed'", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hp-noverify-txt-"));
+    const file = join(dir, "s.ts");
+    writeFileSync(file, "const x = 1;\n");
+    const res = run(["verify-changes", "--format", "text", file]);
+    expect(res.stdout).toContain("no checks ran");
+    expect(res.stdout).not.toContain("all checks passed");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});

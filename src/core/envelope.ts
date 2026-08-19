@@ -95,7 +95,12 @@ function firstFailure(payload: unknown): ErrorBearing | undefined {
   }
   if (!payload || typeof payload !== "object") return undefined;
   const p = payload as ErrorBearing & { result?: unknown };
-  const failed = p.success === false || p.passed === false || (p.error !== undefined && p.error !== null);
+  // `errorCode` alone counts as a failure. `verify-changes` returns neither
+  // `success` nor `error` — only `errorCode` — so its failures used to reach the
+  // envelope as `{code: "UNKNOWN", message: "Operation failed."}` beside a
+  // perfectly specific `data.errorCode` (#106).
+  const failed =
+    p.success === false || p.passed === false || (p.error !== undefined && p.error !== null) || !!p.errorCode;
   if (failed) return p;
   // Wrapper shapes (route-edit, batch) nest the real outcome under `result`.
   return p.result ? firstFailure(p.result) : undefined;

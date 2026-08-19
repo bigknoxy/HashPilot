@@ -200,6 +200,11 @@ hashpilot replace-hash src/main.ts "$HASH" "  port: 8080" --range 5:5
 hashpilot verify-changes src/main.ts --auto-detect
 ```
 
+Every check is opt-in, so `--auto-detect` (or an explicit `--formatter` /
+`--linter` / `--typecheck` / `--test-runner`) is what makes the command verify
+anything. A run with no check reports `overall: "skipped"` and exits 4 rather
+than the vacuous `"pass"` it used to return over an empty check set.
+
 ---
 
 ## How It Works
@@ -418,7 +423,7 @@ Every command writes the same JSON shape to stdout, so an adapter has one parse 
 - `error` — `null` when `ok`, else `{ code, message, recovery? }`. Branch on `code`, never on `message`.
 - `warnings` — non-fatal notices: `ROUTE_FALLBACK` (the edit was downgraded to a less safe
   route), `ANCHOR_RELOCATED` (the anchor moved and the edit landed elsewhere),
-  `TELEMETRY_LOG_CORRUPT`.
+  `TELEMETRY_LOG_CORRUPT`, `VERIFY_NO_CHECKS` (`verify-changes` ran no check at all — see below).
 - `ok` is derived from the exit code below, so the two never disagree.
 
 Schema: [`schema/hashpilot-envelope.schema.json`](schema/hashpilot-envelope.schema.json).
