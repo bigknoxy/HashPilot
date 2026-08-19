@@ -716,7 +716,9 @@ describe("plan-executor edge cases", () => {
 
     const result = await executePlan(plan, { verify: true, dryRun: false, revertOnFailure: false });
     expect(result.verification).toBeDefined();
-    expect(["pass", "fail"]).toContain(result.verification!.overall);
+    // "skipped" is a legitimate verdict here: no check is configured for the
+    // fixture, and #106 stopped that from masquerading as "pass".
+    expect(["pass", "fail", "skipped"]).toContain(result.verification!.overall);
     // File should still be modified
     expect(await Bun.file(txtFile).text()).toContain("Universe");
   });

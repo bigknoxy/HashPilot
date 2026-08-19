@@ -1,5 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { verifyChanges } from "../src/core/verify";
+import { ErrorCode } from "../src/core/telemetry";
+import { exitCodeFor, ExitCode } from "../src/core/exit-codes";
+import { takeWarnings } from "../src/core/envelope";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -587,5 +590,49 @@ describe("B19 — verify-changes security hardening", () => {
     }
 
     expect(stderrLines.some(l => l.includes("[verify-changes] running:"))).toBe(true);
+  });
+});
+
+describe("a run with no checks is not a pass (#106)", () => {
+  beforeEach(setup);
+  afterEach(cleanup);
+
+  const sample = () => join(TMP_DIR, "sample.ts");
+
+  test("no check requested reports skipped, not pass", async () => {
+    // `allPass` is vacuously true over an empty check set, so this used to be
+    // indistinguishable from a fully green run — a free green light on the one
+    // assertion verify-changes exists to make.
+    const result = await verifyChanges([sample()]);
+    expect(result.overall).toBe("skipped");
+    expect(result.checksRun).toEqual([]);
+    expect(result.errorCode).toBe(ErrorCode.VERIFY_NO_CHECKS);
+  });
+
+  test("skipped exits in the verification band, not 0", async () => {
+    const result = await verifyChanges([sample()]);
+    expect(exitCodeFor(result as any)).toBe(ExitCode.VERIFY_FAILED);
+  });
+
+  test("the caller is told why, and how to fix it", async () => {
+    takeWarnings();
+    await verifyChanges([sample()]);
+    const warnings = takeWarnings();
+    const w = warnings.find((x: any) => x.code === "VERIFY_NO_CHECKS");
+    expect(w).toBeDefined();
+    expect((w as any).recovery).toContain("--auto-detect");
+  });
+
+  test("one check that passes is a real pass, and names what ran", async () => {
+    const result = await verifyChanges([sample()], { formatter: "echo", allowArbitraryTool: true });
+    expect(result.overall).toBe("pass");
+    expect(result.checksRun).toEqual(["formatter"]);
+    expect(result.errorCode).toBeUndefined();
+  });
+
+  test("a failing check still outranks nothing-ran", async () => {
+    const result = await verifyChanges([sample()], { formatter: "false", allowArbitraryTool: true });
+    expect(result.overall).toBe("fail");
+    expect(result.checksRun).toEqual(["formatter"]);
   });
 });

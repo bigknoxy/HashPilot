@@ -47,6 +47,8 @@
                 "INVALID_ARGUMENT",
                 "UNSUPPORTED_OPERATION",
                 "VERIFY_FAILED",
+                "VERIFY_TIMEOUT",
+                "VERIFY_NO_CHECKS",
                 "AMBIGUOUS_ANCHOR",
                 "READ_FAILED",
                 "UNKNOWN",
@@ -72,7 +74,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "enum": ["ROUTE_FALLBACK", "ANCHOR_RELOCATED", "TELEMETRY_LOG_CORRUPT"]
+            "enum": ["ROUTE_FALLBACK", "ANCHOR_RELOCATED", "TELEMETRY_LOG_CORRUPT", "VERIFY_NO_CHECKS"]
           },
           "message": { "type": "string" }
         }

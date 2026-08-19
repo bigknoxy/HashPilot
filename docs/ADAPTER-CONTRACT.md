@@ -24,7 +24,7 @@ Every command writes the same top-level shape. Schema: [`schema/hashpilot-envelo
 | `command` | Space-separated subcommand path, e.g. `"telemetry show"`. Over MCP it is the tool name, e.g. `"replace_hash"`. |
 | `data` | The per-command payload. **Every example below shows what goes here, not the top level.** |
 | `error` | `null` when `ok`; otherwise `{ code, message, recovery?, details? }`. `code` is an `ErrorCode` — branch on it, never on `message`. |
-| `warnings` | Non-fatal notices, each `{ code, message, ... }`. Codes: `ROUTE_FALLBACK` (the edit was downgraded to a less safe route), `ANCHOR_RELOCATED` (the anchor moved; the edit landed elsewhere), `TELEMETRY_LOG_CORRUPT` (malformed log lines were skipped). |
+| `warnings` | Non-fatal notices, each `{ code, message, ... }`. Codes: `ROUTE_FALLBACK` (the edit was downgraded to a less safe route), `ANCHOR_RELOCATED` (the anchor moved; the edit landed elsewhere), `TELEMETRY_LOG_CORRUPT` (malformed log lines were skipped), `VERIFY_NO_CHECKS` (`verify-changes` ran no check at all, so nothing was verified). |
 
 **Breaking change in v3.0.0 (#18, #56).** Through v2.x each command returned its own
 shape at the top level — some a bare array, some an object — so an adapter had to
@@ -574,6 +574,7 @@ hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>
   "tests": { "passed": true, "output": "...", "timedOut": false, "truncated": false },
   "typecheck": { "passed": true, "output": "..." },
   "overall": "pass",
+  "checksRun": ["formatter", "linter", "typecheck", "tests"],
   "testScope": { "cmd": "bun test", "args": ["/abs/path/file.test.ts"], "scoped": true, "reason": "bun test restricted to 1 related test file(s)" },
   "baseline": { "source": "cache", "comparable": true, "preExisting": [], "newFailures": [], "reason": "all failures were already failing at \u2026" },
   "elapsed_ms": 120,
@@ -583,14 +584,23 @@ hashpilot verify-changes <file1> [file2] ... [--formatter <cmd>] [--linter <cmd>
 }
 ```
 
-`overall` is `"pass"`, `"fail"`, or `"timeout"`. `"timeout"` means a check
+`overall` is `"pass"`, `"fail"`, `"timeout"`, or `"skipped"`. `"timeout"` means a check
 hit its `--timeout` without reaching a verdict; it is *not* a
 failure and never triggers `--revert-on-failure` — a slow suite must
 not destroy correct work.
 
+`"skipped"` means **no check ran at all**, so nothing was verified. Every check
+is opt-in, so a call that names none (and does not pass `--auto-detect`) reaches
+this state; it used to report `"pass"`, because "all checks passed" is vacuously
+true over an empty check set ([#106](../../issues/106)). It carries
+`errorCode: "VERIFY_NO_CHECKS"` (exit `4`), a `VERIFY_NO_CHECKS` warning naming
+the recovery, and never triggers `--revert-on-failure`. `checksRun` lists which
+checks actually ran and is present on every result, so coverage never has to be
+inferred from which optional keys happen to be absent.
+
 Per-run fields: `timedOut` (which checks timed out, present only
 when `overall` is `"timeout"`), `errorCode` (`VERIFY_TIMEOUT` on a
-timeout, `VERIFY_FAILED` on a real failure, `undefined` on a pass
+timeout, `VERIFY_NO_CHECKS` when nothing ran, `VERIFY_FAILED` on a real failure, `undefined` on a pass
 — both failures map to exit code `4`), `testScope` (how the test run
 was scoped; `scoped: false` means the whole suite ran and why), and
 `baseline` (the `--use-baseline` comparison: `comparable: false` means
@@ -1157,7 +1167,7 @@ Branch on the exit code, not on stderr text.
 | `1` | Usage error — bad arguments, denied path, unsupported operation | Fix the invocation; do not retry as-is |
 | `2` | Edit failed — the operation ran but could not be applied | Try another route or report |
 | `3` | Stale anchor / precondition failed | **Retryable:** re-read the file and reissue with the fresh hash |
-| `4` | Verification failed **or timed out** — the edit applied but the suite did not pass, or hit its `--timeout` (`overall:`"timeout"`, `errorCode:`VERIFY_TIMEOUT`) | Inspect the verify output. A *timeout* is not a failure: do not retry it and it never reverts the edit. A real failure *may* have been reverted |
+| `4` | Verification failed, timed out, **or never ran** (`overall: "skipped"`, `errorCode: VERIFY_NO_CHECKS` — request a check or pass `--auto-detect`) — the edit applied but the suite did not pass, or hit its `--timeout` (`overall:`"timeout"`, `errorCode:`VERIFY_TIMEOUT`) | Inspect the verify output. A *timeout* is not a failure: do not retry it and it never reverts the edit. A real failure *may* have been reverted |
 | `5` | I/O error — file not found, unreadable, or write failed. Also an **incomplete rollback** (`errorCode: ROLLBACK_INCOMPLETE`) | Check the path and permissions. On `ROLLBACK_INCOMPLETE`, **stop and inspect** — read `unrevertedFiles` and restore them before retrying anything |
 | `70` | Internal error | Report a bug |
 

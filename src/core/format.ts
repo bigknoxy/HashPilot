@@ -235,11 +235,33 @@ registerRenderer("intent", (p) => {
 
 // verify
 registerRenderer("verify", (p) => {
-  if (p.success) process.stdout.write("✓ all checks passed\n");
+  // "no checks ran" is its own line: printing "all checks passed" over an empty
+  // check set is exactly the false green of #106.
+  if (p.overall === "skipped") process.stdout.write("⚠ no checks ran — nothing was verified\n");
+  else if (p.success) process.stdout.write("✓ all checks passed\n");
   else process.stdout.write("✗ " + (p.errorCode || "checks failed") + "\n");
   const checks = (p.checks || p.results || []) as ResultPayload[];
   for (const c of checks.slice(0, 5)) {
     process.stdout.write(`  ${c.overall === "pass" || c.success ? "✓" : "✗"} ${c.command || c.name || "?"}\n`);
+  }
+});
+
+// verify-changes — the CLI command name; the "verify" renderer above serves the
+// plan/step payloads that embed a list of checks.
+registerRenderer("verify-changes", (p) => {
+  const ran = (p.checksRun || []) as string[];
+  if (p.overall === "skipped") {
+    // Never "all checks passed" over an empty check set — that false green is
+    // the whole of #106.
+    process.stdout.write("⚠ no checks ran — nothing was verified\n");
+    process.stdout.write("  " + String(p.message || "") + "\n");
+    return;
+  }
+  const mark = p.overall === "pass" ? "✓" : "✗";
+  process.stdout.write(`${mark} ${p.overall} (${ran.length} check${ran.length === 1 ? "" : "s"}: ${ran.join(", ")})\n`);
+  for (const name of ran) {
+    const run = p[name] as ResultPayload | undefined;
+    if (run) process.stdout.write(`  ${run.passed ? "✓" : "✗"} ${name}\n`);
   }
 });
 

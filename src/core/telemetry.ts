@@ -57,6 +57,8 @@ export enum ErrorCode {
    * nothing about the edit and must not trigger a revert on its own.
    */
   VERIFY_TIMEOUT = "VERIFY_TIMEOUT",
+  /** verify-changes ran no checks at all, so it verified nothing (#106). */
+  VERIFY_NO_CHECKS = "VERIFY_NO_CHECKS",
   /**
    * A rollback ran but could not restore every file, so the tree is left in a
    * state that is neither the original nor the intended result. Strictly more
