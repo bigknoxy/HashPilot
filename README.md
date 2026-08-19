@@ -361,7 +361,7 @@ demoted large files to the diff route.
 | Command | What It Does |
 |---------|-------------|
 | `diff generate <file> <old> <new>` | Generate a unified diff |
-| `diff apply <file> --patch <patch>` | Apply a patch with fuzzy matching |
+| `diff apply <file> --patch <patch>` | Apply a patch with fuzzy matching (`--fuzzy 0` = strict: exact offset and content) |
 
 ### Multi-File & Intents
 

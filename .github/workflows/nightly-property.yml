@@ -1,0 +1,27 @@
+# Nightly randomized property sweep (#31).
+#
+# CI runs the diff-engine property tests with a fixed seed so failures are
+# reproducible and PRs are deterministic. That intentionally samples the same
+# slice of the input space every time, so this job runs them unseeded once a day
+# to keep exploring. A failure here is a real counterexample: minimize it, commit
+# it as a fixture in tests/diff-property.test.ts, then fix the engine.
+name: Nightly Property Sweep
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  property:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Property tests with a random seed
+        env:
+          FC_RANDOM_SEED: "1"
+        run: bun test tests/diff-property.test.ts

@@ -1,18 +1,18 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.3.2",
-  "commit": "27a1ce6",
-  "generatedAt": "2026-08-19T04:46:29.034Z",
+  "hashpilotVersion": "4.4.0",
+  "commit": "1a44e47",
+  "generatedAt": "2026-08-19T12:53:10.507Z",
   "totals": {
-    "cases": 23,
-    "correct": 15,
+    "cases": 25,
+    "correct": 17,
     "silentCorruption": 2,
     "falseRefusal": 0,
     "correctRefusal": 6,
     "harnessError": 0,
-    "correctnessRate": 0.8824,
-    "silentCorruptionRate": 0.087,
-    "totalElapsedMs": 32
+    "correctnessRate": 0.8947,
+    "silentCorruptionRate": 0.08,
+    "totalElapsedMs": 35
   },
   "byRoute": {
     "ast": {
@@ -30,8 +30,8 @@
       "correctRefusal": 2
     },
     "diff": {
-      "cases": 6,
-      "correct": 4,
+      "cases": 8,
+      "correct": 6,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
@@ -60,8 +60,8 @@
       "correctRefusal": 0
     },
     "unknown": {
-      "cases": 13,
-      "correct": 9,
+      "cases": 15,
+      "correct": 11,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 4
@@ -113,7 +113,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "rename",
         "typescript"
@@ -126,7 +126,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "replace-body",
         "typescript"
@@ -197,7 +197,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 2,
       "knownIssue": 39,
       "tags": [
         "rename",
@@ -212,7 +212,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "hash"
       ],
@@ -344,6 +344,34 @@
       "tags": [
         "diff",
         "reserved-tokens"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "diff-dash-prefixed-line-deleted",
+      "description": "delete a line whose content starts with '-- ' (renders as '--- ' once prefixed)",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 2,
+      "tags": [
+        "diff",
+        "reserved-tokens",
+        "31"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "diff-dash-prefixed-line-replaced",
+      "description": "replace a line whose removal renders as a '--- ' file-header lookalike",
+      "language": "unknown",
+      "route": "diff",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "diff",
+        "reserved-tokens",
+        "31"
       ],
       "outcome": "correct"
     },

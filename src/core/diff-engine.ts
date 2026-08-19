@@ -190,9 +190,32 @@ export function parsePatch(patchText: string): { filePath: string; hunks: Hunk[]
       const newStart = parseInt(hdrMatch[3]);
       const newLines = hdrMatch[4] !== undefined ? parseInt(hdrMatch[4]) : 1;
 
+      // Consume exactly the number of lines the header declares rather than
+      // scanning for the next "@@"/"--- " marker. Hunk bodies are prefixed, so a
+      // removed line whose content starts with "-- " renders as "--- ..." and a
+      // marker scan would mistake file content for the next file header,
+      // truncating the hunk (#31).
       const hunkLines: string[] = [];
+      let oldSeen = 0;
+      let newSeen = 0;
       i++;
-      while (i < lines.length && !lines[i].startsWith("@@") && !lines[i].startsWith("--- ")) {
+      while (i < lines.length && (oldSeen < oldLines || newSeen < newLines)) {
+        const hl = lines[i];
+        if (hl.startsWith(" ")) {
+          oldSeen++;
+          newSeen++;
+        } else if (hl.startsWith("-")) {
+          oldSeen++;
+        } else if (hl.startsWith("+")) {
+          newSeen++;
+        } else if (!hl.startsWith("\\")) {
+          break; // malformed body line; stop rather than mis-consume
+        }
+        hunkLines.push(hl);
+        i++;
+      }
+      // Trailing "\ No newline at end of file" markers belong to this hunk.
+      while (i < lines.length && lines[i].startsWith("\\")) {
         hunkLines.push(lines[i]);
         i++;
       }
@@ -291,9 +314,15 @@ function applyHunk(
 ): HunkApplyResult {
   const targetOldStart = hunk.oldStart + lineOffset - 1; // 0-indexed
 
-  // Search for hunk match within fuzzy range
+  // Search for a hunk match within the fuzzy window. The window is +/- `fuzzy`
+  // lines around the recorded position -- it deliberately does NOT extend by
+  // `hunk.oldLines`, which used to let a hunk land a whole body-length away from
+  // where it was recorded and silently patch the wrong region (#31).
+  //
+  // `fuzzy: 0` is strict mode: the hunk applies at exactly the recorded offset
+  // with exactly the recorded content, or it refuses.
   const searchStart = Math.max(0, targetOldStart - fuzzy);
-  const searchEnd = Math.min(srcLines.length, targetOldStart + fuzzy + hunk.oldLines + 1);
+  const searchEnd = Math.min(srcLines.length, targetOldStart + fuzzy) + 1;
   let matchIdx = -1;
 
   for (let srcPos = searchStart; srcPos < searchEnd; srcPos++) {
@@ -307,7 +336,10 @@ function applyHunk(
     return {
       success: false,
       offsetDelta: 0,
-      error: `Hunk failed at ${hunk.header}: context not found near line ${targetOldStart + 1}`,
+      error:
+        fuzzy === 0
+          ? `Hunk failed at ${hunk.header}: strict mode (fuzzy 0) requires an exact match at line ${targetOldStart + 1}`
+          : `Hunk failed at ${hunk.header}: context not found near line ${targetOldStart + 1}`,
     };
   }
 
@@ -321,10 +353,32 @@ function applyHunk(
     }
   }
 
+  // Strict mode: refuse a patch that has already been applied. Both sides of a
+  // hunk can match the same position -- a pure insertion still matches its own
+  // old side after it has landed -- so when both match, the longer side wins. If
+  // that is the new side, the region is already in its post-patch state and
+  // re-applying would duplicate it (#31).
+  if (fuzzy === 0 && replacementLines.length > hunk.oldLines && linesMatchAt(srcLines, replacementLines, matchIdx)) {
+    return {
+      success: false,
+      offsetDelta: 0,
+      error: `Hunk failed at ${hunk.header}: already applied at line ${matchIdx + 1}`,
+    };
+  }
+
   srcLines.splice(matchIdx, hunk.oldLines, ...replacementLines);
 
   const offsetDelta = replacementLines.length - hunk.oldLines;
   return { success: true, offsetDelta };
+}
+
+/** True when `want` appears verbatim in `srcLines` starting at `pos`. */
+function linesMatchAt(srcLines: string[], want: string[], pos: number): boolean {
+  if (pos + want.length > srcLines.length) return false;
+  for (let k = 0; k < want.length; k++) {
+    if (srcLines[pos + k] !== want[k]) return false;
+  }
+  return true;
 }
 
 function hunkMatches(srcLines: string[], hunk: Hunk, srcPos: number): boolean {
