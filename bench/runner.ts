@@ -118,6 +118,23 @@ async function runCase(c: BenchCase, workRoot: string): Promise<CaseResult> {
     return classify("silent-corruption", "the edit was refused but the file was modified anyway");
   }
 
+  // Dry-run cases: the payload is the thing under test. A preview that hands
+  // back the whole file when it promised a diff is the #98 regression, and it
+  // costs the caller a context window, so it counts as a failed case.
+  if (c.expectPreview) {
+    const r: any = routed.result;
+    if (!succeeded) return classify("false-refusal", r?.message || "dry run refused with no message");
+    if (after !== c.source) return classify("silent-corruption", "a dry run wrote to disk");
+    if (c.expectPreview === "diff") {
+      if (r.newSource !== undefined) return classify("silent-corruption", "dry run returned the whole file instead of a diff");
+      if (typeof r.diff !== "string" || !r.diff.includes("@@")) return classify("false-refusal", "dry run returned no usable diff");
+      if (r.diff.length >= c.source.length) return classify("false-refusal", `preview (${r.diff.length}B) is no cheaper than the file (${c.source.length}B)`);
+    } else if (typeof r.newSource !== "string") {
+      return classify("false-refusal", "includeSource did not return the post-edit file");
+    }
+    return classify("correct");
+  }
+
   // Edit cases.
   if (!succeeded) {
     if (after !== c.source) {

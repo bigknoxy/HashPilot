@@ -206,6 +206,12 @@ where that content now lives. Feed the pair back as the next call's `oldHash`
 and `--range`. (`fileHash` is the whole file after the edit; it is reported for
 information and is not an anchor.)
 
+A dry run previews rather than dumps. `--dry-run` (MCP `dryRun: true`) returns a
+unified `diff` of the changed hunks plus `sourceOmitted: true` — not the whole
+post-edit file, which used to make previewing an edit cost more context than
+making it. Pass `--include-source` (`includeSource: true`) when you really want
+the full text back.
+
 Every check is opt-in, so `--auto-detect` (or an explicit `--formatter` /
 `--linter` / `--typecheck` / `--test-runner`) is what makes the command verify
 anything. A run with no check reports `overall: "skipped"` and exits 4 rather

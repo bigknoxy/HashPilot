@@ -22,6 +22,8 @@ export interface BatchParams {
   // Diff params
   oldContent?: string;
   dryRun?: boolean;
+  /** Dry runs return a diff; set this to get the whole post-edit file back (#98). */
+  includeSource?: boolean;
   // Provenance params
   actor?: string;
   taskId?: string;
@@ -64,6 +66,7 @@ async function editOne(
     content: params.content,
     oldContent: params.oldContent,
     dryRun: params.dryRun,
+    includeSource: params.includeSource,
     actor: params.actor,
     taskId: params.taskId,
     reason: params.reason,

@@ -443,7 +443,7 @@ Rename all references to a symbol.
 
 **Invocation:**
 ```
-hashpilot ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 **Output:**
@@ -457,6 +457,23 @@ hashpilot ast rename-symbol <file> <old-name> <new-name> [--dry-run] [--actor <n
 }
 ```
 
+**Dry-run output** (every `ast` command, plus `route-edit` and `batch`): the same
+object with a unified `diff` of the changed hunks and `sourceOmitted: true` in
+place of `newSource`. Pass `--include-source` (MCP: `includeSource: true`) to get
+`newSource` back instead ([#98](../../issues/98)).
+
+```json
+{
+  "success": true,
+  "path": "/abs/path/file.ts",
+  "operation": "rename-symbol",
+  "changes": 5,
+  "message": "Renamed 5 occurrences of 'oldName' to 'newName'",
+  "diff": "--- a/file.ts\n+++ b/file.ts\n@@ -12,7 +12,7 @@\n-  oldName();\n+  newName();\n",
+  "sourceOmitted": true
+}
+```
+
 ---
 
 ### ast replace-body
@@ -465,7 +482,7 @@ Replace a function/method body.
 
 **Invocation:**
 ```
-hashpilot ast replace-body <file> <symbol-name> <new-body> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast replace-body <file> <symbol-name> <new-body> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<new-body>` can be `@filepath` to read from a file.
@@ -489,7 +506,7 @@ Add an import statement.
 
 **Invocation:**
 ```
-hashpilot ast add-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast add-import <file> <import-spec> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 `<import-spec>` examples: `'{ Foo } from ./bar'`, `'* as React from react'`
@@ -502,7 +519,7 @@ Remove an import line.
 
 **Invocation:**
 ```
-hashpilot ast remove-import <file> <import-spec> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast remove-import <file> <import-spec> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 ---
@@ -513,8 +530,8 @@ Insert content before or after a named symbol.
 
 **Invocation:**
 ```
-hashpilot ast insert-before <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
-hashpilot ast insert-after <file> <symbol-name> <content> [--dry-run] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast insert-before <file> <symbol-name> <content> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
+hashpilot ast insert-after <file> <symbol-name> <content> [--dry-run] [--include-source] [--actor <name>] [--task-id <id>] [--reason <text>]
 ```
 
 ---
@@ -663,7 +680,8 @@ hashpilot route-edit <file> <operation> [options...]
 **Key options:**
 - `--method <route>` — force a specific route (`ast`, `hash`, `diff`)
 - `--policy <json>` — inline RoutePolicy JSON for testing
-- `--dry-run` — preview without writing
+- `--dry-run` — preview without writing. The result carries a unified `diff` of the changed hunks and `sourceOmitted: true`, **not** the whole post-edit file ([#98](../../issues/98)): a preview exists so a caller can decide whether to commit the edit, and dumping the file made deciding cost more context than editing.
+- `--include-source` — on a dry run, return the full post-edit text as `newSource` instead of the diff. Costs one whole file of context; use it only when you genuinely need the text.
 - All provenance options: `--actor`, `--task-id`, `--reason`
 - AST-specific: `--symbol`, `--old-name`, `--new-name`, `--new-body`, `--import-spec`, `--content`
 - Hash-specific: `--old-hash`, `--new-content`, `--range`

@@ -397,3 +397,28 @@ function hunkMatches(srcLines: string[], hunk: Hunk, srcPos: number): boolean {
   }
   return (s - srcPos) === hunk.oldLines;
 }
+
+/**
+ * Turn a dry-run edit result into a preview.
+ *
+ * A dry run exists so a caller can decide whether to commit the edit, and for an
+ * agent the cost of that decision is context tokens. Returning the whole
+ * post-edit file made previewing an edit more expensive than making it, so the
+ * cheapest correct move became "skip the dry run" — exactly backwards (#98).
+ * The default payload is now a unified diff of the changed hunks; the full text
+ * stays available behind an explicit `includeSource` opt-in.
+ *
+ * Only dry runs are rewritten, and only successful ones: a failure carries no
+ * `newSource`, and a real write already told the caller what landed on disk.
+ */
+export function toPreview<T extends { success?: boolean; newSource?: string }>(
+  result: T,
+  source: string | undefined,
+  filePath: string,
+  includeSource?: boolean
+): T & { diff?: string; sourceOmitted?: boolean } {
+  if (includeSource || !result.success || !result.newSource || source === undefined) return result;
+  const diff = generateUnifiedDiff(source, result.newSource, filePath);
+  const { newSource: _omitted, ...rest } = result as Record<string, unknown>;
+  return { ...rest, diff, sourceOmitted: true } as T & { diff?: string; sourceOmitted?: boolean };
+}
