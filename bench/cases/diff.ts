@@ -89,4 +89,13 @@ export const diffCases: BenchCase[] = [
     expected: ["first", "omega"].join("\n"),
     tags: ["diff", "encoding"],
   },
+  {
+    id: "diff-repeated-blocks-ambiguous",
+    description: "a file of near-identical blocks refuses rather than patching the wrong one",
+    file: "notes.md",
+    source: Array.from({ length: 4 }, () => ["case A:", "  const x = value;", "  break;"]).flat().join("\n") + "\n",
+    edit: { method: "diff", operation: "replace-content", oldContent: "  const x = value;", newContent: "  const x = patched;" },
+    expectRefusal: "four identical candidates: patching one of them silently is the failure mode fuzzy matching creates (#33)",
+    tags: ["diff", "ambiguity", "33"],
+  },
 ];

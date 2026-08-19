@@ -9,6 +9,21 @@ export interface Hunk {
   lines: string[];
 }
 
+/**
+ * Where a hunk actually landed. A fuzzy match that silently slid is
+ * indistinguishable from an exact one unless the offset is reported, and
+ * "applied, but not where you asked" is the failure mode fuzzy matching
+ * creates (#33).
+ */
+export interface HunkPlacement {
+  /** 1-indexed line the patch recorded for this hunk, adjusted for prior hunks. */
+  expectedAt: number;
+  /** 1-indexed line the hunk was applied at. */
+  appliedAt: number;
+  /** `appliedAt - expectedAt`. Zero when the hunk landed where it said it would. */
+  offset: number;
+}
+
 export interface PatchResult {
   success: boolean;
   hunksApplied: number;
@@ -16,6 +31,10 @@ export interface PatchResult {
   message: string;
   newSource?: string;
   diff?: string;
+  /** One entry per applied hunk, in patch order. */
+  placements?: HunkPlacement[];
+  /** Placements whose `offset` is non-zero — the ones worth looking at. */
+  fuzzyPlacements?: HunkPlacement[];
 }
 
 // --- LCS-based diff ---
@@ -246,28 +265,36 @@ export function applyPatchToSource(
   let hunksApplied = 0;
   let hunksFailed = 0;
   let lineOffset = 0;
+  const placements: HunkPlacement[] = [];
 
   for (const hunk of parsed.hunks) {
     const result = applyHunk(srcLines, hunk, lineOffset, fuzzy);
     if (result.success) {
       lineOffset += result.offsetDelta;
       hunksApplied++;
+      if (result.placement) placements.push(result.placement);
     } else {
       hunksFailed++;
       if (result.error) {
-        return { success: false, hunksApplied, hunksFailed, message: result.error };
+        return { success: false, hunksApplied, hunksFailed, message: result.error, placements };
       }
     }
   }
 
   const newSource = srcLines.join("\n");
+  const fuzzyPlacements = placements.filter((p) => p.offset !== 0);
+  const slid = fuzzyPlacements.length > 0
+    ? ` (${fuzzyPlacements.length} hunk(s) matched off their recorded position)`
+    : "";
 
   return {
     success: hunksFailed === 0,
     hunksApplied,
     hunksFailed,
-    message: hunksFailed === 0 ? `Applied ${hunksApplied} hunk(s)` : `Applied ${hunksApplied}, failed ${hunksFailed}`,
+    message: (hunksFailed === 0 ? `Applied ${hunksApplied} hunk(s)` : `Applied ${hunksApplied}, failed ${hunksFailed}`) + slid,
     newSource,
+    placements,
+    fuzzyPlacements,
   };
 }
 
@@ -304,6 +331,7 @@ interface HunkApplyResult {
   success: boolean;
   offsetDelta: number;
   error?: string;
+  placement?: HunkPlacement;
 }
 
 function applyHunk(
@@ -323,14 +351,28 @@ function applyHunk(
   // with exactly the recorded content, or it refuses.
   const searchStart = Math.max(0, targetOldStart - fuzzy);
   const searchEnd = Math.min(srcLines.length, targetOldStart + fuzzy) + 1;
-  let matchIdx = -1;
-
+  // Every candidate in the window, not the first one. Taking the first made an
+  // ambiguous window look decisive: in repetitive code (case arms, fixture
+  // tables, generated blocks) a second region matches just as well, and the
+  // patch landed on one of them with a success exit code and no signal (#33).
+  const candidates: number[] = [];
   for (let srcPos = searchStart; srcPos < searchEnd; srcPos++) {
-    if (hunkMatches(srcLines, hunk, srcPos)) {
-      matchIdx = srcPos;
-      break;
-    }
+    if (hunkMatches(srcLines, hunk, srcPos)) candidates.push(srcPos);
   }
+
+  if (candidates.length > 1) {
+    const lines = candidates.map((c) => c + 1).join(", ");
+    return {
+      success: false,
+      offsetDelta: 0,
+      error:
+        `Hunk failed at ${hunk.header}: ambiguous — the context matches at lines ${lines}. ` +
+        `Re-generate the patch with more context lines, lower fuzzyMatch (0 pins the recorded position), ` +
+        `or use the hash tier, which anchors on content rather than position.`,
+    };
+  }
+
+  const matchIdx = candidates.length === 1 ? candidates[0] : -1;
 
   if (matchIdx < 0) {
     return {
@@ -369,7 +411,15 @@ function applyHunk(
   srcLines.splice(matchIdx, hunk.oldLines, ...replacementLines);
 
   const offsetDelta = replacementLines.length - hunk.oldLines;
-  return { success: true, offsetDelta };
+  return {
+    success: true,
+    offsetDelta,
+    placement: {
+      expectedAt: targetOldStart + 1,
+      appliedAt: matchIdx + 1,
+      offset: matchIdx - targetOldStart,
+    },
+  };
 }
 
 /** True when `want` appears verbatim in `srcLines` starting at `pos`. */
