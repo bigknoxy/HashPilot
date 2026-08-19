@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "fs";
+import { rmdirSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "fs";
 import { join, resolve, dirname } from "path";
 import { acquireLock, lockPathFor, pruneStaleLocks, LockAcquireError } from "../src/core/locking";
 
@@ -8,6 +8,13 @@ import { acquireLock, lockPathFor, pruneStaleLocks, LockAcquireError } from "../
 // when the two callers disagree about the current working directory.
 
 const LOCKING_MODULE = resolve("src/core/locking.ts");
+
+// #110: each describe removes its own fixture, but the shared parent dirs were
+// left behind and dirtied `git status` after every run. Sweep them at file end.
+afterAll(() => {
+  try { rmSync("tests/tmp/locking-mp", { recursive: true, force: true }); } catch { /* ignore */ }
+  try { rmdirSync("tests/tmp"); } catch { /* non-empty or already gone */ }
+});
 
 function makeTestDir(name: string): { dir: string; nested: string; cleanup: () => void } {
   const dir = resolve("tests/tmp/locking-mp", name);
