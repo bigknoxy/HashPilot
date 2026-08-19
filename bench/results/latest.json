@@ -1,18 +1,18 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.4.2",
-  "commit": "c17aace",
-  "generatedAt": "2026-08-19T14:11:45.842Z",
+  "hashpilotVersion": "4.4.6",
+  "commit": "471b265",
+  "generatedAt": "2026-08-19T14:52:28.613Z",
   "totals": {
-    "cases": 27,
-    "correct": 21,
+    "cases": 29,
+    "correct": 23,
     "silentCorruption": 0,
     "falseRefusal": 0,
     "correctRefusal": 6,
     "harnessError": 0,
     "correctnessRate": 1,
     "silentCorruptionRate": 0,
-    "totalElapsedMs": 30
+    "totalElapsedMs": 44
   },
   "byRoute": {
     "ast": {
@@ -23,8 +23,8 @@
       "correctRefusal": 2
     },
     "hash": {
-      "cases": 7,
-      "correct": 5,
+      "cases": 9,
+      "correct": 7,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 2
@@ -60,8 +60,8 @@
       "correctRefusal": 0
     },
     "unknown": {
-      "cases": 15,
-      "correct": 11,
+      "cases": 17,
+      "correct": 13,
       "silentCorruption": 0,
       "falseRefusal": 0,
       "correctRefusal": 4
@@ -74,7 +74,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 5,
+      "elapsed_ms": 7,
       "tags": [
         "rename",
         "typescript"
@@ -100,7 +100,7 @@
       "language": "go",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 3,
       "tags": [
         "rename",
         "go"
@@ -113,7 +113,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "rename",
         "typescript"
@@ -152,7 +152,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "import",
         "typescript",
@@ -207,7 +207,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": true,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "parse-gate",
         "typescript"
@@ -220,7 +220,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "knownIssue": 39,
       "tags": [
         "rename",
@@ -242,12 +242,38 @@
       "outcome": "correct"
     },
     {
+      "id": "hash-chain-newhash-no-reread",
+      "description": "the newHash of a successful edit anchors the next edit to the same region, with no re-read (#101)",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 2,
+      "tags": [
+        "hash",
+        "chaining"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "hash-chain-newrange-tracks-line-count",
+      "description": "a chained edit follows newRange when the replacement changed the line count (#101)",
+      "language": "unknown",
+      "route": "hash",
+      "unparseable": false,
+      "elapsed_ms": 2,
+      "tags": [
+        "hash",
+        "chaining"
+      ],
+      "outcome": "correct"
+    },
+    {
       "id": "hash-stale-anchor-refused",
       "description": "a hash that matches nothing in the file must be refused, never applied to the range anyway",
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "hash",
         "stale-anchor"
@@ -260,7 +286,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "hash",
         "relocation"
@@ -299,7 +325,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "hash",
         "unicode"
@@ -325,7 +351,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "diff"
       ],
@@ -337,7 +363,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "diff",
         "ambiguity"
@@ -350,7 +376,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "diff"
       ],
@@ -362,7 +388,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "knownIssue": 32,
       "tags": [
         "diff",

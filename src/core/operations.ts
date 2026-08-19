@@ -253,7 +253,11 @@ export const OPERATIONS: Operation[] = [
       "the safest edit HashPilot offers and the right default for any language " +
       "without AST support. " +
       "Do NOT use it for a rename that spans call sites: `rename_symbol` understands " +
-      "bindings and this does not.",
+      "bindings and this does not. " +
+      "On success it returns `newHash` (the hash of the content it just wrote) and " +
+      "`newRange`: pass that pair straight back as `oldHash`/`range` to edit the same " +
+      "region again without re-reading the file. `fileHash` is the whole file after " +
+      "the edit and is not an anchor.",
     params: [
       FILE_PARAM,
       { name: "oldHash", type: "string", required: true, description: "The hash of the content you are replacing, from a prior read." },

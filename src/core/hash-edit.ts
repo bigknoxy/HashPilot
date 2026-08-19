@@ -38,7 +38,24 @@ export interface ReplaceHashResult {
   path: string;
   success: boolean;
   oldHash: string;
+  /**
+   * Hash of the content that was just written — the *range*, not the file, so a
+   * caller can chain it straight into the next `oldHash` for the same region
+   * without re-reading. On a whole-file edit the range is the file, so the two
+   * coincide. The failure paths already reported the range hash; the success
+   * path used to report the whole-file hash, so the one field meant two
+   * incompatible things and chaining it always went STALE (#101).
+   */
   newHash: string;
+  /** Hash of the whole file after the edit. Absent on failure paths. */
+  fileHash?: string;
+  /**
+   * Where the written content now lives, 1-indexed and inclusive of `start`,
+   * exclusive-of-nothing (`end` is the last line). Pass it back as `range`
+   * alongside `newHash`: a replacement with a different line count moves the
+   * region, so the old range no longer describes it (#101).
+   */
+  newRange?: { start: number; end: number };
   linesChanged: number;
   stale: boolean;
   message: string;
@@ -269,6 +286,10 @@ async function applyReplacement(
   ];
   const newFullContent = newLines.join("\n");
   const newFullHash = computeHash(newFullContent);
+  // What actually landed in the file, hashed the same way `oldHash` was, so it
+  // round-trips into the next call (#101).
+  const newRangeText = newContentLines.join("\n");
+  const newRangeHash = computeHash(newRangeText);
   const diff = buildDiff(targetStart + 1, targetLines, newContentLines);
   const linesChanged = Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines);
   const rangeLabel = `range ${targetStart + 1}-${targetEnd}`;
@@ -313,7 +334,9 @@ async function applyReplacement(
     path: filePath,
     success: true,
     oldHash,
-    newHash: newFullHash,
+    newHash: newRangeHash,
+    fileHash: newFullHash,
+    newRange: { start: targetStart + 1, end: targetStart + newContentLines.length },
     linesChanged,
     stale,
     retries,
