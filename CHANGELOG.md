@@ -1,3 +1,10 @@
+## [4.4.14](https://github.com/bigknoxy/HashPilot/compare/v4.4.13...v4.4.14) (2026-08-19)
+
+
+### Bug Fixes
+
+* **#57:** route Commander parse errors through the JSON usage envelope ([#123](https://github.com/bigknoxy/HashPilot/issues/123)) ([2ed0609](https://github.com/bigknoxy/HashPilot/commit/2ed06096917422407ecb0ba6f8b5334f5c858e53)), closes [#57](https://github.com/bigknoxy/HashPilot/issues/57) [#57](https://github.com/bigknoxy/HashPilot/issues/57)
+
 ## [4.4.13](https://github.com/bigknoxy/HashPilot/compare/v4.4.12...v4.4.13) (2026-08-19)
 
 
