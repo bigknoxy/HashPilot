@@ -1,5 +1,6 @@
 import { ErrorCode } from "./telemetry";
 import { wrap } from "./envelope";
+import { resolveFormat, renderText, OutputFormat } from "./format";
 
 /**
  * Process exit codes. Agents branch on these, so the numbers are a contract —
@@ -96,15 +97,46 @@ export function exitCodeFor(result: ResultLike | ResultLike[] | undefined): Exit
   return ExitCode.EDIT_FAILED;
 }
 
+/* ── Output format (#19 B16) ───────────────────────────────────────────── */
+let outputFormat: OutputFormat = "json";
+let currentCommand = "";
+
+/** Called once by preAction; sets the global output format + running command name. */
+export function setOutputFormat(fmt: OutputFormat, command: string): void {
+  outputFormat = fmt;
+  currentCommand = command;
+}
+
+/** Current output format — used by action handlers to branch on text vs. JSON. */
+export function getOutputFormat(): OutputFormat {
+  return outputFormat;
+}
+
+/** Re-export for cli.ts convenience. */
+export { resolveFormat, renderText };
+
 /**
- * Single exit point for every CLI command: emit the JSON payload, then set the
- * exit code. Uses `process.exitCode` rather than `process.exit()` so pending
- * stdout writes and telemetry flushes are not truncated.
+ * Single exit point for every CLI command.
+ *
+ * #19 (B16): when `outputFormat === "text"` the success payload is rendered as
+ * compact human-readable output via per-command renderers. Error payloads are
+ * ALWAYS JSON — the API contract (apiVersion 1) is the canonical machine output
+ * and must not be degraded. Commands without a renderer fall back to a compact
+ * key/value dump; never raw JSON in text mode.
  */
 export function finish(payload: unknown, code?: ExitCode): void {
   const exit = code ?? exitCodeFor(payload as ResultLike);
-  // Wrapped, not raw: every command emits the same envelope so an adapter has
-  // one parse path. See src/core/envelope.ts.
+    // In text mode: success payloads get the compact renderer; errors always emit JSON.
+  if (outputFormat === "text" && (payload as { success?: boolean }).success !== false) {
+      // `wrap()` produces { apiVersion, ok, command, data, ... }; `data` carries
+      // the per-command payload. Render `data` when present, else the raw payload.
+    const data = (payload as { data?: Record<string, unknown> }).data;
+     const rendererTarget = data || (payload as Record<string, unknown>);
+    renderText(currentCommand, rendererTarget as Record<string, unknown>);
+    process.exitCode = exit;
+    return;
+    }
+    // JSON path: emit the envelope (apiVersion 1)
   console.log(JSON.stringify(wrap(payload, exit), null, 2));
   process.exitCode = exit;
 }

@@ -76,6 +76,35 @@ and reported in `data.files[]` with a `reason`. `--force` overrides the check;
 `--dry-run` reports without touching disk. An undo is not itself snapshotted, so
 `undo --last` cannot ping-pong between two states.
 
+## Output Format (B16)
+
+The CLI supports two output modes controlled by the global `--format` flag:
+
+```
+--format <json|text>
+```
+
+| Precedence | Condition | Format |
+|------------|-----------|--------|
+| 1. explicit `--format <fmt>` | `hashpilot <cmd> --format text` | text |
+| 2. `--json` (deprecated) | `hashpilot <cmd> --json` | json (emits stderr: `[deprecation]`) |
+| 3. `$CI` truthy | CI runner environment | json |
+| 4. stdout is a TTY | interactive shell | text |
+| 5. default | piped/redirected | json |
+
+**`--json` is a hidden deprecated alias for `--format json`.** The deprecation
+notice is emitted once per invocation to stderr. It will be removed in the next
+minor version.
+
+**All error output is always JSON.** The `finish()` function only uses the text
+renderer for successful results (`success !== false`). Error/usage envelopes
+remain the canonical apiVersion 1 payload regardless of format mode, because an
+agent parsing a non-zero exit code always expects structured data.
+
+**Text renderers** are per-command. A command without a registered renderer falls
+back to a compact key/value dump. Diagnostics, progress messages, and the
+deprecation warning go to **stderr** — never stdout.
+
 ## Command Reference
 
 ### Configuration

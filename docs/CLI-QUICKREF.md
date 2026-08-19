@@ -129,6 +129,8 @@ hashpilot [options] [command]
 | `--allowed-root <dir...>` | Additional directory writes may target |
 | `--no-telemetry` | Disable telemetry logging for this invocation |
 | `--allow-parse-errors` | Edit a file that already has syntax errors (the post-edit parse check still applies) |
+| `--format <fmt>` | Output format: json or text (default: json if piped/CI, text if TTY) |
+| `--json` | [deprecated: use --format json] Force JSON output (default: false) |
 
 ### Command groups
 
@@ -153,10 +155,6 @@ hashpilot read-many [options] <files...>
 |------------|---------|
 | `files` | File paths |
 
-| Flag | Meaning |
-|------|---------|
-| `--json` | Output as JSON (default: true) |
-
 #### `read-hash`
 
 Read a line with hash and context
@@ -173,7 +171,6 @@ hashpilot read-hash [options] <file> <line>
 | Flag | Meaning |
 |------|---------|
 | `-c, --context <n>` | Context lines (default: "3") |
-| `--json` | Output as JSON (default: true) |
 
 #### `grep-many`
 
@@ -193,7 +190,6 @@ hashpilot grep-many [options] <pattern> <paths...>
 | `-i, --ignore-case` | Case insensitive |
 | `--file-pattern <glob>` | File pattern filter |
 | `--max-results <n>` | Max results |
-| `--json` | Output as JSON (default: true) |
 
 #### `symbol-lookup-many`
 
@@ -210,7 +206,6 @@ hashpilot symbol-lookup-many [options] <paths...>
 | Flag | Meaning |
 |------|---------|
 | `--names <names>` | Comma-separated symbol names |
-| `--json` | Output as JSON (default: true) |
 
 #### `replace-hash`
 
@@ -234,7 +229,6 @@ hashpilot replace-hash [options] <file> <old-hash> <new-content>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast capabilities`
 
@@ -276,7 +270,6 @@ hashpilot ast rename-symbol [options] <file> <old-name> <new-name>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast replace-body`
 
@@ -298,7 +291,6 @@ hashpilot ast replace-body [options] <file> <symbol> <new-body>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast add-import`
 
@@ -319,7 +311,6 @@ hashpilot ast add-import [options] <file> <import-spec>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast remove-import`
 
@@ -340,7 +331,6 @@ hashpilot ast remove-import [options] <file> <import-spec>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast insert-before`
 
@@ -362,7 +352,6 @@ hashpilot ast insert-before [options] <file> <symbol> <content>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `ast insert-after`
 
@@ -384,7 +373,6 @@ hashpilot ast insert-after [options] <file> <symbol> <content>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `route-edit`
 
@@ -417,7 +405,6 @@ hashpilot route-edit [options] <file> <operation>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `batch`
 
@@ -451,7 +438,6 @@ hashpilot batch [options] <operation> <files...>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `intent`
 
@@ -477,7 +463,6 @@ hashpilot intent [options] <intent>
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
 | `--context <text>` | Agent prompt/context (or @file) |
-| `--json` | Output as JSON (default: true) |
 
 #### `diff generate`
 
@@ -518,7 +503,6 @@ hashpilot diff apply [options] <file>
 | `--actor <name>` | Agent identity for provenance tracking |
 | `--task-id <id>` | Task/issue reference for provenance |
 | `--reason <text>` | Human-readable reason for the edit |
-| `--json` | Output as JSON (default: true) |
 
 #### `verify-changes`
 
@@ -549,7 +533,6 @@ hashpilot verify-changes [options] <files...>
 | `--no-scope-tests` | Run the whole test suite instead of only tests related to the changed files |
 | `--use-baseline` | Ignore tests that were already failing at this commit (see --record-baseline) |
 | `--record-baseline` | Record which tests currently fail, for later --use-baseline runs. Run this before editing. |
-| `--json` | Output as JSON (default: true) |
 
 #### `telemetry show`
 
@@ -643,7 +626,6 @@ hashpilot provenance query [options] <file> [line]
 | Flag | Meaning |
 |------|---------|
 | `--human` | Human-readable output |
-| `--json` | JSON output (default) (default: true) |
 | `--fuzzy` | Include edits without diff data in line-filtered queries |
 | `--limit <n>` | Max entries to show |
 
@@ -701,10 +683,6 @@ Verify HashPilot installation health
 hashpilot doctor [options]
 ```
 
-| Flag | Meaning |
-|------|---------|
-| `--json` | Output as JSON (default: false) |
-
 #### `upgrade`
 
 Upgrade HashPilot to the latest version from GitHub
@@ -735,7 +713,6 @@ hashpilot uninstall [options]
 | `--force` | Skip confirmation prompt (auto-detected when piped) |
 | `--dry-run` | Show what would be removed without deleting anything |
 | `--target <dir>` | Install target directory (default: ~/.agentic-tools) |
-| `--json` | Output as JSON (default: true) |
 
 #### `route`
 
