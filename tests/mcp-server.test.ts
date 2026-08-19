@@ -187,7 +187,8 @@ describe("tool calls against a real file", () => {
   test("find_symbols finds the declaration", async () => {
     const r = await callTool("find_symbols", { file });
     const data = (r.structuredContent as any).data;
-    expect(data.some((s: any) => s.name === "greet")).toBe(true);
+    expect(data.symbols.some((s: any) => s.name === "greet")).toBe(true);
+    expect(data.truncated).toBe(false);
   });
 
   test("rename_symbol edits through the router", async () => {

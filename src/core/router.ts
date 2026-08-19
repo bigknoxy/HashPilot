@@ -9,6 +9,7 @@ import {
   insertBeforeSymbol,
   insertAfterSymbol,
   findSymbols,
+  findSymbolsDetailed,
   firstParseError,
 } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
@@ -259,7 +260,10 @@ export async function routeEdit(params: {
           result = insertAfterSymbol(source, filePath, symbolName!, insertContent!);
           break;
         case "find-symbols":
-          result = { success: true, symbols: findSymbols(source, filePath), message: "Symbols found" };
+          {
+            const search = findSymbolsDetailed(source, filePath);
+            result = { success: true, symbols: search.symbols, truncated: search.truncated, message: "Symbols found" };
+          }
           break;
         default:
           result = { success: false, message: `Unknown AST operation: ${operation}` };

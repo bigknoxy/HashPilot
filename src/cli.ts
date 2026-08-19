@@ -13,6 +13,7 @@ import {
   symbolLookupMany,
   replaceHash,
   findSymbols,
+  findSymbolsDetailed,
   renameSymbol,
   replaceBody,
   addImport,
@@ -298,8 +299,9 @@ astCmd
   .argument("<file>", "File path")
   .action(async (file: string) => {
     const content = await Bun.file(file).text();
-    const symbols = findSymbols(content, file);
-    finish(symbols);
+    // Report the truncation flag rather than an array that looks complete (#39).
+    const { symbols, truncated } = findSymbolsDetailed(content, file);
+    finish({ symbols, truncated });
   });
 
 function recordProvenanceEvent(opts: {

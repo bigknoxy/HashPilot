@@ -86,6 +86,12 @@ export enum ErrorCode {
     * refuses and names the contending binding sites.
     */
   AMBIGUOUS_SYMBOL = "AMBIGUOUS_SYMBOL",
+  /**
+   * An AST search hit the runaway depth guard before it finished, so "not
+   * found" would be a claim the search never earned. Distinct from
+   * SYMBOL_NOT_FOUND: the symbol may well exist below the cap (#39).
+   */
+  SEARCH_TRUNCATED = "SEARCH_TRUNCATED",
   /** A file exists but could not be read (permissions, device error). Distinct from FILE_NOT_FOUND. */
   READ_FAILED = "READ_FAILED",
   /** Lock acquisition timed out — another process holds the advisory lock. */
