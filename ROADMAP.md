@@ -47,10 +47,10 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#22](../../issues/22) | B19 — `verify-changes` executes arbitrary target-repo-chosen binaries | 50 | P1 | reported | security |
 | [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | verified | correctness · ✅ done (#84) |
 | [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis | 49 | P1 | verified | correctness · ✅ done (#88) |
-| [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
+| [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli · ✅ done (#92) |
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | verified | correctness · ✅ done (#91) |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
-| [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects ✅ shipped (in B15) | 44 | P2 | verified | cli |
+| [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects | 44 | P2 | verified | cli · ✅ shipped |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
 
 | [#18](../../issues/18) | B15 — Uniform JSON envelope with `error.code` and `error.recovery` | 52 | P1 | verified | cli · ✅ shipped |
