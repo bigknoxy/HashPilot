@@ -36,6 +36,32 @@ line on stderr: any parse error — unknown flag, missing positional, unknown
 subcommand — writes the usage envelope to stdout with `INVALID_ARGUMENT`, a
 `recovery` pointing at `--help`, and exit 1, with nothing on stderr (#57).
 
+### `replace-body` takes statements only — no braces, no indentation
+
+`replace-body` owns both the braces and the indentation of the body it writes.
+Whatever you pass is placed *inside* the existing braces and indented to the
+symbol. Passing either back produces a file that still parses, so the mistake is
+silent (#108).
+
+```bash
+hashpilot ast replace-body f.ts f 'return a * 2;'        # ✅
+hashpilot ast replace-body f.ts f '{ return a * 2; }'    # ❌ nested block inside the body
+hashpilot ast replace-body f.ts f '  return a * 2;'      # ❌ double-indented
+```
+
+Multi-line bodies are written flush-left, one statement per line; the command
+re-indents every line to the symbol.
+
+### An import spec quotes its module path
+
+The module path is a string literal in every supported language, and the spec is
+parsed as source. An unquoted path is `PARSE_ERROR` (#109).
+
+```bash
+hashpilot ast add-import f.ts '{ Foo } from "./bar"'     # ✅
+hashpilot ast add-import f.ts '{ Foo } from ./bar'       # ❌ PARSE_ERROR
+```
+
 ### `read-many` returns a bare top-level array, not an envelope
 
 ```jsonc
@@ -293,7 +319,7 @@ hashpilot ast replace-body [options] <file> <symbol> <new-body>
 |------------|---------|
 | `file` | File path |
 | `symbol` | Symbol name |
-| `new-body` | New body (or @file) |
+| `new-body` | New body statements only — no braces, no indentation (or @file) |
 
 | Flag | Meaning |
 |------|---------|
@@ -314,7 +340,7 @@ hashpilot ast add-import [options] <file> <import-spec>
 | Positional | Meaning |
 |------------|---------|
 | `file` | File path |
-| `import-spec` | Import spec (e.g. '{ Foo } from ./bar') |
+| `import-spec` | Import spec, module path quoted: '{ Foo } from "./bar"' |
 
 | Flag | Meaning |
 |------|---------|
@@ -335,7 +361,7 @@ hashpilot ast remove-import [options] <file> <import-spec>
 | Positional | Meaning |
 |------------|---------|
 | `file` | File path |
-| `import-spec` | Import spec to remove |
+| `import-spec` | Import spec to remove, e.g. '{ Foo } from "./bar"' or a bare binding name |
 
 | Flag | Meaning |
 |------|---------|
@@ -412,8 +438,8 @@ hashpilot route-edit [options] <file> <operation>
 | `--old-name <name>` | Old symbol name (rename-symbol) |
 | `--new-name <name>` | New symbol name (rename-symbol) |
 | `--symbol <name>` | Symbol name (replace-body, insert-before, insert-after) |
-| `--new-body <text>` | New body content (replace-body, or @file) |
-| `--import-spec <spec>` | Import spec (add-import, remove-import) |
+| `--new-body <text>` | New body statements only — no braces, no indentation (replace-body, or @file) |
+| `--import-spec <spec>` | Import spec, module path quoted: '{ Foo } from "./bar"' |
 | `--content <text>` | Content (insert-before, insert-after, or @file) |
 | `--policy <json>` | Inline RoutePolicy JSON |
 | `--dry-run` | Preview without writing |
@@ -445,8 +471,8 @@ hashpilot batch [options] <operation> <files...>
 | `--old-name <name>` | Old symbol name (rename-symbol) |
 | `--new-name <name>` | New symbol name (rename-symbol) |
 | `--symbol <name>` | Symbol name (replace-body, insert-before, insert-after) |
-| `--new-body <text>` | New body content (replace-body, or @file) |
-| `--import-spec <spec>` | Import spec (add-import, remove-import) |
+| `--new-body <text>` | New body statements only — no braces, no indentation (replace-body, or @file) |
+| `--import-spec <spec>` | Import spec, module path quoted: '{ Foo } from "./bar"' |
 | `--content <text>` | Content (insert-before, insert-after, or @file) |
 | `--policy <json>` | Inline RoutePolicy JSON |
 | `--serial` | Execute sequentially instead of parallel |
