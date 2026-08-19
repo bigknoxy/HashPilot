@@ -1,9 +1,16 @@
 import { describe, it, expect, afterAll } from "bun:test";
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "fs";
+import { rmdirSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { computeHash } from "../src/core/read";
 import { acquireLock, acquireSortedLocks, LOCK_TIMEOUT_MS, lockPathFor, LockAcquireError, pruneStaleLocks } from "../src/core/locking";
 import { routeEdit } from "../src/core/router";
+
+// #110: each describe removes its own fixture, but the shared parent dirs were
+// left behind and dirtied `git status` after every run. Sweep them at file end.
+afterAll(() => {
+  try { rmSync("tests/tmp/cas-locking", { recursive: true, force: true }); } catch { /* ignore */ }
+  try { rmdirSync("tests/tmp"); } catch { /* non-empty or already gone */ }
+});
 
 function makeTestDir(name: string): { dir: string; cleanup: () => void } {
   const dir = join("tests/tmp/cas-locking", name);

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach, afterAll } from "bun:test";
 import { parseIntent, findSymbolDefinition, findReferences, generatePlan, UnsupportedIntentError, resolveReferences } from "../src/core/intent";
 import { executePlan, executeIntent } from "../src/core/plan-executor";
 import type { VerifyResult } from "../src/core/verify";
@@ -8,6 +8,7 @@ import { simulateCrashAfterTempWrite } from "../src/core/paths";
 import { exitCodeFor } from "../src/core/exit-codes";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_intent_tests__");
+const B15 = join(import.meta.dir, "__tmp_b15__");
 
 const FILE_A = join(TMP_DIR, "a.ts");
 const FILE_B = join(TMP_DIR, "b.ts");
@@ -70,6 +71,15 @@ export function helper(data: string): string {
 function cleanup() {
   try { rmSync(TMP_DIR, { recursive: true, force: true }); } catch {}
 }
+
+// #110: several describe blocks call setup() without a matching afterEach, so
+// the fixture tree outlived the run and dirtied the working copy. A file-level
+// afterAll guarantees the scratch dirs are gone no matter which block created
+// them or whether a test threw partway through.
+afterAll(() => {
+  cleanup();
+  try { rmSync(B15, { recursive: true, force: true }); } catch {}
+});
 
 // ── parseIntent ──────────────────────────────────────────────────────
 
@@ -1068,8 +1078,6 @@ describe("executePlan verification / rollback correctness", () => {
 // foo(1)"). These tests pin the syntactic behavior: exactly the genuine
 // references, decoys excluded, and unsupported languages reported as
 // `unresolved` rather than guessed.
-
-const B15 = join(import.meta.dir, "__tmp_b15__");
 
 function b15write(rel: string, content: string) {
   const abs = join(B15, rel);

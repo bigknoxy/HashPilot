@@ -21,6 +21,7 @@ mobile-*.png
 
 # Test scratch directories
 tests/__tmp_*/
+tests/tmp/
 
 # Local task tracking
 tasks/
