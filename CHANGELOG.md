@@ -1,3 +1,10 @@
+## [4.4.16](https://github.com/bigknoxy/HashPilot/compare/v4.4.15...v4.4.16) (2026-08-19)
+
+
+### Bug Fixes
+
+* **#50:** enforce telemetry retention automatically, report footprint, drop fixed /tmp backup path ([#127](https://github.com/bigknoxy/HashPilot/issues/127)) ([34ad3cf](https://github.com/bigknoxy/HashPilot/commit/34ad3cf9ceea6ecd62370dd96267b01ed4b81f39)), closes [#51](https://github.com/bigknoxy/HashPilot/issues/51)
+
 ## [4.4.15](https://github.com/bigknoxy/HashPilot/compare/v4.4.14...v4.4.15) (2026-08-19)
 
 
