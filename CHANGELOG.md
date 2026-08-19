@@ -1,3 +1,10 @@
+## [4.2.1](https://github.com/bigknoxy/HashPilot/compare/v4.2.0...v4.2.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **verify,format:** stop swallowing jest/vitest failures; fix text-mode newline ([#93](https://github.com/bigknoxy/HashPilot/issues/93)) ([f1f097b](https://github.com/bigknoxy/HashPilot/commit/f1f097ba796a2a0a543ef9c0e5edefe7a8abc69a))
+
 # [4.2.0](https://github.com/bigknoxy/HashPilot/compare/v4.1.4...v4.2.0) (2026-08-19)
 
 
