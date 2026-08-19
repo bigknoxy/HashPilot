@@ -19,15 +19,22 @@ Related: [`ADAPTER-CONTRACT.md`](ADAPTER-CONTRACT.md) for the machine contract,
 Each of these cost a real agent a wasted round-trip. Every claim has a test in
 `tests/cli-contract.test.ts`.
 
-### Positionals are positional — there is no `--pattern` or `--paths`
+### Positionals are positional — `grep-many` is the one that also takes flags
 
 ```bash
-hashpilot grep-many '<pattern>' <path>...      # ✅
-hashpilot grep-many --pattern x --paths src    # ❌ unknown option, exit 1
+hashpilot grep-many '<pattern>' <path>...              # ✅ positional form
+hashpilot grep-many --pattern x --path src --path lib  # ✅ flag form (--path repeatable)
+hashpilot grep-many x --pattern x src                  # ❌ both forms, exit 1
+hashpilot grep-many --pattern x --paths src            # ❌ the flag is --path, exit 1
 ```
 
 `symbol-lookup-many` is the exception in the search family: paths are positional but
 names come from `--names n1,n2`.
+
+Every other command is positional-only. A wrong flag is no longer a bare Commander
+line on stderr: any parse error — unknown flag, missing positional, unknown
+subcommand — writes the usage envelope to stdout with `INVALID_ARGUMENT`, a
+`recovery` pointing at `--help`, and exit 1, with nothing on stderr (#57).
 
 ### `read-many` returns a bare top-level array, not an envelope
 
@@ -174,20 +181,22 @@ hashpilot read-hash [options] <file> <line>
 
 #### `grep-many`
 
-Search pattern across multiple paths
+Search pattern across multiple paths. Usage: grep-many "safeWrite" src/ (or the flag form: grep-many --pattern "safeWrite" --path src/)
 
 ```
-hashpilot grep-many [options] <pattern> <paths...>
+hashpilot grep-many [options] [pattern] [paths...]
 ```
 
 | Positional | Meaning |
 |------------|---------|
-| `pattern` | Regex pattern |
-| `paths` | Paths to search |
+| `pattern` | Regex pattern (or use --pattern) |
+| `paths` | Paths to search (or use --path) |
 
 | Flag | Meaning |
 |------|---------|
 | `-i, --ignore-case` | Case insensitive |
+| `--pattern <p>` | Regex pattern, flag form of the positional |
+| `--path <dir>` | Path to search, flag form of the positional (repeatable) (default: []) |
 | `--file-pattern <glob>` | File pattern filter |
 | `--max-results <n>` | Max results |
 
