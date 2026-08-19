@@ -23,12 +23,12 @@ Data-loss and silent-failure defects. **Nothing else ships until these land.** T
 | [#5](../../issues/5) | B3 — No write boundary; paths can escape the project root | 62 | P0 | verified | security · data-loss | ✅ done |
 | [#4](../../issues/4) | B2 — Every command exits 0, including on failure | 61 | P0 | verified | cli | ✅ done |
 | [#8](../../issues/8) | B6 — Telemetry opt-out is a dead switch; logs contain source + secrets | 59 | P0 | verified | security | ✅ done |
-| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | reported | correctness | ⏭ deferred to Sprint 2 |
+| [#10](../../issues/10) | B13 — Verification result is ignored by the rollback decision | 57 | P1 | verified | correctness | ✅ done (#86, #87) |
 | [#9](../../issues/9) | B11 — `remove-parameter` is structurally non-functional but advertised | 56 | P1 | verified | correctness | ✅ done |
 | [#11](../../issues/11) | B20 — Version drift 0.1.0 vs v1.5.3; nothing publishes | 51 | P1 | verified | ops | ✅ done |
 | [#7](../../issues/7) | B7 — `diff apply` without `--patch` crashes and exits 0 | 48 | P0 | verified | cli | ✅ done |
 
-**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure. It is therefore deferred into Sprint 2 alongside #24; the other eight items landed.
+**Sequencing:** B13 must ship with or after [#24](../../issues/24) (B32, unscoped test runs) — otherwise honoring the verify result turns a silent no-op into an aggressive footgun that reverts good work on an unrelated pre-existing test failure. Both shipped: #24 first via #84, then #10 via #86+#87.
 
 ## Sprint 2 — Foundations
 
@@ -43,9 +43,9 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust ✅ shipped | 52 | P1 | verified | correctness |
 | [#18](../../issues/18) | B15 — Uniform JSON envelope with `error.code` and `error.recovery` ✅ shipped | 52 | P1 | verified | cli |
 | [#23](../../issues/23) | B31 — `--no-default-config` inverted; `--config` never reaches routing | 51 | P2 | verified | correctness |
-| [#17](../../issues/17) | B14 — Rollback is best-effort and reports `reverted: true` regardless | 50 | P1 | reported | correctness |
+| [#17](../../issues/17) | B14 — Rollback is best-effort and reports `reverted: true` regardless | 50 | P1 | verified | correctness · ✅ done (already resolved) |
 | [#22](../../issues/22) | B19 — `verify-changes` executes arbitrary target-repo-chosen binaries | 50 | P1 | reported | security |
-| [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | reported | correctness |
+| [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | verified | correctness | ✅ done (#84) |
 | [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis ✅ done (#88) | 49 | P1 | verified | correctness |
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
 | [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | verified | correctness · ✅ done (#91) |
