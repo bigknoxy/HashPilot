@@ -206,6 +206,13 @@ detect_rc() {
     echo "$HASHPILOT_SHELL_RC"
     return
   fi
+  # Prefer the rc file for the shell the user actually runs. Picking the first
+  # existing file instead puts the PATH line in ~/.bashrc on a macOS zsh box,
+  # where no interactive shell ever reads it.
+  case "${SHELL:-}" in
+    */zsh) echo "${HOME}/.zshrc"; return ;;
+    */bash) [ -f "${HOME}/.bashrc" ] && { echo "${HOME}/.bashrc"; return; } ;;
+  esac
   for f in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.bash_profile" "${HOME}/.profile"; do
     if [ -f "$f" ]; then
       echo "$f"

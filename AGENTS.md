@@ -12,7 +12,7 @@ HashPilot is a Bun/TypeScript CLI. The entry point is `src/cli.ts` (the publishe
 - `bun test -t "pattern"` — run tests matching a name.
 - `bun run src/cli.ts doctor` — exercise the CLI directly during development.
 - `bun run build` — bundle `src/cli.ts` to `dist/` for distribution.
-- `bun run install-cli` — symlink the CLI into `~/.agentic-tools/bin/`.
+- `bun run install-cli` — symlink the CLI into `~/.agentic-tools/bin/` and add that directory to `PATH` via a marked block in your shell rc.
 - `bash scripts/doctor.sh` — check the local installation environment.
 - `bash tests/smoke.sh` — run end-to-end checks against the installed CLI.
 - `bun run lint:docs` — verify the CLI quickref matches `--help` and `ROADMAP.md` is consistent.

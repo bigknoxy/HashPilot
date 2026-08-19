@@ -72,8 +72,9 @@ export function doctor(): DoctorReport {
   checks.push(checkFile(join(CORE_DIR, "src", "cli.ts"), "core-cli.ts"));
   checks.push(checkFile(join(CORE_DIR, "package.json"), "core-package.json"));
 
-  // 3. CLI launcher on PATH
+  // 3. CLI launcher, and whether a fresh shell can actually find it
   checks.push(checkFile(CLI_LAUNCHER, "cli-launcher"));
+  checks.push(checkPathEntry());
 
   // 4. Check CLI works
   checks.push(checkCLIExecutable());
@@ -103,11 +104,30 @@ export function doctor(): DoctorReport {
   return { checks, healthy, timestamp, version: HASH_VERSION };
 }
 
+/**
+ * The launcher existing is not the same as it being runnable. `install-cli`
+ * used to create the symlink and stop, leaving `hashpilot` unresolvable in a
+ * fresh shell while every other check passed. Report that as its own failure
+ * with the exact line to add.
+ */
+function checkPathEntry(): DoctorCheck {
+  const entries = (process.env.PATH || "").split(":").filter(Boolean);
+  if (entries.includes(BIN_DIR)) {
+    return { name: "bin-on-path", status: "pass", message: `${BIN_DIR} is on PATH` };
+  }
+  return {
+    name: "bin-on-path",
+    status: "fail",
+    message: `${BIN_DIR} is not on PATH. Run \`bun run install-cli\`, or add: export PATH="$HOME/.agentic-tools/bin:$PATH"`,
+  };
+}
+
 function checkCLIExecutable(): DoctorCheck {
   try {
-    const proc = Bun.spawnSync(["hashpilot", "--version"], {
-      env: { ...process.env, PATH: `${BIN_DIR}:${process.env.PATH || ""}` },
-    });
+    // Invoke the launcher by absolute path: this check is about whether the
+    // CLI runs at all. PATH resolution is `checkPathEntry`'s job, and injecting
+    // BIN_DIR here is what used to hide a broken install.
+    const proc = Bun.spawnSync([CLI_LAUNCHER, "--version"]);
     if (proc.exitCode === 0) {
       return { name: "cli-executable", status: "pass", message: `CLI works: ${proc.stdout.toString().trim()}` };
     }
