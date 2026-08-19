@@ -20,7 +20,8 @@
 
 import { readMany, readHash } from "./read";
 import { grepMany, symbolLookupMany } from "./grep";
-import { findSymbols, astCapabilities } from "./ast-edit";
+import { findSymbols,
+  findSymbolsDetailed, astCapabilities } from "./ast-edit";
 import { routeEdit } from "./router";
 import { verifyChanges } from "./verify";
 
@@ -236,7 +237,8 @@ export const OPERATIONS: Operation[] = [
       if (!(await handle.exists())) {
         return { success: false, errorCode: "FILE_NOT_FOUND", error: `No such file: ${file}` };
       }
-      return findSymbols(await handle.text(), file);
+      const search = findSymbolsDetailed(await handle.text(), file);
+      return { symbols: search.symbols, truncated: search.truncated };
     },
   },
   {

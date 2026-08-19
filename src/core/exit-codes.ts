@@ -41,6 +41,10 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
     // anchor — so it shares the EDIT_FAILED band with SYMBOL_NOT_FOUND.
     [ErrorCode.AMBIGUOUS_SYMBOL]: ExitCode.EDIT_FAILED,
   [ErrorCode.UNSUPPORTED_LANGUAGE]: ExitCode.EDIT_FAILED,
+  // The search did not complete, so the edit did not happen for a reason the
+  // caller can act on (raise the cap, target a shallower node) — an edit
+  // failure, not a retryable precondition (#39).
+  [ErrorCode.SEARCH_TRUNCATED]: ExitCode.EDIT_FAILED,
   [ErrorCode.VERIFY_FAILED]: ExitCode.VERIFY_FAILED,
   // A timeout shares the verification band — the edit applied, verification did
   // not conclude — but carries its own error code so an agent can tell "your

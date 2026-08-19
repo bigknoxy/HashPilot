@@ -6,6 +6,8 @@ export { replaceHash } from "./hash-edit";
 export type { ReplaceHashResult, ReplaceHashOptions } from "./hash-edit";
 export {
   findSymbols,
+  findSymbolsDetailed,
+  MAX_AST_DEPTH,
   renameSymbol,
   replaceBody,
   addImport,

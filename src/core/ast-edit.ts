@@ -6,6 +6,7 @@ import Go from "tree-sitter-go";
 import Rust from "tree-sitter-rust";
 import { escapeRegex } from "./utils";
 import { ErrorCode } from "./telemetry";
+import { addWarning } from "./envelope";
 
 // Language registry: maps internal language IDs to parser + metadata
 interface LangEntry {
@@ -276,19 +277,51 @@ export interface SymbolInfo {
   endColumn: number;
 }
 
-export function findSymbols(source: string, filePath: string): SymbolInfo[] {
+/**
+ * Runaway guard for AST walks, far above any realistic nesting depth (#39).
+ *
+ * The two walks used to stop at 10 and 15 *silently*, so a symbol nested more
+ * deeply than that — routine in React trees or heavily generic TypeScript — was
+ * reported as "not found". A wrong answer indistinguishable from a right one is
+ * the worst failure a lookup can have, so the cap is now shared, far higher,
+ * and reported when it is hit. Both walks are iterative, so depth costs heap
+ * rather than stack.
+ */
+export const MAX_AST_DEPTH = 200;
+
+export interface SymbolSearch {
+  symbols: SymbolInfo[];
+  /** True when the walk stopped at MAX_AST_DEPTH with subtrees left unvisited. */
+  truncated: boolean;
+}
+
+/**
+ * Symbol search that reports whether it completed. `findSymbols` keeps the
+ * bare-array shape its callers expect; this is the variant that can distinguish
+ * "no symbols" from "stopped looking".
+ */
+export function findSymbolsDetailed(source: string, filePath: string): SymbolSearch {
+  const empty = { symbols: [], truncated: false };
   const lang = detectLanguage(filePath);
-  if (!lang) return [];
+  if (!lang) return empty;
   const cfg = configFor(lang);
-  if (!cfg) return [];
+  if (!cfg) return empty;
   const parser = getParser(lang);
-  if (!parser) return [];
+  if (!parser) return empty;
   const tree = parseSource(parser, source);
   const symbols: SymbolInfo[] = [];
+  let truncated = false;
 
-  function walk(node: Parser.SyntaxNode, depth: number = 0) {
-    if (depth > 10) return;
-    if (cfg!.symbolKinds.includes(node.type)) {
+  // Explicit work stack: a recursive walk on a pathologically deep tree
+  // overflows before it reaches any cap.
+  const stack: Array<{ node: Parser.SyntaxNode; depth: number }> = [{ node: tree.rootNode, depth: 0 }];
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!;
+    if (depth > MAX_AST_DEPTH) {
+      truncated = true;
+      continue;
+    }
+    if (cfg.symbolKinds.includes(node.type)) {
       const nameNode =
         node.childForFieldName("name") ||
         node.children.find((c) => IDENTIFIER_TYPES.has(c.type));
@@ -311,13 +344,23 @@ export function findSymbols(source: string, filePath: string): SymbolInfo[] {
         });
       }
     }
-    for (const child of node.children) {
-      walk(child, depth + 1);
-    }
+    // Push in reverse so children are visited in source order.
+    const kids = node.children;
+    for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], depth: depth + 1 });
   }
 
-  walk(tree.rootNode);
-  return symbols;
+  if (truncated) {
+    addWarning({
+      code: "SEARCH_TRUNCATED",
+      message: `Symbol search stopped at depth ${MAX_AST_DEPTH} in ${filePath}; symbols nested deeper were not visited.`,
+    });
+  }
+  return { symbols, truncated };
+}
+
+/** Symbols in a file. Returns the bare array; see `findSymbolsDetailed` for truncation. */
+export function findSymbols(source: string, filePath: string): SymbolInfo[] {
+  return findSymbolsDetailed(source, filePath).symbols;
 }
 
 /**
@@ -1643,9 +1686,17 @@ function insertParameterUnchecked(
   let insertPos = -1;
   let insertText = "";
 
-  function find(node: Parser.SyntaxNode, depth: number): boolean {
-    if (depth > 15) return false;
-    if (cfg!.functionTypes.includes(node.type)) {
+  let truncated = false;
+  // Same shared cap and same iterative walk as findSymbols: a silent stop at 15
+  // reported a deeply nested function as missing (#39).
+  const stack: Array<{ node: Parser.SyntaxNode; depth: number }> = [{ node: tree.rootNode, depth: 0 }];
+  while (stack.length > 0 && !found) {
+    const { node, depth } = stack.pop()!;
+    if (depth > MAX_AST_DEPTH) {
+      truncated = true;
+      continue;
+    }
+    if (cfg.functionTypes.includes(node.type)) {
       const nameNode = node.childForFieldName("name");
       if (nameNode && nameNode.text === symbolName) {
         // Find the parameters node
@@ -1663,18 +1714,21 @@ function insertParameterUnchecked(
           }
 
           found = true;
-          return true;
+          break;
         }
       }
     }
-    for (const child of node.children) {
-      if (find(child, depth + 1)) return true;
-    }
-    return false;
+    const kids = node.children;
+    for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], depth: depth + 1 });
   }
 
-  find(tree.rootNode, 0);
-
+  if (!found && truncated) {
+    return {
+      success: false, path: filePath, operation: "insert-parameter", changes: 0,
+      message: `Search for '${symbolName}' stopped at depth ${MAX_AST_DEPTH} in ${filePath}, so the symbol may exist below the cap. Not reported as not-found.`,
+      errorCode: ErrorCode.SEARCH_TRUNCATED,
+    };
+  }
   if (!found) return { success: false, path: filePath, operation: "insert-parameter", changes: 0, message: `Symbol '${symbolName}' not found or has no parameters`, errorCode: ErrorCode.SYMBOL_NOT_FOUND };
 
   const newSource = source.slice(0, insertPos) + insertText + source.slice(insertPos);

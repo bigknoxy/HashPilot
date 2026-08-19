@@ -407,21 +407,30 @@ hashpilot ast find-symbols <file>
 
 **Output:**
 ```json
-[
-  {
-    "name": "hello",
-    "kind": "function_declaration",
-    "startRow": 0,
-    "endRow": 2,
-    "startCol": 0,
-    "endCol": 1,
-    "startLine": 1,
-    "endLine": 3,
-    "startColumn": 1,
-    "endColumn": 2
-  }
-]
+{
+  "symbols": [
+    {
+      "name": "hello",
+      "kind": "function_declaration",
+      "startRow": 0,
+      "endRow": 2,
+      "startCol": 0,
+      "endCol": 1,
+      "startLine": 1,
+      "endLine": 3,
+      "startColumn": 1,
+      "endColumn": 2
+    }
+  ],
+  "truncated": false
+}
 ```
+
+`truncated` is `true` when the walk stopped at the shared runaway depth guard
+(`MAX_AST_DEPTH`, 200) with subtrees unvisited, and the envelope carries a
+matching `SEARCH_TRUNCATED` warning. An incomplete search never reports
+`SYMBOL_NOT_FOUND`: `insert-parameter` returns `SEARCH_TRUNCATED` (exit 2)
+instead, because "I stopped looking" is not "it is not there".
 
 **Line and column indexing.** Two conventions are reported side by side:
 
