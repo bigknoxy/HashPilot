@@ -40,6 +40,11 @@ jobs:
       - name: Run doctor smoke test
         run: bun run src/cli.ts doctor
 
+      # Fails only when a case that passes in bench/results/latest.json stops
+      # passing. Cases that are already red (known-issue guards) stay red.
+      - name: Run benchmark regression check
+        run: bun run bench
+
   # Issue #35: `npm i -g hashpilot` must not install a package that dies on first
   # use. Pack the tarball, install it on a machine with Node but no Bun, and assert
   # the shim gives an actionable message; then install Bun and assert doctor runs.
