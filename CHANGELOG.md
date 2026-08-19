@@ -1,3 +1,10 @@
+## [4.1.4](https://github.com/bigknoxy/HashPilot/compare/v4.1.3...v4.1.4) (2026-08-19)
+
+
+### Bug Fixes
+
+* **intent:** resolve references with tree-sitter, not regex + isDefinitionLine ([#91](https://github.com/bigknoxy/HashPilot/issues/91)) ([c6e76b1](https://github.com/bigknoxy/HashPilot/commit/c6e76b1eb230630905110049bcf84da1b94fae3a)), closes [#15](https://github.com/bigknoxy/HashPilot/issues/15)
+
 ## [4.1.3](https://github.com/bigknoxy/HashPilot/compare/v4.1.2...v4.1.3) (2026-08-18)
 
 
