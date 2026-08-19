@@ -6,11 +6,19 @@ import { join } from "path";
 const TMP_DIR = join(import.meta.dir, "__tmp_test_config__");
 
 describe("loadConfig", () => {
+  // `loadConfig` merges ~/.config/hashpilot/config.json when it exists, so on a
+  // machine where HashPilot is actually installed these tests read the
+  // developer's real config and the "returns defaults" assertions fail. Point
+  // HOME at the temp dir so the global layer is genuinely absent.
+  const REAL_HOME = process.env.HOME;
+
   beforeEach(() => {
     mkdirSync(TMP_DIR, { recursive: true });
+    process.env.HOME = TMP_DIR;
   });
 
   afterEach(() => {
+    process.env.HOME = REAL_HOME;
     rmSync(TMP_DIR, { recursive: true, force: true });
   });
 
