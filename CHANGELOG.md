@@ -1,3 +1,10 @@
+## [4.4.12](https://github.com/bigknoxy/HashPilot/compare/v4.4.11...v4.4.12) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ast:** anchor insert-before/after on declarations, not any named node ([#38](https://github.com/bigknoxy/HashPilot/issues/38)) ([#121](https://github.com/bigknoxy/HashPilot/issues/121)) ([e0a5da3](https://github.com/bigknoxy/HashPilot/commit/e0a5da3a2731a2fcfc024ef986869c65e0f7a5f1))
+
 ## [4.4.11](https://github.com/bigknoxy/HashPilot/compare/v4.4.10...v4.4.11) (2026-08-19)
 
 
