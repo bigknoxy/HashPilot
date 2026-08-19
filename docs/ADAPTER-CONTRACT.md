@@ -663,7 +663,7 @@ signature plus `diff apply` at each call site.
 ```json
 {
   "success": true,
-  "plan": { "intent": {...}, "definition": {...}, "impactSummary": "...", "unresolved": [] },
+  "plan": { "intent": {...}, "definition": {...}, "impactSummary": "...", "unresolved": [], "reconciliation": { "resolved": 3, "unresolved": 0, "ambiguous": 0 } },
   "execution": { "steps": [...], "summary": {...}, "verification": {...} }
 }
 ```
@@ -725,6 +725,22 @@ A plan with a non-empty `unresolved` is **refused rather than half-applied**:
 Supply `param.default` (the fix in almost every case) or pass `--yes` to apply
 only the steps that could be computed — the unresolved call sites stay
 untouched and are still listed in `plan.unresolved`.
+
+**Reference reconciliation (#15)**
+
+Reference discovery was upgraded from regex `grep -w` + heuristic `isDefinitionLine` to per-language tree-sitter queries. The `plan` object now carries an optional `reconciliation` field that reports *what* reference discovery could and could not see:
+
+```json
+"reconciliation": { "resolved": 3, "unresolved": 1, "ambiguous": 0 }
+```
+
+| Field | Meaning |
+|-------|---------|
+| `resolved` | Count of genuine call/reference sites found in files HashPilot parses |
+| `unresolved` | Count of files that mention the target symbol but are in a language HashPilot does **not** parse (e.g. `*.rb`). Each contributes one entry to `plan.unresolved` |
+| `ambiguous` | Count of files that both reference and *bind* the target name more than once — HashPilot cannot tell which module's symbol. Each contributes one entry to `plan.unresolved` |
+
+When `unresolved` or `ambiguous` > 0 the plan is **refused** via the same `plan.unresolved` guard as partial plans. Pass `--yes` to proceed with only the resolved references; the unparSED/ambiguous files are listed but not touched. `reconciliation` is absent when `generatePlan` is called without it.
 
 ---
 

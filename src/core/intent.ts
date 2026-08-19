@@ -1,5 +1,4 @@
-import { findSymbols, insertParameter, insertCallArg } from "./ast-edit";
-import { grepMany } from "./grep";
+import { findSymbols, insertParameter, insertCallArg, getParser, parseSource, detectLanguage } from "./ast-edit";
 import { glob } from "glob";
 import { escapeRegex } from "./utils";
 import { normalizePath, pathsEqual } from "./path-normalize";
@@ -96,6 +95,9 @@ export interface EditPlan {
   /** Non-empty when part of the intent could not be planned; blocks execution without `yes`. */
   unresolved: UnresolvedItem[];
   impactSummary: string;
+        /** Counts the reconciled reference resolution (#15): resolved / unresolved /
+        * ambiguous. `ambiguous > 0` blocks execution without `--yes`. */
+  reconciliation?: ReferenceReconciliation;
 }
 
 // ── Intent parsing ────────────────────────────────────────────────────
@@ -202,45 +204,254 @@ export async function findSymbolDefinition(
 }
 
 // ── Reference discovery ───────────────────────────────────────────────
+//
+// #15: references are resolved with tree-sitter, not regex text matching.
+// The old approach (`grep -w` plus `isDefinitionLine`) matched a symbol's
+// spelling inside comments, string literals, and foreign imports, and — worse —
+// *dropped* legitimate call sites that happened to sit on a `const`/`function`/
+// `def` line ("const x = foo(1)" was read as the symbol's own definition, so the
+// call site was skipped). A syntactic walk removes all of that: a "reference" is
+// a bare identifier that is neither a declaration name, a member/property access,
+// nor an import binding.
 
-const DEF_PATTERNS = [
-  /^(export\s+)?(async\s+)?function\s+/,
-  /^(export\s+)?(const|let|var)\s+/,
-  /^(export\s+)?class\s+/,
-  /^(export\s+)?interface\s+/,
-  /^(export\s+)?type\s+/,
-  /^def\s+/,
-  /^func\s+/,
-  /^pub\s+fn\s+/,
+/** Identifiers that, when bare, can be references a caller wants to rename/reach. */
+const REF_IDENTS = new Set(["identifier", "type_identifier"]);
+
+/**
+* A node whose PARENT has one of these types is a *declaration name* — it binds
+* the local symbol, it does not use it, so it is excluded from the reference set.
+* Language-agnostic across the six grammars.
+*/
+const DECL_NAME_PARENTS = new Set([
+   "function_declaration", "class_declaration", "interface_declaration",
+   "type_alias_declaration", "enum_declaration", "variable_declarator",
+   "lexical_declaration", "variable_declaration", "function_definition",
+   "function_item", "method_declaration", "method_definition", "constant_item",
+   "type_parameter", "enum_variant", "field_declaration", "struct_item",
+]);
+
+/**
+* A node whose PARENT has one of these types accesses the name as a *member of
+* something else* (`obj.foo`, `a::b`), not as the top-level symbol, so it is
+* excluded. In TS/JS such names are `property_identifier` (already outside
+* `REF_IDENTS`); this set covers Python/Rust where the member is an `identifier`.
+*/
+const MEMBER_PARENTS = new Set([
+   "member_expression", "property_access_expression", "selector_expression",
+   "attribute", "field_expression", "type_path", "scoped_identifier",
+   "qualified_identifier", "field_access",
+]);
+
+/**
+* Any ancestor of this type means the identifier is *binding* another origin's
+* name rather than using the top-level symbol (an import/export/re-export), so it
+* is excluded from references. "pair" is deliberately absent: it is the JS
+* object-literal property node, not an import (#14).
+*/
+const BINDING_CONTEXT = new Set([
+/* Only the name-carrying LEAF nodes of an import/export/re-export — never the
+ * statement-level containers (export_statement / import_from_statement / ...),
+ * which wrap the WHOLE body of an exported/imported declaration and would
+ * otherwise mark every reference inside it as a "binding". Leaf types sit
+ * shallow, so an ancestor-walk over them cannot catch a reference buried in a
+ * function body. (Object-literal property keys are `property_identifier`,
+ * already excluded by REF_IDENTS — "pair" is deliberately absent, #14.)
+ */
+    // TS / JS / TSX / JSX
+    "import_specifier", "named_imports", "named_import", "namespace_import",
+    "default_import", "export_specifier", "exported_names", "export_clause",
+    // Python
+    "dotted_name", "alias", "import_prefix",
+    // Go
+    "import_spec", "imported_path",
+    // Rust
+    "use_list", "scoped_use_list", "scoped_identifier", "identifier_path",
+    "use_as_clause", "use_tree", "group_use_delimiter", "nested_use_delimiter",
+]);
+
+/**
+* Source extensions HashPilot has no tree-sitter grammar for, that nonetheless
+* might *mention* the symbol by text. These are surfaced as `unresolved` — an
+* honest "I cannot see these" — instead of being regex-guessed or silently
+* ignored.
+*/
+const UNPARSED_EXTS = [
+     "**/*.rb", "**/*.java", "**/*.c", "**/*.cc", "**/*.cpp", "**/*.h",
+     "**/*.hpp", "**/*.cs", "**/*.php", "**/*.swift", "**/*.scala", "**/*.kt",
 ];
 
-function isDefinitionLine(content: string, symbol: string): boolean {
-  return DEF_PATTERNS.some((p) => p.test(content) && content.includes(symbol));
+/** Counts the reconciled resolution of a symbol's references. */
+export interface ReferenceReconciliation {
+   /** References found syntactically that the planner can act on. */
+  resolved: number;
+   /** Files that mention the symbol but HashPilot cannot parse / resolve. */
+  unresolved: number;
+   /**
+   * Bare references located in a file that also binds the same name more than
+   * once (e.g. an aliased import plus a local declaration) — the wrong module's
+   * symbol could be reached. True cross-module disambiguation is the LSP-tier
+   * successor (textDocument/references); this narrow flag is a proxy.
+   */
+  ambiguous: number;
 }
 
+interface FileResolution {
+   refs: ReferenceLocation[];
+   unresolvable: boolean;
+   reason?: string;
+   /** Number of binding sites for `symbol` in this file (used for ambiguity). */
+  bindings: number;
+}
+
+/**
+* Resolve every bare reference to `symbol` in ONE file's source using that
+* language's tree-sitter grammar, and report whether the file could not be
+* resolved (no grammar / did not parse).
+*/
+function resolveFile(source: string, absPath: string, symbol: string): FileResolution {
+  const lang = detectLanguage(absPath);
+  const parser = getParser(lang || "");
+  // No grammar, or the parser cannot be initialised: we cannot see this file.
+  if (!lang || !parser) {
+    return { refs: [], unresolvable: true, reason: `no parser for ${lang ?? "this language"}`, bindings: 0 };
+    }
+
+   let tree;
+  try {
+    tree = parseSource(parser, source);
+    } catch {
+    return { refs: [], unresolvable: true, reason: "file does not parse", bindings: 0 };
+    }
+
+   const lines = source.split("\n");
+  const refs: ReferenceLocation[] = [];
+  let bindings = 0;
+  const seenRefs = new Set<number>();
+
+   function inBindingContext(node: any): boolean {
+    let p = node.parent;
+    while (p && p.type) {
+      if (BINDING_CONTEXT.has(p.type)) return true;
+      p = p.parent;
+       }
+    return false;
+    }
+
+  function walk(node: any) {
+    if (REF_IDENTS.has(node.type) && node.text === symbol) {
+      const parent = node.parent;
+      const isDeclName =
+         parent && (DECL_NAME_PARENTS.has(parent.type) || MEMBER_PARENTS.has(parent.type));
+      const isBindingSite = isDeclName || inBindingContext(node);
+      if (isBindingSite) {
+        bindings += 1;
+         } else if (!seenRefs.has(node.startIndex)) {
+        seenRefs.add(node.startIndex);
+        refs.push({
+          file: absPath,
+          line: node.startPosition.row + 1,
+          column: node.startPosition.column + 1,
+          context: (lines[node.startPosition.row] || symbol).trim(),
+         });
+        }
+       }
+    for (const child of node.children) walk(child);
+    }
+
+  walk(tree.rootNode);
+  return { refs, unresolvable: false, bindings };
+}
+
+/**
+* Resolve references to `symbol` across the project.
+*
+* Supported-language files are parsed and their bare references collected. Files
+* in languages HashPilot cannot parse are reported as `unresolved` (an honest
+* "I cannot see these") rather than guessed at, and any bare reference that also
+* lives in a file which binds the name more than once is reported under
+* `ambiguous` — a genuine cross-module clash the planner should not silently
+* rename.
+*/
+export async function resolveReferences(
+  symbol: string,
+  projectRoot: string,
+  _definitionFile: string
+): Promise<{
+   references: ReferenceLocation[];
+  unresolved: UnresolvedItem[];
+  reconciliation: ReferenceReconciliation;
+}> {
+  const sourceFiles = await glob(LANG_EXTS, { cwd: projectRoot, ignore: IGNORE_GLOBS });
+  const references: ReferenceLocation[] = [];
+  const unresolved: UnresolvedItem[] = [];
+  let ambiguous = 0;
+
+  for (const rel of sourceFiles) {
+    const absPath = `${projectRoot}/${rel}`;
+    let source: string;
+    try {
+      source = await Bun.file(absPath).text();
+       } catch {
+      continue;
+       }
+     const { refs, unresolvable, reason, bindings } = resolveFile(source, absPath, symbol);
+    if (refs.length > 0) {
+      references.push(...refs);
+      // A bare reference that lives in a file binding the same name more than
+      // once is ambiguous: it may reach a different module's symbol.
+      if (bindings > 1) ambiguous += refs.length;
+       }
+    if (unresolvable) {
+      unresolved.push({
+        file: absPath,
+        operation: "resolve-references",
+        reason: `${rel}: ${reason ?? "file could not be resolved"}`,
+        resolution: `HashPilot cannot resolve references in this file; inspect and edit it manually, or add a grammar for its language.`,
+        });
+       }
+     }
+
+   // Languages outside LANG_EXTS that merely *mention the symbol by text* are
+   // surfaced as unresolved rather than silently ignored or regex-guessed.
+   for (const rel of await glob(UNPARSED_EXTS, { cwd: projectRoot, ignore: IGNORE_GLOBS })) {
+      const absPath = `${projectRoot}/${rel}`;
+     let source: string;
+      try {
+        source = await Bun.file(absPath).text();
+          } catch {
+        continue;
+          }
+       if (new RegExp(`\\b${escapeRegex(symbol)}\\b`).test(source)) {
+        unresolved.push({
+          file: absPath,
+          operation: "resolve-references",
+          reason: `${rel} mentions '${symbol}', but its language has no parser in HashPilot`,
+          resolution: `Inspect ${rel} manually; HashPilot will not guess references in a language it cannot parse.`,
+            });
+        }
+      }
+
+  return {
+    references,
+    unresolved,
+    reconciliation: {
+      resolved: references.length,
+      unresolved: unresolved.length,
+      ambiguous,
+      },
+    };
+}
+
+/**
+* Back-compat entry point used by existing callers and tests: the rich
+* `resolveReferences` result, projected down to just the reference list.
+*/
 export async function findReferences(
   symbol: string,
   projectRoot: string,
   _definitionFile: string
 ): Promise<ReferenceLocation[]> {
-  const sourceFiles = await glob(LANG_EXTS, { cwd: projectRoot, ignore: IGNORE_GLOBS });
-  if (sourceFiles.length === 0) return [];
-
-  const absPaths = sourceFiles.map((f) => `${projectRoot}/${f}`);
-
-  const grepResult = await grepMany(escapeRegex(symbol), absPaths, {
-    maxResults: 500,
-    wordMatch: true,
-  });
-
-  if (grepResult.error) return [];
-
-  const references: ReferenceLocation[] = [];
-  for (const r of grepResult.results) {
-    if (isDefinitionLine(r.content.trim(), symbol)) continue;
-    references.push({ file: r.path, line: r.line, column: r.column, context: r.content.trim() });
-  }
-
+  const { references } = await resolveReferences(symbol, projectRoot, _definitionFile);
   return references;
 }
 
@@ -249,7 +460,8 @@ export async function findReferences(
 export function generatePlan(
   intent: StructuredIntent,
   definition: SymbolDefinition,
-  references: ReferenceLocation[]
+  references: ReferenceLocation[],
+  reconciliation?: ReferenceReconciliation
 ): EditPlan {
   const steps: EditStep[] = [];
   const unresolved: UnresolvedItem[] = [];
@@ -351,10 +563,14 @@ export function generatePlan(
     impactSummary:
       `${steps.length} edits across ${impactedFiles.length} files` +
       (references.length > 0 ? ` (${references.length} references found)` : "") +
-      (unresolved.length > 0
-        ? `; ${unresolved.length} unresolved in ${new Set(unresolved.map((u) => u.file)).size} files`
-        : ""),
-  };
+          (unresolved.length > 0
+            ? `; ${unresolved.length} unresolved in ${new Set(unresolved.map((u) => u.file)).size} files`
+            : "") +
+            (reconciliation
+             ? `; reconciliation: ${reconciliation.resolved} resolved, ${reconciliation.unresolved} unresolved-language, ${reconciliation.ambiguous} ambiguous`
+             : ""),
+   reconciliation,
+    };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────

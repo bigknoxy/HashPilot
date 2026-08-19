@@ -1,4 +1,4 @@
-import { EditPlan, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent } from "./intent";
+import { EditPlan, findSymbolDefinition, findReferences, generatePlan, parseIntent, StructuredIntent, resolveReferences, ReferenceReconciliation } from "./intent";
 import { safeWrite } from "./paths";
 import { insertParameter, insertCallArg, renameSymbol, detectLanguage } from "./ast-edit";
 import { replaceHash } from "./hash-edit";
@@ -398,8 +398,25 @@ export async function executeIntent(
     throw new Error(`Symbol '${intent.symbol}' not found in project at ${projectRoot}`);
   }
 
-  const references = await findReferences(intent.symbol, projectRoot, definition.file);
-  const plan = generatePlan(intent, definition, references);
+  const { references, unresolved: unresolvedRefs, reconciliation } = await resolveReferences(
+     intent.symbol,
+     projectRoot,
+     definition.file
+   );
+  const plan = generatePlan(intent, definition, references, reconciliation);
+  // Surface languages HashPilot cannot parse so the planner refuses rather than
+  // guessing (#15). Ambiguous bindings — a name that also binds more than once
+  // in a caller file — are reported via `reconciliation` and, when ambiguous > 0,
+  // block execution unless the caller opts in with --yes.
+  for (const u of unresolvedRefs) plan.unresolved.push(u);
+   if (reconciliation.ambiguous > 0 && !options.yes) {
+    plan.unresolved.push({
+      file: definition.file,
+      operation: "resolve-references",
+      reason: `${reconciliation.ambiguous} reference(s) of '${intent.symbol}' live in a file that also binds that name more than once — cannot tell which module's symbol to rename`,
+      resolution: `Disambiguate (e.g. scope the rename to one binding), or re-run with --yes to proceed anyway.`,
+       });
+    }
   const execution = await executePlan(plan, options);
 
   return { success: execution.success, plan, execution, errorCode: execution.errorCode };
