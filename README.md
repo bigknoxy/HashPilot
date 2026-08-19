@@ -609,7 +609,7 @@ Layered config. Highest priority wins:
 ```json
 {
   "routePolicy": {
-    "languageOverrides": { "python": "hash" },
+    "languageOverrides": { "python": "hash", "go": null },
     "operationOverrides": { "add-import": "diff" },
     "conflictResolution": "operation"
   },
@@ -618,6 +618,10 @@ Layered config. Highest priority wins:
   "allowedRoots": []
 }
 ```
+
+In `languageOverrides` and `operationOverrides`, `null` **unsets** an entry inherited
+from a lower-priority config — the example above forces Python to the hash tier while
+opting out of whatever `go` rule the global config set.
 
 See [Telemetry and Privacy](#telemetry-and-privacy) and
 [Where HashPilot Will Write](#where-hashpilot-will-write) for what those last two do.

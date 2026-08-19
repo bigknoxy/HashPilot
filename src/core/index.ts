@@ -51,6 +51,8 @@ export {
   enableTelemetry,
   resolveTelemetryEnabled,
   getSessionId,
+  newSession,
+  setSessionId,
   MAX_FILE_SIZE,
   MAX_ROTATED_FILES,
   RETENTION_DAYS,

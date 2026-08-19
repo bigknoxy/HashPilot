@@ -3,10 +3,17 @@ import { join } from "path";
 import type { EditRoute } from "./router";
 
 export interface RoutePolicy {
-  /** Force a specific route for given languages. E.g. { "python": "hash" } */
-  languageOverrides?: Record<string, EditRoute>;
-  /** Force a specific route for given operations. E.g. { "add-import": "diff" } */
-  operationOverrides?: Record<string, EditRoute>;
+  /**
+   * Force a specific route for given languages. E.g. { "python": "hash" }.
+   * `null` means "unset": it removes an override inherited from a
+   * lower-priority config, which a merge alone cannot express (#51).
+   */
+  languageOverrides?: Record<string, EditRoute | null>;
+  /**
+   * Force a specific route for given operations. E.g. { "add-import": "diff" }.
+   * `null` unsets an inherited override — see `languageOverrides`.
+   */
+  operationOverrides?: Record<string, EditRoute | null>;
   /** When multiple overrides match, which wins: "language" | "operation" | "strictest" */
   conflictResolution?: "language" | "operation" | "strictest";
 }
@@ -55,9 +62,21 @@ export interface HashPilotConfig {
   allowedRoots?: string[];
 }
 
-const DEFAULT_CONFIG: HashPilotConfig = {
-  telemetry: { enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30, maxRecordBytes: 4096 },
-};
+const DEFAULT_CONFIG: HashPilotConfig = Object.freeze({
+  telemetry: Object.freeze({ enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30, maxRecordBytes: 4096 }),
+}) as HashPilotConfig;
+
+/**
+ * Every `loadConfig` call must hand back a config that shares no object with
+ * the defaults or with a previously returned config. A shallow spread left the
+ * nested `telemetry` object aliased, so one caller mutating its own config
+ * silently rewrote the defaults for the rest of the process — invisible in the
+ * CLI (one process, one call) but a cross-request leak in the MCP server and
+ * any library embedding (#51).
+ */
+function cloneDefaults(): HashPilotConfig {
+  return structuredClone({ ...DEFAULT_CONFIG }) as HashPilotConfig;
+}
 
 const ROUTE_PRECEDENCE: EditRoute[] = ["diff", "hash", "ast"];
 
@@ -83,8 +102,8 @@ export function policyForce(
   operation: string
 ): EditRoute | undefined {
   if (!policy) return undefined;
-  const fromLang = language ? policy.languageOverrides?.[language] : undefined;
-  const fromOp = policy.operationOverrides?.[operation];
+  const fromLang = (language ? policy.languageOverrides?.[language] : undefined) ?? undefined;
+  const fromOp = policy.operationOverrides?.[operation] ?? undefined;
   if (!fromLang && !fromOp) return undefined;
   return resolveConflict(fromLang, fromOp, policy.conflictResolution);
 }
@@ -106,7 +125,7 @@ export function loadConfig(configPath?: string): HashPilotConfig {
     paths.push(configPath);
   }
 
-  const config: HashPilotConfig = { ...DEFAULT_CONFIG };
+  const config: HashPilotConfig = cloneDefaults();
 
   for (const p of paths) {
     try {
@@ -127,6 +146,24 @@ export function loadConfig(configPath?: string): HashPilotConfig {
   return config;
 }
 
+/**
+ * Merge one override map, treating an explicit `null` as "unset". Without it a
+ * higher-priority config can change or add an override but never remove one, so
+ * a global "always diff for Python" policy could not be opted out of per
+ * project (#51).
+ */
+function mergeOverrides(
+  base: Record<string, EditRoute | null> | undefined,
+  override: Record<string, EditRoute | null> | undefined
+): Record<string, EditRoute | null> {
+  const merged: Record<string, EditRoute | null> = { ...base };
+  for (const [key, value] of Object.entries(override ?? {})) {
+    if (value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  return merged;
+}
+
 function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>): void {
   if (override.telemetry) {
     base.telemetry = { ...base.telemetry, ...override.telemetry };
@@ -136,8 +173,8 @@ function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>):
     base.routePolicy = {
       ...basePolicy,
       conflictResolution: override.routePolicy.conflictResolution ?? basePolicy.conflictResolution,
-      languageOverrides: { ...basePolicy.languageOverrides, ...override.routePolicy.languageOverrides },
-      operationOverrides: { ...basePolicy.operationOverrides, ...override.routePolicy.operationOverrides },
+      languageOverrides: mergeOverrides(basePolicy.languageOverrides, override.routePolicy.languageOverrides),
+      operationOverrides: mergeOverrides(basePolicy.operationOverrides, override.routePolicy.operationOverrides),
     };
   }
   if (override.provenance) {
