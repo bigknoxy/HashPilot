@@ -266,7 +266,7 @@ registerRenderer("telemetry-prune", (p) => process.stdout.write("✓ pruned " + 
 
 // route-query
 registerRenderer("route", (p) => {
-  process.stdout.write(p.success ? "✓ " + (p.route || "ok") : "✗ " + (p.errorCode || "routing failed") + "\n");
+  process.stdout.write((p.success ? "✓ " + (p.route || "ok") : "✗ " + (p.errorCode || "routing failed")) + "\n");
 });
 
 // ast-capabilities
@@ -280,8 +280,7 @@ registerRenderer("health", (p) => {
   process.stdout.write((p.success ? "✓ " : "✗ ") + (p.message || "") + "\n");
 });
 registerRenderer("telemetry-summary", (p) => {
-   const keys = p.success ? [...(Object.keys(p))] : [...(Object.keys(p))];
-   process.stdout.write((p.success ? "✓ " : "✗ ") + (p.message || JSON.stringify(Object.keys(p)).slice(0, 120)) + "\n");
+  process.stdout.write((p.success ? "✓ " : "✗ ") + (p.message || JSON.stringify(Object.keys(p)).slice(0, 120)) + "\n");
 });
 
 // ── helpers ────────────────────────────────────────────────────────────
