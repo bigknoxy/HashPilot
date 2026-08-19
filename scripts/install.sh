@@ -185,6 +185,11 @@ detail "Dependencies installed"
 # ── Create CLI launcher ──────────────────────────────────────────────────
 log "Creating CLI launcher..."
 mkdir -p "$TARGET_DIR/bin"
+# Remove any existing entry before writing. A development install
+# (`bun run install-cli`) leaves this path as a symlink into the checkout, and
+# `>` follows a symlink — so writing straight to it overwrites the repo's own
+# src/cli-node.cjs instead of replacing the launcher.
+rm -f "$TARGET_DIR/bin/hashpilot"
 cat > "$TARGET_DIR/bin/hashpilot" << 'LAUNCHER'
 #!/bin/bash
 exec bun run "$HOME/.agentic-tools/structured-editing/src/cli.ts" "$@"

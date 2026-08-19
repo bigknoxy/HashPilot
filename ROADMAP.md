@@ -88,6 +88,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 
 | # | Item | Score | Pri | Area |
 |---|------|-------|-----|------|
+| [#96](../../issues/96) | Distribution — publish to npm under a scoped name (`hashpilot` is taken) | 46 | P2 | distribution |
 | [#37](../../issues/37) | B35 — Installer hygiene: template injection, unpinned clone, rc clobber, `rsync --delete` | 45 | P3 | security |
 | [#44](../../issues/44) | B42 — Shell completions, help examples, `intent --schema`, `explain` | 44 | P3 | cli |
 | [#38](../../issues/38) | B36 — `insert-before/after` can splice a statement into a parameter list | 42 | P3 | correctness |
