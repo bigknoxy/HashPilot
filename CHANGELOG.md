@@ -1,3 +1,10 @@
+## [4.4.8](https://github.com/bigknoxy/HashPilot/compare/v4.4.7...v4.4.8) (2026-08-19)
+
+
+### Bug Fixes
+
+* **hash:** newHash is the written range, so it chains without a re-read ([#117](https://github.com/bigknoxy/HashPilot/issues/117)) ([03bf296](https://github.com/bigknoxy/HashPilot/commit/03bf2960fb9e5a33d442293266b542c2d1111aca)), closes [#101](https://github.com/bigknoxy/HashPilot/issues/101)
+
 ## [4.4.7](https://github.com/bigknoxy/HashPilot/compare/v4.4.6...v4.4.7) (2026-08-19)
 
 
