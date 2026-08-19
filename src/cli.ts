@@ -69,6 +69,10 @@ import {
   configureTelemetry,
   enableTelemetry,
   resolveTelemetryEnabled,
+  setOutputFormat,
+  getOutputFormat,
+  resolveFormat,
+  OutputFormat,
 } from "./core/index";
 import type { TelemetryEvent } from "./core/telemetry";
 
@@ -113,13 +117,20 @@ program
   .option("--allowed-root <dir...>", "Additional directory writes may target")
   .option("--no-telemetry", "Disable telemetry logging for this invocation")
   .option("--allow-parse-errors", "Edit a file that already has syntax errors (the post-edit parse check still applies)")
+    .option("--format <fmt>", "Output format: json or text (default: json if piped/CI, text if TTY)")
+    .option("--json", "[deprecated: use --format json] Force JSON output", false)
   .hook("preAction", (thisCommand, actionCommand) => {
     // Name the running subcommand so the envelope can report it. Walk up so
     // nested commands read as "telemetry show", not "show".
     const path: string[] = [];
     for (let c: typeof actionCommand | null = actionCommand; c && c.parent; c = c.parent) path.unshift(c.name());
     setCommand(path.join(" "));
+
+     // #19 (B16): resolve output format and set it globally
     const globals = thisCommand.opts();
+    const { format, warnDeprecate } = resolveFormat(globals, { ci: process.env.CI === "true" || process.env.CI === "1" });
+    setOutputFormat(format, path.join(" "));
+    if (warnDeprecate) process.stderr.write("[deprecation] --json is deprecated; use --format json\n");
     const config = loadConfig();
     configureWriteBoundary({
       allowOutsideRoot: Boolean(globals.allowOutsideRoot),
@@ -142,7 +153,7 @@ program
   .command("read-many")
   .description("Read multiple files, return content + hashes")
   .argument("<files...>", "File paths")
-  .option("--json", "Output as JSON", true)
+
   .action(async (files: string[], opts) => {
     const start = Date.now();
     const results = await readMany(files);
@@ -162,7 +173,7 @@ program
   .argument("<file>", "File path")
   .argument("<line>", "Line number", parseInt)
   .option("-c, --context <n>", "Context lines", "3")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, line: number, opts) => {
     const start = Date.now();
     const context = parseIntFlag(opts.context, "--context", 3);
@@ -187,7 +198,7 @@ program
   .option("-i, --ignore-case", "Case insensitive")
   .option("--file-pattern <glob>", "File pattern filter")
   .option("--max-results <n>", "Max results", parseInt)
-  .option("--json", "Output as JSON", true)
+
   .action(async (pattern: string, paths: string[], opts) => {
     const result = await grepMany(pattern, paths, {
       ignoreCase: opts.ignoreCase,
@@ -209,7 +220,7 @@ program
   .description("Find symbol definitions. Usage: symbol-lookup-many <paths...> --names n1,n2")
   .argument("<paths...>", "Paths to search")
   .option("--names <names>", "Comma-separated symbol names")
-  .option("--json", "Output as JSON", true)
+
   .action(async (paths: string[], opts) => {
     const names = (opts.names || "").split(",").filter(Boolean);
     const results = await symbolLookupMany(names, paths);
@@ -228,7 +239,7 @@ program
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, oldHash: string, newContent: string, opts) => {
     const start = Date.now();
     let content = newContent;
@@ -319,7 +330,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, oldName: string, newName: string, opts) => {
     const start = Date.now();
     const content = await Bun.file(file).text();
@@ -348,7 +359,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, symbol: string, newBody: string, opts) => {
     const start = Date.now();
     let body = newBody;
@@ -378,7 +389,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, importSpec: string, opts) => {
     const start = Date.now();
     const content = await Bun.file(file).text();
@@ -406,7 +417,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, importSpec: string, opts) => {
     const start = Date.now();
     const content = await Bun.file(file).text();
@@ -435,7 +446,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, symbol: string, content: string, opts) => {
     const start = Date.now();
     let c = content;
@@ -466,7 +477,7 @@ astCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, symbol: string, content: string, opts) => {
     const start = Date.now();
     let c = content;
@@ -508,7 +519,7 @@ program
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, operation: string, opts) => {
     const resolveContent = async (val?: string): Promise<string | undefined> => {
       // An explicit empty string is a deletion, not an omitted argument (#40).
@@ -563,7 +574,7 @@ program
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (operation: string, files: string[], opts) => {
     const resolveContent = async (val?: string): Promise<string | undefined> => {
       // An explicit empty string is a deletion, not an omitted argument (#40).
@@ -614,7 +625,7 @@ program
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
   .option("--context <text>", "Agent prompt/context (or @file)")
-  .option("--json", "Output as JSON", true)
+
   .action(async (intent: string, opts) => {
     try {
       let context = opts.context;
@@ -635,7 +646,7 @@ program
         context,
       });
 
-      if (opts.json) {
+      if (getOutputFormat() === "json") {
         finish(result);
       } else {
         console.log(`Intent: ${result.plan.intent.operation} on '${result.plan.definition.name}'`);
@@ -703,7 +714,7 @@ diffCmd
   .option("--actor <name>", "Agent identity for provenance tracking")
   .option("--task-id <id>", "Task/issue reference for provenance")
   .option("--reason <text>", "Human-readable reason for the edit")
-  .option("--json", "Output as JSON", true)
+
   .action(async (file: string, opts) => {
     const start = Date.now();
     let patchText: string;
@@ -760,7 +771,7 @@ program
   .option("--no-scope-tests", "Run the whole test suite instead of only tests related to the changed files")
   .option("--use-baseline", "Ignore tests that were already failing at this commit (see --record-baseline)")
   .option("--record-baseline", "Record which tests currently fail, for later --use-baseline runs. Run this before editing.")
-  .option("--json", "Output as JSON", true)
+
   .action(async (files: string[], opts) => {
     if (opts.recordBaseline) {
       const recorded = await recordVerifyBaseline(files, {
@@ -909,7 +920,7 @@ provCmd
   .argument("<file>", "File path")
   .argument("[line]", "Optional line number to filter by")
   .option("--human", "Human-readable output")
-  .option("--json", "JSON output (default)", true)
+
   .option("--fuzzy", "Include edits without diff data in line-filtered queries")
   .option("--limit <n>", "Max entries to show")
   .action((file, line, opts) => {
@@ -994,10 +1005,10 @@ program
 program
   .command("doctor")
   .description("Verify HashPilot installation health")
-  .option("--json", "Output as JSON", false)
+
   .action((opts) => {
     const report = doctor();
-    if (opts.json) {
+    if (getOutputFormat() === "json") {
       finish(report);
       return;
     }
@@ -1090,7 +1101,7 @@ program
   .option("--force", "Skip confirmation prompt (auto-detected when piped)")
   .option("--dry-run", "Show what would be removed without deleting anything")
   .option("--target <dir>", "Install target directory (default: ~/.agentic-tools)")
-  .option("--json", "Output as JSON", true)
+
   .action(async (opts) => {
     const targetDir = opts.target || join(process.env.HOME || "/root", ".agentic-tools");
 

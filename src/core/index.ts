@@ -116,7 +116,8 @@ export {
   PathDeniedError,
 } from "./paths";
 export type { AssertWritableOptions } from "./paths";
-export { ExitCode, exitCodeFor, finish, usageError } from "./exit-codes";
+export { ExitCode, exitCodeFor, finish, usageError, setOutputFormat, getOutputFormat, resolveFormat, renderText } from "./exit-codes";
+export type { OutputFormat } from "./format";
 export { wrap, wrapResult, addWarning, takeWarnings, setCommand, currentCommandName, API_VERSION } from "./envelope";
 export type { Envelope, EnvelopeError, EnvelopeWarning } from "./envelope";
 export type { ResultLike } from "./exit-codes";

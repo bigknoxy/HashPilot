@@ -177,3 +177,43 @@ describe("docs/CLI-QUICKREF.md", () => {
     }
   });
 });
+
+// ── #19 (B16) — output format resolution ───────────────────────────────
+
+describe("--format output mode (#19 B16)", () => {
+   // Piped / non-TTY process (like CI) defaults to JSON with no explicit flag
+  test("piped stdout defaults to JSON", () => {
+    const res = run(["doctor"], ROOT, { CI: "1" });
+    expect(JSON.parse(res.stdout).command).toBe("doctor");
+   });
+
+   // CI=true forces JSON even without a TTY
+  test("CI=true forces JSON", () => {
+    const res = run(["--format", "json", "doctor"]);
+    expect(JSON.parse(res.stdout).ok).toBe(true);
+   });
+
+   // --format text emits human-readable output (not valid JSON)
+  test("--format text emits text, not JSON", () => {
+    const res = run(["--format", "text", "doctor"]);
+    // Should fail JSON parse (text output)
+    expect(() => JSON.parse(res.stdout)).toThrow();
+    // But should contain the doctor summary
+    expect(res.stdout).toContain("HashPilot Doctor");
+   });
+
+   // --json deprecated alias still works but warns on stderr
+  test("--json (deprecated) still emits JSON with a deprecation warning", () => {
+    const res = run(["--json", "doctor"]);
+    expect(res.stderr).toContain("[deprecation]");
+     // JSON still on stdout
+    expect(JSON.parse(res.stdout).command).toBe("doctor");
+   });
+
+   // --format text takes priority over --json deprecation
+  test("--format text out-prioritises --json (explicit over deprecated)", () => {
+    const res = run(["--format", "text", "--json", "doctor"]);
+    // text mode wins (explicit --format takes priority in resolveFormat)
+    expect(res.stdout).toContain("HashPilot Doctor");
+   });
+});
