@@ -48,7 +48,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#24](../../issues/24) | B32 — Verification runs the whole unscoped suite and can revert good work | 50 | P2 | reported | correctness |
 | [#14](../../issues/14) | B9 — `rename-symbol` has no scope analysis ✅ done (#88) | 49 | P1 | verified | correctness |
 | [#19](../../issues/19) | B16 — `--json` permanently on; no human output mode | 49 | P1 | verified | cli |
-| [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | reported | correctness |
+| [#15](../../issues/15) | B10 — `intent` reference resolution is regex text matching, skips call sites | 47 | P1 | verified | correctness · ✅ done (#91) |
 | [#21](../../issues/21) | B18 — Read-modify-write TOCTOU across all tiers | 46 | P1 | reported | correctness · data-loss |
 | [#56](../../issues/56) | B51 — Output contract mixes bare arrays and objects ✅ shipped (in B15) | 44 | P2 | verified | cli |
 | [#20](../../issues/20) | B17 — Concurrent JSONL writes corrupt telemetry; corruption swallowed | 43 | P1 | reported | correctness |
@@ -113,7 +113,7 @@ These predate the audit. They are not GitHub issues; they are planning documents
 
 | Doc | Status | Relationship to the backlog |
 |-----|--------|-----------------------------|
-| [`M5_PLAN.md`](M5_PLAN.md) | Partially shipped — `intent.ts` + `plan-executor.ts` exist | Layer 1 (intent parsing) and Layer 3 (plan executor) are built. **Layer 2 (reference discovery) shipped only its fallback tier.** [#36](../../issues/36) finishes the specified design; [#15](../../issues/15) fixes the fallback in the meantime; [#9](../../issues/9) and [#16](../../issues/16) are defects in what shipped. |
+../../issues/15) fixes the fallback in the meantime; [#9](../../issues/9) and [#16](../../issues/16) are defects in what shipped. |
 | [`M6_AUTOPLAN_REVIEW.md`](M6_AUTOPLAN_REVIEW.md) | Shipped — `provenance.ts` | Review concluded provenance is a telemetry evolution with no new infrastructure. The audit found the shared pipeline is the weak point: [#20](../../issues/20) (concurrent JSONL corruption via unbounded provenance diffs), [#8](../../issues/8) (unredacted source in logs), [#41](../../issues/41) (path normalization), [#50](../../issues/50) (retention). |
 | [`docs/ADAPTER-CONTRACT.md`](docs/ADAPTER-CONTRACT.md) | Current | The frozen output contract. [#18](../../issues/18) rewrites it; any PR changing an output shape updates it in the same commit. |
 
