@@ -11,12 +11,23 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      # Publishing the repository root served internal planning documents, the
+      # workflow files, and the whole source tree under the docs domain (#49).
+      # The site is an explicit allowlist built here.
+      - name: Build site
+        run: bash scripts/build-site.sh
+
       - uses: peaceiris/actions-gh-pages@v3
         id: deploy
         with:
           github_token: ${{ secrets.GH_TOKEN }}
-          publish_dir: .
+          publish_dir: ./site
           publish_branch: gh-pages
+          # The branch's history still holds every file the old `publish_dir: .`
+          # pushed. Orphan the branch so the published tree is only what the
+          # allowlist produced, with no recoverable prior commits.
+          force_orphan: true
 
       - name: Wait for Pages build
         run: sleep 15
