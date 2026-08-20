@@ -1,3 +1,10 @@
+## [4.4.18](https://github.com/bigknoxy/HashPilot/compare/v4.4.17...v4.4.18) (2026-08-20)
+
+
+### Bug Fixes
+
+* **tests:** make smoke.sh envelope-aware and gate it in CI ([#130](https://github.com/bigknoxy/HashPilot/issues/130)) ([#131](https://github.com/bigknoxy/HashPilot/issues/131)) ([820de51](https://github.com/bigknoxy/HashPilot/commit/820de51aa11a5e480e14b92ed4a28f52925b2b50))
+
 ## [4.4.17](https://github.com/bigknoxy/HashPilot/compare/v4.4.16...v4.4.17) (2026-08-20)
 
 
