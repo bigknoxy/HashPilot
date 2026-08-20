@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { loadConfig, policyForce } from "../src/core/config";
@@ -107,7 +107,12 @@ describe("#51 item 2 — null unsets an inherited route override", () => {
 
 describe("#51 item 3 — elapsed_ms is measured", () => {
   it("no command hardcodes elapsed_ms: 0", () => {
-    const src = readFileSync(join(REPO_ROOT, "src/cli.ts"), "utf8");
+    // Command actions moved to `src/commands/*.ts` in #48; scan every module
+    // plus the CLI wiring so the check follows the code.
+    const dir = join(REPO_ROOT, "src/commands");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".ts"));
+    expect(files.length).toBeGreaterThan(0);
+    const src = [...files.map((f) => readFileSync(join(dir, f), "utf8")), readFileSync(join(REPO_ROOT, "src/cli.ts"), "utf8")].join("\n");
     expect(src).not.toContain("elapsed_ms: 0");
   });
 });
