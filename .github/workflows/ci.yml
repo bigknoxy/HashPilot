@@ -40,6 +40,18 @@ jobs:
       - name: Run doctor smoke test
         run: bun run src/cli.ts doctor
 
+      # The AST regression suite runs through the *installed* binary, so it is
+      # the only check that exercises the shipped CLI end to end. It was red on
+      # main for as long as it went ungated (#130) — keep it in CI.
+      - name: Put hashpilot on PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/usr/bin/env bash\nexec bun run "%s/src/cli.ts" "$@"\n' "$GITHUB_WORKSPACE" > "$HOME/.local/bin/hashpilot"
+          chmod +x "$HOME/.local/bin/hashpilot"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run AST smoke test
+        run: bash tests/smoke.sh
+
       # Fails only when a case that passes in bench/results/latest.json stops
       # passing. Cases that are already red (known-issue guards) stay red.
       - name: Run benchmark regression check

@@ -1,14 +1,61 @@
 #!/usr/bin/env bash
 # HashPilot Core — AST Regression Smoke Test
-# Verifies that AST operations work correctly across all supported languages.
-# Usage: ./tests/smoke.sh
+# Verifies that AST operations work correctly across all supported languages,
+# through the *installed* binary rather than the test runner's imports.
+# Usage: ./tests/smoke.sh   (requires `hashpilot` on PATH)
 
 TMP=$(mktemp -d)
 PASS=0
 FAIL=0
 
-ok()   { echo "  PASS: $1"; ((PASS++)); }
-fail() { echo "  FAIL: $1"; ((FAIL++)); }
+ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
+fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+
+# Every command emits the apiVersion 1 envelope
+# (`{apiVersion, ok, command, data, error, warnings}`), so the payload these
+# assertions care about lives under `data`. `hp` runs a command and prints just
+# that payload; `hp_check` runs a Python expression against it. Keeping the
+# unwrapping in one place is what let this suite silently rot when the envelope
+# landed (#130) — every call site had its own inline `json.load(sys.stdin)`.
+hp() {
+  hashpilot "$@" | python3 -c 'import json,sys; json.dump(json.load(sys.stdin)["data"], sys.stdout)'
+}
+
+# Assert that `hashpilot <args...>` succeeded and its payload satisfies EXPR,
+# where EXPR is a Python expression over `d` (the payload).
+# Usage: hp_check "<expr>" <hashpilot args...>
+hp_check() {
+  local expr="$1"; shift
+  local out status
+  out=$(hashpilot "$@")
+  status=$?
+  [ "$status" -eq 0 ] || return 1
+  echo "$out" | python3 -c "
+import json, sys
+e = json.load(sys.stdin)
+assert e.get('apiVersion') == '1', 'missing envelope'
+assert e.get('ok') is True, e.get('error')
+d = e['data']
+assert ($expr), 'payload assertion failed: ' + json.dumps(d)[:400]
+"
+}
+
+# Assert that `hashpilot <args...>` *failed* cleanly: non-zero exit, ok:false,
+# and a populated error. A refusal that reports success is the failure mode this
+# guards against.
+hp_check_refusal() {
+  local out status
+  out=$(hashpilot "$@")
+  status=$?
+  [ "$status" -ne 0 ] || return 1
+  echo "$out" | python3 -c "
+import json, sys
+e = json.load(sys.stdin)
+assert e.get('ok') is False, 'refusal reported ok:true'
+assert e.get('error'), 'refusal carried no error'
+assert e['data'].get('success') is False, 'refusal payload reported success'
+"
+}
 
 echo "=== HashPilot Core AST Smoke Test ==="
 echo ""
@@ -28,7 +75,7 @@ for pair in \
   "file.rb:null"; do
   file="${pair%%:*}"
   expected="${pair##*:}"
-  result=$(hashpilot route "$file" "rename-symbol" | python3 -c "import json,sys; print(json.load(sys.stdin).get('language') or 'null')")
+  result=$(hp route "$file" "rename-symbol" | python3 -c "import json,sys; print(json.load(sys.stdin).get('language') or 'null')")
   if [ "$result" = "$expected" ]; then ok "$file -> $expected"; else fail "$file -> $result (expected $expected)"; fi
 done
 
@@ -36,85 +83,75 @@ done
 echo ""
 echo "--- Capabilities ---"
 
-LANGS=$(hashpilot ast capabilities | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
-if [ "$LANGS" = "6" ]; then ok "ast capabilities reports 6 languages"; else fail "ast capabilities reports $LANGS languages (expected 6)"; fi
+if hp_check "len(d) == 6" ast capabilities; then
+  ok "ast capabilities reports 6 languages"
+else fail "ast capabilities does not report 6 languages"; fi
 
 # ── 3. find-symbols per language ───────────────────────────────────────
 echo ""
 echo "--- find-symbols ---"
 
-# TypeScript
+FOUND_GREET="any(s['name'] == 'greet' for s in d['symbols'])"
+
 echo 'function greet() {}' > "$TMP/test.ts"
-if hashpilot ast find-symbols "$TMP/test.ts" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d), 'greet not found'"; then
-  ok "TypeScript find-symbols"
-else fail "TypeScript find-symbols"; fi
+if hp_check "$FOUND_GREET" ast find-symbols "$TMP/test.ts"; then ok "TypeScript find-symbols"; else fail "TypeScript find-symbols"; fi
 
-# JavaScript
 echo 'function greet() {}' > "$TMP/test.js"
-if hashpilot ast find-symbols "$TMP/test.js" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d)"; then
-  ok "JavaScript find-symbols"
-else fail "JavaScript find-symbols"; fi
+if hp_check "$FOUND_GREET" ast find-symbols "$TMP/test.js"; then ok "JavaScript find-symbols"; else fail "JavaScript find-symbols"; fi
 
-# Python
-echo -e 'def greet():\n    pass' > "$TMP/test.py"
-if hashpilot ast find-symbols "$TMP/test.py" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d)"; then
-  ok "Python find-symbols"
-else fail "Python find-symbols"; fi
+printf 'def greet():\n    pass\n' > "$TMP/test.py"
+if hp_check "$FOUND_GREET" ast find-symbols "$TMP/test.py"; then ok "Python find-symbols"; else fail "Python find-symbols"; fi
 
-# Go
-echo -e 'package main\nfunc greet() {}' > "$TMP/test.go"
-if hashpilot ast find-symbols "$TMP/test.go" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d)"; then
-  ok "Go find-symbols"
-else fail "Go find-symbols"; fi
+printf 'package main\n\nfunc greet() {}\n' > "$TMP/test.go"
+if hp_check "$FOUND_GREET" ast find-symbols "$TMP/test.go"; then ok "Go find-symbols"; else fail "Go find-symbols"; fi
 
-# Rust
-echo -e 'fn greet() {}' > "$TMP/test.rs"
-if hashpilot ast find-symbols "$TMP/test.rs" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d)"; then
-  ok "Rust find-symbols"
-else fail "Rust find-symbols"; fi
+printf 'fn greet() {}\n' > "$TMP/test.rs"
+if hp_check "$FOUND_GREET" ast find-symbols "$TMP/test.rs"; then ok "Rust find-symbols"; else fail "Rust find-symbols"; fi
 
 # ── 4. rename-symbol per language ──────────────────────────────────────
 echo ""
 echo "--- rename-symbol ---"
 
 echo 'function greet() { return greet(); }' > "$TMP/test.js"
-if hashpilot ast rename-symbol "$TMP/test.js" greet sayHello --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and d['changes'] >= 2"; then
+if hp_check "d['success'] and d['changes'] >= 2" ast rename-symbol "$TMP/test.js" greet sayHello --dry-run; then
   ok "JavaScript rename-symbol"
 else fail "JavaScript rename-symbol"; fi
 
-echo -e 'def greet():\n    return greet()' > "$TMP/test.py"
-if hashpilot ast rename-symbol "$TMP/test.py" greet sayHello --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and d['changes'] >= 1"; then
+printf 'def greet():\n    return greet()\n' > "$TMP/test.py"
+if hp_check "d['success'] and d['changes'] >= 1" ast rename-symbol "$TMP/test.py" greet sayHello --dry-run; then
   ok "Python rename-symbol"
 else fail "Python rename-symbol"; fi
 
-echo -e 'package main\nfunc greet() string { return "hi" }' > "$TMP/test.go"
-if hashpilot ast rename-symbol "$TMP/test.go" greet sayHello --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and d['changes'] >= 1"; then
+printf 'package main\n\nfunc greet() string { return "hi" }\n' > "$TMP/test.go"
+if hp_check "d['success'] and d['changes'] >= 1" ast rename-symbol "$TMP/test.go" greet sayHello --dry-run; then
   ok "Go rename-symbol"
 else fail "Go rename-symbol"; fi
 
-echo -e 'fn greet() -> &str { "hi" }' > "$TMP/test.rs"
-if hashpilot ast rename-symbol "$TMP/test.rs" greet sayHello --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and d['changes'] >= 1"; then
+printf 'fn greet() -> &str { "hi" }\n' > "$TMP/test.rs"
+if hp_check "d['success'] and d['changes'] >= 1" ast rename-symbol "$TMP/test.rs" greet sayHello --dry-run; then
   ok "Rust rename-symbol"
 else fail "Rust rename-symbol"; fi
 
 # ── 5. Go add-import placement ─────────────────────────────────────────
+# A dry run returns a diff unless `--include-source` is passed, so the checks
+# that inspect the whole post-edit file must ask for it.
 echo ""
 echo "--- Go add-import ---"
 
-echo -e 'package main\n\nfunc main() {}' > "$TMP/go_noimport.go"
-RESULT=$(hashpilot ast add-import "$TMP/go_noimport.go" "fmt" --dry-run 2>&1)
-POS=$(echo "$RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('newSource','').find('import'))")
-if [ "$POS" -gt 0 ]; then ok "Go add-import places after package clause (index=$POS)"; else fail "Go add-import at position $POS"; fi
+printf 'package main\n\nfunc main() {}\n' > "$TMP/go_noimport.go"
+if hp_check "d['newSource'].find('import') > 0" ast add-import "$TMP/go_noimport.go" "fmt" --dry-run --include-source; then
+  ok "Go add-import places after package clause"
+else fail "Go add-import placement"; fi
 
 # ── 6. Python from-import ──────────────────────────────────────────────
 echo ""
 echo "--- Python add-import ---"
 
-echo -e 'import os\n\ndef f(): pass' > "$TMP/test_py.py"
-if hashpilot ast add-import "$TMP/test_py.py" "from sys import argv" --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and 'from sys' in d.get('newSource','')"; then
+printf 'import os\n\ndef f(): pass\n' > "$TMP/test_py.py"
+if hp_check "d['success'] and 'from sys' in d['newSource']" ast add-import "$TMP/test_py.py" "from sys import argv" --dry-run --include-source; then
   ok "Python from-import"
 else fail "Python from-import"; fi
-if hashpilot ast add-import "$TMP/test_py.py" "json" --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success'] and 'import json' in d.get('newSource','')"; then
+if hp_check "d['success'] and 'import json' in d['newSource']" ast add-import "$TMP/test_py.py" "json" --dry-run --include-source; then
   ok "Python simple import"
 else fail "Python simple import"; fi
 
@@ -122,23 +159,23 @@ else fail "Python simple import"; fi
 echo ""
 echo "--- Rust remove-import ---"
 
-echo -e 'use std::collections::HashMap;\n\nfn main() {}' > "$TMP/test_rs.rs"
-if hashpilot ast remove-import "$TMP/test_rs.rs" "HashMap" --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success']"; then
+printf 'use std::collections::HashMap;\n\nfn main() {}\n' > "$TMP/test_rs.rs"
+if hp_check "d['success']" ast remove-import "$TMP/test_rs.rs" "HashMap" --dry-run; then
   ok "Rust remove-import (AST-aware)"
 else fail "Rust remove-import"; fi
-if hashpilot ast remove-import "$TMP/test_rs.rs" "NonExistent" --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert not d['success']"; then
-  ok "Rust remove-import no-op when not found"
+if hp_check_refusal ast remove-import "$TMP/test_rs.rs" "NonExistent" --dry-run; then
+  ok "Rust remove-import refuses cleanly when not found"
 else fail "Rust remove-import no-op"; fi
 
 # ── 8. Unsupported language routing ────────────────────────────────────
 echo ""
 echo "--- Routing ---"
 
-if hashpilot route "file.rb" "rename-symbol" | python3 -c "import json,sys; assert json.load(sys.stdin)['route'] == 'diff'"; then
+if hp_check "d['route'] == 'diff'" route "file.rb" "rename-symbol"; then
   ok "Unsupported .rb routes to diff"
 else fail "Unsupported .rb routing"; fi
 
-if hashpilot route "test.ts" "rename-symbol" | python3 -c "import json,sys; assert json.load(sys.stdin)['route'] == 'ast'"; then
+if hp_check "d['route'] == 'ast'" route "test.ts" "rename-symbol"; then
   ok "Supported .ts routes to ast"
 else fail "Supported .ts routing"; fi
 
@@ -146,4 +183,6 @@ else fail "Supported .ts routing"; fi
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 rm -rf "$TMP"
-exit $FAIL
+# Cap the exit code: a shell exit status is one byte, so a large failure count
+# could otherwise wrap to 0 and report a red run as green.
+[ "$FAIL" -eq 0 ] || exit 1
