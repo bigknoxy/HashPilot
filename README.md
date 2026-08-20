@@ -491,6 +491,35 @@ without parsing text.
 
 Batch commands return the worst code across all items.
 
+### `doctor` reuses codes 1 and 2 with its own meaning
+
+`doctor` is a health report, not an edit, so it maps its result onto the same
+numbers: `0` healthy, `1` warnings only (degraded, still usable), `2` one or
+more checks failed. The overlap with `1` (usage) and `2` (edit failed) is
+deliberate — "non-zero means do not proceed" is the property scripts actually
+branch on, and `scripts/install.sh` fails the install on `2`.
+
+Doctor's checks are scoped to how HashPilot is running (`installMode` in the
+report): `installed`, `source` (a working checkout), or `package` (npm). The
+`~/.agentic-tools` layout checks report `skip` outside an installed copy, and a
+missing agent-host integration (OpenCode, Pi, Claude) is a `skip` too — nobody
+has every host on one machine. **Only a `fail` makes an install unhealthy.**
+Every `fail` carries a `remediation` string: the exact command that fixes it.
+
+```console
+$ hashpilot --format text doctor
+HashPilot 4.4.18 — ✓ healthy (installed install)
+  pass 18  fail 0  warn 0  skip 0
+  ✓ ast-parsers: All 6 tree-sitter parsers load
+  ...
+```
+
+The `ast-parsers` check is the one that catches a class of silent failure:
+`getParser()` swallows tree-sitter load errors and the router then quietly
+downgrades AST edits to diff, so a broken native build shows up only as
+mysteriously worse edits. `doctor` probes every language and reports the real
+error, with `bun install` as the remediation.
+
 ---
 
 ## Where HashPilot Will Write

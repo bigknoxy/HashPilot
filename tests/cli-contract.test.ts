@@ -196,7 +196,9 @@ describe("--format output mode (#19 B16)", () => {
    // CI=true forces JSON even without a TTY
   test("CI=true forces JSON", () => {
     const res = run(["--format", "json", "doctor"]);
-    expect(JSON.parse(res.stdout).ok).toBe(true);
+    // Assert the envelope, not `ok`: since #46 doctor's health depends on the
+    // machine it runs on, and this test is about format resolution.
+    expect(JSON.parse(res.stdout).command).toBe("doctor");
    });
 
    // --format text emits human-readable output (not valid JSON)
@@ -205,7 +207,7 @@ describe("--format output mode (#19 B16)", () => {
     // Should fail JSON parse (text output)
     expect(() => JSON.parse(res.stdout)).toThrow();
     // But should contain the doctor summary
-    expect(res.stdout).toContain("HashPilot Doctor");
+    expect(res.stdout).toContain("HashPilot");
    });
 
    // --json deprecated alias still works but warns on stderr
@@ -220,7 +222,7 @@ describe("--format output mode (#19 B16)", () => {
   test("--format text out-prioritises --json (explicit over deprecated)", () => {
     const res = run(["--format", "text", "--json", "doctor"]);
     // text mode wins (explicit --format takes priority in resolveFormat)
-    expect(res.stdout).toContain("HashPilot Doctor");
+    expect(res.stdout).toContain("HashPilot");
    });
 });
 

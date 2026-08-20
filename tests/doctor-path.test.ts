@@ -1,13 +1,14 @@
 import { describe, expect, test, afterEach } from "bun:test";
 import { join } from "path";
-import { doctor } from "../src/core/doctor";
+import { checkPathEntry } from "../src/core/doctor";
 
 const BIN_DIR = join(process.env.HOME || "/root", ".agentic-tools", "bin");
 const ORIGINAL_PATH = process.env.PATH;
 
-function pathCheck() {
-  return doctor().checks.find((c) => c.name === "bin-on-path")!;
-}
+// Call the check directly rather than digging it out of a full `doctor()`
+// report: since #46 the layout checks report `skip` outside an installed
+// layout, and CI has no ~/.agentic-tools. This test is about the PATH logic.
+const pathCheck = checkPathEntry;
 
 afterEach(() => {
   process.env.PATH = ORIGINAL_PATH;

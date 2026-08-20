@@ -30,6 +30,17 @@ const EXTENSION_MAP: [string, string][] = [
   [".rs", "rust"],
 ];
 
+/** Every language with a tree-sitter binding, in `ast capabilities` order. */
+export const AST_LANGUAGES = ["typescript", "tsx", "javascript", "python", "go", "rust"] as const;
+
+/**
+ * Why a parser failed to initialize, keyed by language. `getParser` returns
+ * `null` on failure and the router then silently falls back to hash/diff, so
+ * without this the only symptom of a broken native build is mysteriously worse
+ * edits. `doctor` reads this to report the real reason (#46).
+ */
+const PARSER_ERRORS: Record<string, string> = {};
+
 function getParser(lang: string): Parser | null {
   if (SUPPORTED_LANGUAGES[lang]) return SUPPORTED_LANGUAGES[lang].parser;
   try {
@@ -59,8 +70,31 @@ function getParser(lang: string): Parser | null {
     SUPPORTED_LANGUAGES[lang] = { parser: p, extensions: [] };
     return p;
   } catch (e) {
+    PARSER_ERRORS[lang] = e instanceof Error ? e.message : String(e);
     return null;
   }
+}
+
+/** One language's tree-sitter binding status, as reported by `doctor`. */
+export interface ParserProbe {
+  lang: string;
+  loaded: boolean;
+  /** Present only when the binding failed to initialize. */
+  error?: string;
+}
+
+/**
+ * Attempt to initialize every supported language's parser and report the
+ * outcome. This is the only way to distinguish "HashPilot routed to diff
+ * because the operation is unsupported" from "HashPilot routed to diff because
+ * tree-sitter never loaded" (#46).
+ */
+export function probeParsers(): ParserProbe[] {
+  return AST_LANGUAGES.map((lang): ParserProbe => {
+    const parser = getParser(lang);
+    if (parser) return { lang, loaded: true };
+    return { lang, loaded: false, error: PARSER_ERRORS[lang] || "parser returned null" };
+  });
 }
 
 /**
