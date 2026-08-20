@@ -415,6 +415,23 @@ sequenceDiagram
   `3` stale/precondition (retryable), `4` verify failed, `5` I/O, `70` internal.
 - `finish(payload)` prints JSON and sets the code; batch commands take the worst.
 
+#### `src/core/output.ts` — Verbosity and Color (#47)
+- Global flags `-q, --quiet`, `-v, --verbose`, `--no-color`, resolved once in the
+  CLI's `preAction` hook via `configureOutput()` and read from anywhere after that.
+- **Color is veto-only.** There is no `--color` force flag, so an escape sequence
+  can never enter a pipe. It requires *all* of: `--format text`, a TTY stdout,
+  `NO_COLOR` unset, `TERM !== "dumb"`, and no `--no-color`. JSON output is
+  therefore never colorized — the apiVersion 1 envelope stays byte-clean.
+- `--quiet` beats `--verbose` when both are passed; the quieter ask is the safer
+  one. It drops the text-mode success line and all verbose diagnostics, but never
+  the JSON envelope: a caller who asked for JSON and got silence cannot tell
+  success from a crash.
+- `verboseLog()` writes to **stderr** only, so `--verbose` never corrupts a
+  stdout parse. `routeEdit` emits the chosen tier, the reasons behind it, and the
+  elapsed time — routing being the most opaque decision HashPilot makes.
+- Glyph colorization happens at exactly one `write()` choke point in `format.ts`,
+  so no renderer has to know whether color is on.
+
 #### `src/redact.ts` — Credential Scrubbing
 - `redactSecrets(text)`: replaces credential shapes (AWS, OpenAI, Anthropic,
   GitHub, Slack, Google, JWT, private-key blocks, auth headers, connection-string

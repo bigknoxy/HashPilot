@@ -21,6 +21,7 @@ import {
   enableTelemetry,
   resolveTelemetryEnabled,
   setOutputFormat,
+  configureOutput,
   resolveFormat,
   TelemetryReadError,
 } from "./core/index";
@@ -54,6 +55,9 @@ program
   .option("--allow-parse-errors", "Edit a file that already has syntax errors (the post-edit parse check still applies)")
     .option("--format <fmt>", "Output format: json or text (default: json if piped/CI, text if TTY)")
     .option("--json", "[deprecated: use --format json] Force JSON output", false)
+  .option("-q, --quiet", "Suppress the human-readable success line (the JSON envelope is never suppressed)")
+  .option("-v, --verbose", "Write routing and timing diagnostics to stderr")
+  .option("--no-color", "Disable ANSI color in text output (also honors NO_COLOR)")
   .hook("preAction", (thisCommand, actionCommand) => {
     // Name the running subcommand so the envelope can report it. Walk up so
     // nested commands read as "telemetry show", not "show".
@@ -65,6 +69,15 @@ program
     const globals = thisCommand.opts();
     const { format, warnDeprecate } = resolveFormat(globals, { ci: process.env.CI === "true" || process.env.CI === "1" });
     setOutputFormat(format, path.join(" "));
+    // Color and verbosity resolve from the same globals, after the format is
+    // known: color is text-mode only, so JSON output can never carry escapes (#47).
+    configureOutput({
+      quiet: Boolean(globals.quiet),
+      verbose: Boolean(globals.verbose),
+      color: globals.color,
+      format,
+      isTTY: Boolean(process.stdout.isTTY),
+    });
     if (warnDeprecate) process.stderr.write("[deprecation] --json is deprecated; use --format json\n");
     const config = loadConfig();
     configureWriteBoundary({
