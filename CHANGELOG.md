@@ -1,3 +1,10 @@
+# [4.5.0](https://github.com/bigknoxy/HashPilot/compare/v4.4.18...v4.5.0) (2026-08-20)
+
+
+### Features
+
+* **cli:** add --quiet, --verbose, and --no-color output control ([#47](https://github.com/bigknoxy/HashPilot/issues/47)) ([#134](https://github.com/bigknoxy/HashPilot/issues/134)) ([b4253e1](https://github.com/bigknoxy/HashPilot/commit/b4253e1eb93e2f6161b26432e353ac3fc89ce7ea)), closes [#132](https://github.com/bigknoxy/HashPilot/issues/132)
+
 ## [4.4.18](https://github.com/bigknoxy/HashPilot/compare/v4.4.17...v4.4.18) (2026-08-20)
 
 
