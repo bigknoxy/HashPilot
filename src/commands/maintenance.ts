@@ -15,24 +15,12 @@ export function register(program: Command): void {
     .command("doctor")
     .description("Verify HashPilot installation health")
 
-    .action((opts) => {
+    .action(() => {
+      // Both formats go through finish(): it is the only place that sets the
+      // process exit code, and the old console.log bypass is why `doctor`
+      // always exited 0 no matter how broken the install was (#46).
       const report = doctor();
-      if (getOutputFormat() === "json") {
-        finish(report);
-        return;
-      }
-      const summaryParts: string[] = [];
-      const pass = report.checks.filter((c) => c.status === "pass").length;
-      const fail = report.checks.filter((c) => c.status === "fail").length;
-      const warn = report.checks.filter((c) => c.status === "warn").length;
-      const skip = report.checks.filter((c) => c.status === "skip").length;
-      summaryParts.push(`HashPilot Doctor — ${report.healthy ? "HEALTHY" : "ISSUES FOUND"}`);
-      summaryParts.push(`  Pass: ${pass}  Fail: ${fail}  Warn: ${warn}  Skip: ${skip}`);
-      for (const check of report.checks) {
-        const icon = check.status === "pass" ? "✓" : check.status === "fail" ? "✗" : check.status === "warn" ? "!" : "·";
-        summaryParts.push(`  ${icon} ${check.name}: ${check.message}`);
-      }
-      console.log(summaryParts.join("\n"));
+      finish(report, report.exitCode as ExitCode);
     });
 
   program

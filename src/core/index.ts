@@ -24,8 +24,10 @@ export {
   firstParseError,
   setAllowParseErrors,
   getAllowParseErrors,
+  probeParsers,
+  AST_LANGUAGES,
 } from "./ast-edit";
-export type { ParseIssue } from "./ast-edit";
+export type { ParseIssue, ParserProbe } from "./ast-edit";
 export type { ASTEditResult, SymbolInfo, LanguageCapability } from "./ast-edit";
 export { verifyChanges, recordVerifyBaseline } from "./verify";
 export type { VerifyResult, VerifyOptions, ToolRun, RecordBaselineResult } from "./verify";
@@ -109,8 +111,8 @@ export {
 export type { SnapshotRecord, ChangeSetSummary, UndoResult, UndoFileResult, SnapshotRetention } from "./snapshot";
 export { createChangeSet, buildProvenanceFields, provenanceQuery, changeSetQuery, formatProvenanceHuman } from "./provenance";
 export type { ProvenanceInput, ProvenanceEntry, ChangeSetResult } from "./provenance";
-export { doctor } from "./doctor";
-export type { DoctorReport, DoctorCheck } from "./doctor";
+export { doctor, detectInstallMode } from "./doctor";
+export type { DoctorReport, DoctorCheck, InstallMode } from "./doctor";
 export { escapeRegex } from "./utils";
 export {
   assertWritable,

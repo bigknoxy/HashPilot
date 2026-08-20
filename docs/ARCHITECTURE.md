@@ -524,8 +524,13 @@ sequenceDiagram
 
 #### `src/doctor.ts` — Installation Health Check
 - Verifies: core files exist, CLI is on PATH, config is valid
-- Checks adapter integrations: Claude Code, OpenCode, Pi
-- Reports: installation status, missing components, version info
+- Checks adapter integrations: Claude Code, OpenCode, Pi — all `skip` when absent, since nobody runs every host
+- Probes every tree-sitter binding (`probeParsers`, `ast-edit.ts`). `getParser()` swallows load errors and the router silently downgrades AST → diff, so this is the only place a broken native build is visible before edit quality drops (#46)
+- Reports: `installMode`, `summary {pass,fail,warn,skip}`, `versions {hashpilot,bun,node}`, `parsers[]`, `configPaths`, and a `remediation` command on every failure
+- **Install-mode scoping** (`detectInstallMode`): `installed` (under `~/.agentic-tools`), `package` (a `node_modules` tree), or `source` (a working checkout). The `~/.agentic-tools` layout checks report `skip` outside an installed copy — without this, `bun run src/cli.ts doctor` in CI would fail on an install that was never meant to exist there
+- **Health**: `healthy` is `fail === 0`. A `skip` means "does not apply here", not "broken"; requiring every check to `pass` marked a good install unhealthy whenever the user had no config file (#46)
+- **Exit code**: `0` healthy · `1` warnings only · `2` failures, set through `finish()` like every other command. The old text path called `console.log` directly, so `doctor` always exited 0 and could not gate anything; `scripts/install.sh` now fails the install on `2`
+- Version comes from `package.json`, not a literal — it read `0.1.0` for the whole 4.x line
 - Single command: `hashpilot doctor`
 
 #### `src/batch-edit.ts` — Batch Editing

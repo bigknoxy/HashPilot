@@ -424,6 +424,23 @@ if command -v hashpilot &>/dev/null || [ -x "$TARGET_DIR/bin/hashpilot" ]; then
   detail "CLI version: ${VER}"
 fi
 
+# Final gate: doctor exits 2 on a broken install, 1 on warnings, 0 when healthy.
+# Telling the user "installed successfully" and letting them discover the
+# breakage on their first edit is the worse outcome (#46).
+if [ -x "$TARGET_DIR/bin/hashpilot" ]; then
+  DOCTOR_OUT=$("$TARGET_DIR/bin/hashpilot" --format text doctor 2>&1)
+  DOCTOR_CODE=$?
+  if [ "$DOCTOR_CODE" -ge 2 ]; then
+    err "Installation is not healthy:"
+    echo "$DOCTOR_OUT"
+    exit 1
+  elif [ "$DOCTOR_CODE" -eq 1 ]; then
+    detail "Doctor: healthy with warnings (run 'hashpilot doctor' for detail)"
+  else
+    detail "Doctor: healthy"
+  fi
+fi
+
 echo ""
 printf "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 printf "${GREEN} HashPilot v${HASHPILOT_VERSION} installed successfully${NC}\n"

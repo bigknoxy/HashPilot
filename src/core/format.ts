@@ -135,13 +135,18 @@ export function registerRenderer(command: string, fn: (p: ResultPayload) => void
 
 /* ── Common renderer registrations ───────────────────────────────────── */
 
-// doctor — a checklist: print P/N checks + overall ✓/✗
+// doctor — a checklist. Reads `status`/`message`, the fields DoctorCheck
+// actually has; the original read `ok`/`detail`, so every check rendered as a
+// nameless failure (#46).
 registerRenderer("doctor", (p) => {
-  const checks = (p.checks || []) as { name: string; ok: boolean; detail?: string }[];
-  const overall = p.success ? "✓ all passed" : "✗ " + checks.filter((c) => !c.ok).length + " failed";
-  write(overall + "\n");
+  const checks = (p.checks || []) as { name: string; status: string; message: string; remediation?: string }[];
+  const s = (p.summary || {}) as Record<string, number>;
+  const glyph: Record<string, string> = { pass: "✓", fail: "✗", warn: "!", skip: "·" };
+  write(`HashPilot ${p.version} — ${p.healthy ? "✓ healthy" : "✗ issues found"} (${p.installMode} install)\n`);
+  write(`  pass ${s.pass ?? 0}  fail ${s.fail ?? 0}  warn ${s.warn ?? 0}  skip ${s.skip ?? 0}\n`);
   for (const c of checks) {
-    write(`  ${c.ok ? "✓" : "✗"} ${c.name}${c.detail ? " — " + c.detail : ""}\n`);
+    write(`  ${glyph[c.status] || "?"} ${c.name}: ${c.message}\n`);
+    if (c.remediation) write(`      fix: ${c.remediation}\n`);
   }
 });
 
