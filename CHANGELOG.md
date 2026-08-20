@@ -1,3 +1,10 @@
+## [4.5.2](https://github.com/bigknoxy/HashPilot/compare/v4.5.1...v4.5.2) (2026-08-20)
+
+
+### Bug Fixes
+
+* **install:** stop the doctor gate from silently aborting the installer ([#137](https://github.com/bigknoxy/HashPilot/issues/137)) ([#138](https://github.com/bigknoxy/HashPilot/issues/138)) ([f21e1ce](https://github.com/bigknoxy/HashPilot/commit/f21e1cee786ed06ba47ca72f09589bd463a7e95a)), closes [#46](https://github.com/bigknoxy/HashPilot/issues/46)
+
 ## [4.5.1](https://github.com/bigknoxy/HashPilot/compare/v4.5.0...v4.5.1) (2026-08-20)
 
 
