@@ -230,7 +230,7 @@ function checkTelemetrySize(): DoctorCheck {
  * fresh shell while every other check passed. Report that as its own failure
  * with the exact line to add.
  */
-function checkPathEntry(): DoctorCheck {
+export function checkPathEntry(): DoctorCheck {
   const entries = (process.env.PATH || "").split(":").filter(Boolean);
   if (entries.includes(BIN_DIR)) {
     return { name: "bin-on-path", status: "pass", message: `${BIN_DIR} is on PATH` };
