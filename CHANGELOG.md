@@ -1,3 +1,10 @@
+## [4.5.1](https://github.com/bigknoxy/HashPilot/compare/v4.5.0...v4.5.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **doctor:** report real health, probe parsers, and exit non-zero on failure ([#46](https://github.com/bigknoxy/HashPilot/issues/46)) ([#136](https://github.com/bigknoxy/HashPilot/issues/136)) ([b76d008](https://github.com/bigknoxy/HashPilot/commit/b76d00854f0c5d0a2697d1de1d726940083f1916))
+
 # [4.5.0](https://github.com/bigknoxy/HashPilot/compare/v4.4.18...v4.5.0) (2026-08-20)
 
 
