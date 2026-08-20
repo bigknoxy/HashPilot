@@ -1,6 +1,7 @@
 import { ErrorCode, recordEvent, getRecordedEventCount } from "./telemetry";
 import { wrap, currentCommandName } from "./envelope";
 import { resolveFormat, renderText, OutputFormat } from "./format";
+import { isQuiet } from "./output";
 
 /**
  * Process exit codes. Agents branch on these, so the numbers are a contract —
@@ -166,6 +167,13 @@ export function finish(payload: unknown, code?: ExitCode): void {
   recordFallbackEvent(exit);
     // In text mode: success payloads get the compact renderer; errors always emit JSON.
   if (outputFormat === "text" && (payload as { success?: boolean }).success !== false) {
+      // `--quiet` drops the human-readable success line. It deliberately does not
+      // drop the JSON envelope below: that is the apiVersion 1 contract, and a
+      // caller who asked for JSON and got silence cannot tell ok from a crash (#47).
+    if (isQuiet()) {
+      process.exitCode = exit;
+      return;
+    }
       // `wrap()` produces { apiVersion, ok, command, data, ... }; `data` carries
       // the per-command payload. Render `data` when present, else the raw payload.
     const data = (payload as { data?: Record<string, unknown> }).data;

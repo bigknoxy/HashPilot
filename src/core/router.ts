@@ -21,6 +21,7 @@ import { addWarning } from "./envelope";
 import { acquireLock, LOCK_TIMEOUT_MS, LockAcquireError } from "./locking";
 import { readDecoded } from "./encoding";
 import { toPreview } from "./diff-engine";
+import { verboseLog } from "./output";
 
 export type EditRoute = "ast" | "hash" | "diff";
 
@@ -196,6 +197,11 @@ export async function routeEdit(params: {
   }
 
   routeReason = `${explanation.reasons.join("; ")}${fallback ? `; ${fallback}` : ""}`;
+
+  // `--verbose` explains the tier choice on stderr. Routing is the single most
+  // opaque decision HashPilot makes, and a silent AST->diff downgrade is exactly
+  // what an agent needs to see while debugging (#47).
+  verboseLog(() => `route: ${route} for ${operation} on ${filePath} (${routeReason})`);
 
   // Compare-and-swap alone cannot close the single-file race: between the hash
   // compare and `safeWrite` another writer can land, and CAS then reports success
@@ -410,6 +416,8 @@ export async function routeEdit(params: {
 
   // A dry run previews; it does not dump the file back at the caller (#98).
   const payload = dryRun ? toPreview(result, editSource, filePath, includeSource) : result;
+
+  verboseLog(() => `result: ${result.success ? "ok" : "failed"} via ${route} in ${elapsed}ms`);
 
   return { route, routeReason, fallback, result: payload, elapsed_ms: elapsed, explanation };
 }

@@ -136,3 +136,16 @@ export { normalizePath, pathsEqual } from "./path-normalize";
 export { decodeText, encodeText, readDecoded } from "./encoding";
 export type { FileEncoding } from "./encoding";
 export { resolveContent } from "./resolve-content";
+export {
+  configureOutput,
+  resetOutput,
+  resolveColor,
+  resolveVerbosity,
+  getVerbosity,
+  isQuiet,
+  isVerbose,
+  colorEnabled,
+  verboseLog,
+  colorizeGlyphs,
+} from "./output";
+export type { Verbosity, OutputOptions } from "./output";

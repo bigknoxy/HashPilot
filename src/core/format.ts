@@ -10,9 +10,20 @@
  * `text` mode is a human convenience layer that must never replace it.
  */
 
+import { colorizeGlyphs } from "./output";
+
 /* ── Output format type ──────────────────────────────────────────────── */
 
 export type OutputFormat = "json" | "text";
+
+/**
+ * Single stdout choke point for every renderer (#47). Status glyphs are
+ * colorized here — and only here — so no renderer has to know whether color is
+ * enabled, and so an escape sequence can never reach a JSON path.
+ */
+function write(text: string): void {
+  process.stdout.write(colorizeGlyphs(text));
+}
 
 /**
  * Resolve the output format from an explicit option, CI detection, and TTY state.
@@ -71,10 +82,17 @@ export function renderText(command: string, payload: ResultPayload): void {
   }
 }
 
-/** Generic renderer: print a single-line summary of the result. */
+/**
+ * Generic renderer: print a single-line summary of the result.
+ *
+ * `finish()` only reaches a renderer when `success !== false`, so a payload with
+ * no `success` field at all (every read-only command: find-symbols, route,
+ * capabilities) is a success. Testing `payload.success` for truthiness instead
+ * marked all of them "✗ error" (#132).
+ */
 function renderGenericDump(payload: ResultPayload): void {
   const lines: string[] = [];
-  lines.push(payload.success ? "✓ ok" : "✗ " + (String(payload.errorCode || "error")));
+  lines.push(payload.success !== false ? "✓ ok" : "✗ " + (String(payload.errorCode || "error")));
   for (const [k, v] of Object.entries(payload)) {
     if (k === "success" || k === "apiVersion" || k === "error") continue;
     if (v === null || v === undefined) continue;
@@ -90,7 +108,7 @@ function renderGenericDump(payload: ResultPayload): void {
       break;
     }
   }
-  process.stdout.write(lines.join("\n") + "\n");
+  write(lines.join("\n") + "\n");
 }
 
 /** Compact one-line summary of a value for inline display. */
@@ -121,9 +139,9 @@ export function registerRenderer(command: string, fn: (p: ResultPayload) => void
 registerRenderer("doctor", (p) => {
   const checks = (p.checks || []) as { name: string; ok: boolean; detail?: string }[];
   const overall = p.success ? "✓ all passed" : "✗ " + checks.filter((c) => !c.ok).length + " failed";
-  process.stdout.write(overall + "\n");
+  write(overall + "\n");
   for (const c of checks) {
-    process.stdout.write(`  ${c.ok ? "✓" : "✗"} ${c.name}${c.detail ? " — " + c.detail : ""}\n`);
+    write(`  ${c.ok ? "✓" : "✗"} ${c.name}${c.detail ? " — " + c.detail : ""}\n`);
   }
 });
 
@@ -142,18 +160,18 @@ registerRenderer("read-hash", (p) => printReadResult(p));
 /** Shared renderer for any "read" variant: show line count + hash. */
 function printReadResult(p: ResultPayload) {
   if (p.error) {
-    process.stdout.write("✗ " + p.error + "\n");
+    write("✗ " + p.error + "\n");
     return;
   }
   const lines = (p.lines as string[]) || (p.content ? [p.content] : []);
   const n = lines.length;
   const hash = p.hash || p.lineHash || "";
   const filePath = p.file || p.path || "";
-  process.stdout.write(
+  write(
     `${filePath ? basePath(filePath) + ": " : ""}${n} line${n === 1 ? "" : "s"}${hash ? "  " + hash.slice(0, 8) : ""}\n`
   );
   if (lines.length > 0 && lines.length <= 5) {
-    for (const l of lines) process.stdout.write("  " + l + "\n");
+    for (const l of lines) write("  " + l + "\n");
   }
 }
 
@@ -165,9 +183,9 @@ registerRenderer("structured-edit", (p) => printEditResult(p));
 registerRenderer("edit-many", (p) => {
   const results = (p.results || []) as ResultPayload[];
   const ok = results.filter((r) => r.success).length;
-  process.stdout.write(`${ok}/${results.length} edits succeeded\n`);
+  write(`${ok}/${results.length} edits succeeded\n`);
   for (const r of results.filter((r) => !r.success)) {
-    process.stdout.write("✗ " + basePath(r.file || r.path || "?") + ": " + (r.error || "failed") + "\n");
+    write("✗ " + basePath(r.file || r.path || "?") + ": " + (r.error || "failed") + "\n");
   }
 });
 
@@ -175,30 +193,30 @@ registerRenderer("edit-many", (p) => {
 function printEditResult(p: ResultPayload) {
   const f = p.file || p.path || "";
   const route = p.route || "?";
-  process.stdout.write(
+  write(
     `${p.success ? "✓" : "✗"} ${route} ${f ? basePath(f) : ""}${p.line ? ":" + p.line : ""}\n`
   );
-  if (!p.success) process.stdout.write("  " + (p.error || p.message || "failed") + "\n");
+  if (!p.success) write("  " + (p.error || p.message || "failed") + "\n");
 }
 
 // grep / grep-many — print N matches across M files
 registerRenderer("grep", (p) => {
   const r = p.results || p;
   const matches = (r?.matches || []) as unknown[];
-  process.stdout.write(`${matches.length} match${matches.length === 1 ? "" : "es"}\n`);
+  write(`${matches.length} match${matches.length === 1 ? "" : "es"}\n`);
   for (const m of (matches as any[]).slice(0, 10)) {
-    process.stdout.write(
+    write(
       "  " + basePath(m.file || m.path || "?") + ":" + (m.line || "?") + "  " + truncate(m.content, 60) + "\n"
     );
   }
-  if (matches.length > 10) process.stdout.write(`  … ${matches.length - 10} more\n`);
+  if (matches.length > 10) write(`  … ${matches.length - 10} more\n`);
 });
 registerRenderer("grep-many", (p) => {
   const r = p.results || p;
   const matches = (r?.matches || []) as unknown[];
-  process.stdout.write(`${matches.length} match${matches.length === 1 ? "" : "es"}\n`);
+  write(`${matches.length} match${matches.length === 1 ? "" : "es"}\n`);
   for (const m of (matches as any[]).slice(0, 10)) {
-    process.stdout.write(
+    write(
       "  " + basePath(m.file || m.path || "?") + ":" + (m.line || "?") + "  " + truncate(m.content, 60) + "\n"
     );
   }
@@ -207,9 +225,9 @@ registerRenderer("grep-many", (p) => {
 // symbol-lookup
 registerRenderer("symbol-lookup", (p) => {
   const results = (p.results || p.symbols || []) as ResultPayload[];
-  process.stdout.write(`${results.length} symbol${results.length === 1 ? "" : "s"}` + "\n");
+  write(`${results.length} symbol${results.length === 1 ? "" : "s"}` + "\n");
   for (const r of results.slice(0, 10)) {
-    process.stdout.write(
+    write(
       `  ${r.name || r.symbol || "?"}  ${r.kind || "?"}  ${basePath(r.file || r.path || "")}:${r.line || "?"}\n`
     );
   }
@@ -218,17 +236,17 @@ registerRenderer("symbol-lookup", (p) => {
 // intent
 registerRenderer("intent", (p) => {
   const plan = p.plan as ResultPayload | undefined;
-  if (p.success) {
-    process.stdout.write("✓ plan succeeded\n");
-    if (plan?.impactSummary) process.stdout.write("  " + plan.impactSummary + "\n");
+  if (p.success !== false) {
+    write("✓ plan succeeded\n");
+    if (plan?.impactSummary) write("  " + plan.impactSummary + "\n");
   } else {
-    process.stdout.write("✗ " + (p.errorCode || p.error || "failed") + "\n");
+    write("✗ " + (p.errorCode || p.error || "failed") + "\n");
   }
   const unresolved = plan?.unresolved;
   if (Array.isArray(unresolved) && unresolved.length > 0) {
-    process.stdout.write(`  ${unresolved.length} unresolved item(s):\n`);
+    write(`  ${unresolved.length} unresolved item(s):\n`);
     for (const u of unresolved as ResultPayload[]) {
-      process.stdout.write("    " + basePath(u.file || "") + ": " + (u.reason || "") + "\n");
+      write("    " + basePath(u.file || "") + ": " + (u.reason || "") + "\n");
     }
   }
 });
@@ -237,12 +255,12 @@ registerRenderer("intent", (p) => {
 registerRenderer("verify", (p) => {
   // "no checks ran" is its own line: printing "all checks passed" over an empty
   // check set is exactly the false green of #106.
-  if (p.overall === "skipped") process.stdout.write("⚠ no checks ran — nothing was verified\n");
-  else if (p.success) process.stdout.write("✓ all checks passed\n");
-  else process.stdout.write("✗ " + (p.errorCode || "checks failed") + "\n");
+  if (p.overall === "skipped") write("⚠ no checks ran — nothing was verified\n");
+  else if (p.success !== false) write("✓ all checks passed\n");
+  else write("✗ " + (p.errorCode || "checks failed") + "\n");
   const checks = (p.checks || p.results || []) as ResultPayload[];
   for (const c of checks.slice(0, 5)) {
-    process.stdout.write(`  ${c.overall === "pass" || c.success ? "✓" : "✗"} ${c.command || c.name || "?"}\n`);
+    write(`  ${c.overall === "pass" || c.success ? "✓" : "✗"} ${c.command || c.name || "?"}\n`);
   }
 });
 
@@ -253,15 +271,15 @@ registerRenderer("verify-changes", (p) => {
   if (p.overall === "skipped") {
     // Never "all checks passed" over an empty check set — that false green is
     // the whole of #106.
-    process.stdout.write("⚠ no checks ran — nothing was verified\n");
-    process.stdout.write("  " + String(p.message || "") + "\n");
+    write("⚠ no checks ran — nothing was verified\n");
+    write("  " + String(p.message || "") + "\n");
     return;
   }
   const mark = p.overall === "pass" ? "✓" : "✗";
-  process.stdout.write(`${mark} ${p.overall} (${ran.length} check${ran.length === 1 ? "" : "s"}: ${ran.join(", ")})\n`);
+  write(`${mark} ${p.overall} (${ran.length} check${ran.length === 1 ? "" : "s"}: ${ran.join(", ")})\n`);
   for (const name of ran) {
     const run = p[name] as ResultPayload | undefined;
-    if (run) process.stdout.write(`  ${run.passed ? "✓" : "✗"} ${name}\n`);
+    if (run) write(`  ${run.passed ? "✓" : "✗"} ${name}\n`);
   }
 });
 
@@ -269,9 +287,9 @@ registerRenderer("verify-changes", (p) => {
 registerRenderer("telemetry-show", (p) => {
   const events = (p.events || p) as ResultPayload[];
   const arr = Array.isArray(events) ? events : [events];
-  process.stdout.write(`${arr.length} event${arr.length === 1 ? "" : "s"}\n`);
+  write(`${arr.length} event${arr.length === 1 ? "" : "s"}\n`);
   for (const e of arr.slice(0, 10)) {
-    process.stdout.write(
+    write(
       "  " +
         (e.operation || "?") +
         " " +
@@ -283,26 +301,26 @@ registerRenderer("telemetry-show", (p) => {
     );
   }
 });
-registerRenderer("telemetry-export", (p) => process.stdout.write("✓ exported " + (p.count || 0) + " event(s)\n"));
-registerRenderer("telemetry-prune", (p) => process.stdout.write("✓ pruned " + (p.count || 0) + " event(s)\n"));
+registerRenderer("telemetry-export", (p) => write("✓ exported " + (p.count || 0) + " event(s)\n"));
+registerRenderer("telemetry-prune", (p) => write("✓ pruned " + (p.count || 0) + " event(s)\n"));
 
 // route-query
 registerRenderer("route", (p) => {
-  process.stdout.write((p.success ? "✓ " + (p.route || "ok") : "✗ " + (p.errorCode || "routing failed")) + "\n");
+  write((p.success !== false ? "✓ " + (p.route || "ok") : "✗ " + (p.errorCode || "routing failed")) + "\n");
 });
 
 // ast-capabilities
 registerRenderer("ast-capabilities", (p) => {
   const langs = (p.languages || []) as string[];
-  process.stdout.write(`${langs.length} language(s) supported\n`);
+  write(`${langs.length} language(s) supported\n`);
 });
 
 // health / telemetry-summary
 registerRenderer("health", (p) => {
-  process.stdout.write((p.success ? "✓ " : "✗ ") + (p.message || "") + "\n");
+  write((p.success !== false ? "✓ " : "✗ ") + (p.message || "") + "\n");
 });
 registerRenderer("telemetry-summary", (p) => {
-  process.stdout.write((p.success ? "✓ " : "✗ ") + (p.message || JSON.stringify(Object.keys(p)).slice(0, 120)) + "\n");
+  write((p.success !== false ? "✓ " : "✗ ") + (p.message || JSON.stringify(Object.keys(p)).slice(0, 120)) + "\n");
 });
 
 // ── helpers ────────────────────────────────────────────────────────────

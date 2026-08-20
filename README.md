@@ -418,6 +418,32 @@ apply only the steps it could compute.
 
 ---
 
+## Output Control
+
+Global flags, valid on every command:
+
+| Flag | Effect |
+|------|--------|
+| `--format json\|text` | JSON if piped or in CI, text on a TTY (default) |
+| `-q, --quiet` | Drop the text-mode success line. **Never** suppresses the JSON envelope |
+| `-v, --verbose` | Routing and timing diagnostics, written to **stderr** |
+| `--no-color` | Disable ANSI color (`NO_COLOR` and `TERM=dumb` are honored too) |
+
+Color is veto-only — there is no flag that forces it on. It appears only with
+`--format text` on a TTY, so **JSON output is never colorized** and a piped
+stdout stays byte-clean. `--quiet` wins over `--verbose` when both are passed.
+
+Because verbose output goes to stderr, `hashpilot --verbose ... | jq` still works:
+
+```bash
+hashpilot --verbose route-edit src/app.ts rename-symbol \
+  --old-name greet --new-name hello --dry-run | jq .data
+# stderr: [verbose] route: ast for rename-symbol on src/app.ts (Language 'typescript' supports AST operations)
+# stderr: [verbose] result: ok via ast in 3ms
+```
+
+---
+
 ## Output Envelope
 
 Every command writes the same JSON shape to stdout, so an adapter has one parse path:

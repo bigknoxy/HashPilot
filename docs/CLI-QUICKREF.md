@@ -164,6 +164,9 @@ hashpilot [options] [command]
 | `--allow-parse-errors` | Edit a file that already has syntax errors (the post-edit parse check still applies) |
 | `--format <fmt>` | Output format: json or text (default: json if piped/CI, text if TTY) |
 | `--json` | [deprecated: use --format json] Force JSON output (default: false) |
+| `-q, --quiet` | Suppress the human-readable success line (the JSON envelope is never suppressed) |
+| `-v, --verbose` | Write routing and timing diagnostics to stderr |
+| `--no-color` | Disable ANSI color in text output (also honors NO_COLOR) |
 
 ### Command groups
 
