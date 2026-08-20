@@ -18,7 +18,7 @@ import {
   MAX_ROTATED_FILES,
   RETENTION_DAYS,
 } from "../src/core/telemetry";
-import { appendFileSync, existsSync, writeFileSync, mkdirSync, rmSync, unlinkSync } from "fs";
+import { appendFileSync, existsSync, writeFileSync, mkdirSync, rmSync, unlinkSync, readdirSync } from "fs";
 import { join } from "path";
 
 const LOG_DIR = join(process.env.HOME || "/root", ".agentic-tools", "logs");
@@ -492,6 +492,18 @@ describe("a broken log is not an empty log", () => {
 
 // ── Regression test for issue #51, defect #3 ──────────────────────────
 describe("replace-hash elapsed_ms regression", () => {
+  // Command actions live in `src/commands/*.ts` since #48; scan all of them
+  // plus the CLI wiring so a command moving between modules cannot drop the
+  // check silently.
+  async function commandSources(): Promise<string> {
+    const dir = join(import.meta.dir, "..", "src", "commands");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".ts")).sort();
+    expect(files.length).toBeGreaterThan(0);
+    const parts = await Promise.all(files.map((f) => Bun.file(join(dir, f)).text()));
+    parts.push(await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text());
+    return parts.join("\n");
+  }
+
   // The original defect: `replace-hash` reported `elapsed_ms: 0` on every call,
   // dragging health-report averages toward zero for one of the highest-frequency
   // operations. Asserting on source text is a blunt instrument, but `recordEvent`
@@ -499,14 +511,14 @@ describe("replace-hash elapsed_ms regression", () => {
   // value from a unit test. Keep the assertions structural rather than
   // whitespace-exact so a reformat cannot make them vacuously pass.
   test("no CLI command hardcodes elapsed_ms: 0", async () => {
-    const cliSource = await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text();
+    const cliSource = await commandSources();
 
     const hardcodedZero = cliSource.match(/elapsed_ms:\s*0\b/g) ?? [];
     expect(hardcodedZero).toEqual([]);
   });
 
   test("the replace-hash action measures elapsed time", async () => {
-    const cliSource = await Bun.file(join(import.meta.dir, "..", "src", "cli.ts")).text();
+    const cliSource = await commandSources();
 
     // Narrow to the replace-hash action body before asserting, so the check
     // cannot be satisfied by some *other* command's timing code.
