@@ -30,3 +30,29 @@ describe("install.sh — CLI launcher", () => {
     Bun.spawnSync(["rm", "-f", target, link]);
   });
 });
+
+describe("install.sh — doctor gate (#137)", () => {
+  test("captures doctor's exit code instead of letting set -e abort", () => {
+    // The gate ran as a bare `DOCTOR_OUT=$(... doctor ...)`. Under `set -e` a
+    // non-zero command substitution kills the script, so a doctor finding
+    // ended the installer at exit 2 with no message at all — after every file
+    // had already been written.
+    expect(installSh).toContain("set -eu");
+    expect(installSh).toMatch(/DOCTOR_OUT=\$\([^\n]*doctor[^\n]*\) \|\| DOCTOR_CODE=\$\?/);
+  });
+
+  test("set -e really does abort on a failing command substitution", () => {
+    // Guards the assumption the fix rests on.
+    const bare = Bun.spawnSync(["bash", "-c", "set -e; OUT=$(exit 3); echo reached"]);
+    expect(bare.stdout.toString()).not.toContain("reached");
+    const guarded = Bun.spawnSync(["bash", "-c", "set -e; CODE=0; OUT=$(exit 3) || CODE=$?; echo reached-$CODE"]);
+    expect(guarded.stdout.toString()).toContain("reached-3");
+  });
+
+  test("doctor runs with the freshly installed bin dir on PATH", () => {
+    // The PATH entry is written to the shell rc, which the installer process
+    // never sources — so `bin-on-path` would fail at exactly the moment it
+    // cannot yet succeed, reporting a healthy install as broken.
+    expect(installSh).toContain('PATH="$TARGET_DIR/bin:$PATH" "$TARGET_DIR/bin/hashpilot" --format text doctor');
+  });
+});

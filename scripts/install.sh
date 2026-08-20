@@ -428,8 +428,15 @@ fi
 # Telling the user "installed successfully" and letting them discover the
 # breakage on their first edit is the worse outcome (#46).
 if [ -x "$TARGET_DIR/bin/hashpilot" ]; then
-  DOCTOR_OUT=$("$TARGET_DIR/bin/hashpilot" --format text doctor 2>&1)
-  DOCTOR_CODE=$?
+  # Two traps, both hit on the first real install:
+  #   1. `set -e` aborts the whole script when a command substitution exits
+  #      non-zero, so a plain assignment turned "doctor found something" into
+  #      a silent exit 2 with no message. Capture the code with `|| ...`.
+  #   2. The PATH entry was just written to the shell rc, which this process
+  #      never sourced, so `bin-on-path` fails at exactly the moment it cannot
+  #      yet succeed. Export the real PATH for the check.
+  DOCTOR_CODE=0
+  DOCTOR_OUT=$(PATH="$TARGET_DIR/bin:$PATH" "$TARGET_DIR/bin/hashpilot" --format text doctor 2>&1) || DOCTOR_CODE=$?
   if [ "$DOCTOR_CODE" -ge 2 ]; then
     err "Installation is not healthy:"
     echo "$DOCTOR_OUT"
