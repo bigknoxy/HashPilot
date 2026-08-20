@@ -1,3 +1,10 @@
+## [4.4.17](https://github.com/bigknoxy/HashPilot/compare/v4.4.16...v4.4.17) (2026-08-20)
+
+
+### Bug Fixes
+
+* **#49:** publish an allowlisted site to gh-pages instead of the repository root ([#128](https://github.com/bigknoxy/HashPilot/issues/128)) ([1358f8f](https://github.com/bigknoxy/HashPilot/commit/1358f8f7ddb0f62135b889180392808e48269b44)), closes [#49](https://github.com/bigknoxy/HashPilot/issues/49) [#pages](https://github.com/bigknoxy/HashPilot/issues/pages)
+
 ## [4.4.16](https://github.com/bigknoxy/HashPilot/compare/v4.4.15...v4.4.16) (2026-08-19)
 
 
