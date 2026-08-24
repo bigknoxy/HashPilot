@@ -1,3 +1,10 @@
+## [4.5.3](https://github.com/bigknoxy/HashPilot/compare/v4.5.2...v4.5.3) (2026-08-24)
+
+
+### Bug Fixes
+
+* **ast:** emit require, not import, when add-import targets CommonJS ([#143](https://github.com/bigknoxy/HashPilot/issues/143)) ([cef0d42](https://github.com/bigknoxy/HashPilot/commit/cef0d42f4248e554db046317ed577b643ec548d1)), closes [#139](https://github.com/bigknoxy/HashPilot/issues/139) [#96](https://github.com/bigknoxy/HashPilot/issues/96) [#25](https://github.com/bigknoxy/HashPilot/issues/25) [#35](https://github.com/bigknoxy/HashPilot/issues/35) [#139](https://github.com/bigknoxy/HashPilot/issues/139)
+
 ## [4.5.2](https://github.com/bigknoxy/HashPilot/compare/v4.5.1...v4.5.2) (2026-08-20)
 
 
