@@ -1,5 +1,5 @@
 {
-  "name": "hashpilot",
+  "name": "@bigknoxy/hashpilot",
   "version": "4.5.3",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
@@ -43,6 +43,9 @@
   ],
   "author": "bigknoxy",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bugs": {
     "url": "https://github.com/bigknoxy/HashPilot/issues"
   },

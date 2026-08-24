@@ -129,6 +129,34 @@ curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/ins
 
 </details>
 
+### Install from npm
+
+```bash
+npm i -g @bigknoxy/hashpilot     # or: npx @bigknoxy/hashpilot doctor
+```
+
+The package name is scoped because the bare `hashpilot` on npm belongs to an
+unrelated project. The **binary is still `hashpilot`** — only the package name is
+scoped. Bun ≥ 1.2 must be on PATH; the npm package does not install it (see the
+runtime support matrix below).
+
+**What you get, and what you don't.** The npm install is the whole CLI, including
+the MCP server — every command works, `doctor` reports `installMode: "package"`,
+and the `~/.agentic-tools` layout checks are skipped rather than failed. What it
+does *not* do is write into your agents' config files: the adapter integrations
+for **Claude Code**, **OpenCode**, and **Pi** are injected by the installer, not
+by npm.
+
+| | `curl … install.sh` | `npm i -g @bigknoxy/hashpilot` |
+|---|---|---|
+| CLI + MCP server | ✅ | ✅ |
+| Auto-installs Bun | ✅ | ❌ (must already be on PATH) |
+| Claude Code / OpenCode / Pi adapters | ✅ | ❌ — run `bun run install-cli` from a checkout, or configure the MCP server directly |
+| Version pinning / `npx` | ❌ | ✅ |
+
+For MCP clients, point at the binary and skip the adapters entirely — see
+[docs/INTEGRATION-MCP.md](docs/INTEGRATION-MCP.md).
+
 ### Install from a checkout (development)
 
 ```bash
@@ -170,6 +198,11 @@ there is no Node-compatible build yet.
 | Bun ≥ 1.2 | ✅ | The only supported runtime. Enforced by `engines.bun`. |
 | Bun < 1.2 | ❌ | `npm`/`bun` warn at install time via `engines`. |
 | Node.js (any version) | ❌ | `hashpilot` exits **127** with an install message pointing at https://bun.sh. |
+
+Installing from npm on a platform with no prebuilt `tree-sitter` binding (notably
+**linux-arm64**) requires a C++20-capable toolchain to build it from source, and
+fails at install time without one. linux-x64, darwin-x64, darwin-arm64, and
+win32-x64 ship prebuilds and need no toolchain.
 
 The `hashpilot` binary is a small CommonJS shim (`src/cli-node.cjs`) that any Node can
 parse. It hands off to Bun and forwards Bun's exit status unchanged, so a Node-only machine
