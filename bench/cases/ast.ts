@@ -292,4 +292,84 @@ export const astCases: BenchCase[] = [
     expectRefusal: "both classes define run: choosing one silently is the failure mode (#38)",
     tags: ["insert-after", "typescript", "ambiguity", "38"],
   },
+  // ── JavaScript module systems (#139) ──────────────────────────────────
+  // The suite had zero JavaScript cases while `ast_capabilities` advertised the
+  // language, and that hole is exactly where #139 lived: `add-import` wrote ESM
+  // syntax into CommonJS files, reported success, and left a file Node could not
+  // load. The headline "0 silent corruption" was measuring a gap. These cases
+  // close it — see #142 for the rest of the coverage work.
+  {
+    id: "ast-add-import-cjs-named",
+    description: "add-import into a .cjs file emits require, not an ESM import",
+    file: "mod.cjs",
+    source: [
+      'const path = require("path");',
+      "",
+      "function buildPath(name) {",
+      '  return path.join("/tmp", name);',
+      "}",
+      "",
+      "module.exports = { buildPath };",
+      "",
+    ].join("\n"),
+    edit: { operation: "add-import", importSpec: '{ join } from "path"' },
+    expected: [
+      'const path = require("path");',
+      'const { join } = require("path");',
+      "",
+      "function buildPath(name) {",
+      '  return path.join("/tmp", name);',
+      "}",
+      "",
+      "module.exports = { buildPath };",
+      "",
+    ].join("\n"),
+    tags: ["add-import", "javascript", "commonjs", "139"],
+  },
+  {
+    id: "ast-add-import-cjs-default",
+    description: "a default-form spec becomes a whole-module require in CommonJS",
+    file: "cli.cjs",
+    source: ["module.exports = function run() {};", ""].join("\n"),
+    edit: { operation: "add-import", importSpec: 'fs from "fs"' },
+    expected: ['const fs = require("fs");', "module.exports = function run() {};", ""].join("\n"),
+    tags: ["add-import", "javascript", "commonjs", "139"],
+  },
+  {
+    id: "ast-add-import-cjs-merge",
+    description: "a second binding for an already-required module merges instead of duplicating",
+    file: "merge.cjs",
+    source: ['const { join } = require("path");', "", "module.exports = {};", ""].join("\n"),
+    edit: { operation: "add-import", importSpec: '{ resolve } from "path"' },
+    expected: ['const { join, resolve } = require("path");', "", "module.exports = {};", ""].join("\n"),
+    tags: ["add-import", "javascript", "commonjs", "139"],
+  },
+  {
+    id: "ast-add-import-mjs-stays-esm",
+    description: "add-import into a .mjs file still emits an ESM import statement",
+    file: "mod.mjs",
+    source: ["export const x = 1;", ""].join("\n"),
+    edit: { operation: "add-import", importSpec: '{ join } from "path"' },
+    expected: ['import { join } from "path";', "export const x = 1;", ""].join("\n"),
+    tags: ["add-import", "javascript", "esm", "139"],
+  },
+  {
+    id: "ast-remove-import-cjs-roundtrip",
+    description: "remove-import takes out a require binding and leaves the rest of the destructure",
+    file: "remove.cjs",
+    source: ['const { join, resolve } = require("path");', "", "module.exports = {};", ""].join("\n"),
+    edit: { operation: "remove-import", importSpec: '{ join } from "path"' },
+    expected: ['const { resolve } = require("path");', "", "module.exports = {};", ""].join("\n"),
+    tags: ["remove-import", "javascript", "commonjs", "139"],
+  },
+  {
+    id: "ast-add-import-js-mixed-refused",
+    description: "a JavaScript file mixing require and import refuses rather than guessing a module system",
+    file: "mixed.js",
+    source: ['const a = require("./a");', 'import b from "./b";', "", "module.exports = { a, b };", ""].join("\n"),
+    edit: { operation: "add-import", importSpec: '{ join } from "path"' },
+    expectRefusal:
+      "no extension, package.json, or in-file signal settles which module system Node will use, and emitting either syntax risks a file that does not load (#139)",
+    tags: ["add-import", "javascript", "ambiguity", "139"],
+  },
 ];

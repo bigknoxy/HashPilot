@@ -5,6 +5,7 @@ import JavaScript from "tree-sitter-javascript";
 import Go from "tree-sitter-go";
 import Rust from "tree-sitter-rust";
 import { escapeRegex } from "./utils";
+import { detectModuleSystem } from "./module-system";
 import { ErrorCode } from "./telemetry";
 import { addWarning } from "./envelope";
 
@@ -285,6 +286,12 @@ export interface ASTEditResult {
   symbolFound?: boolean;
   /** Set when the parse-validity gate rejected the edit. Always PARSE_ERROR. */
   errorCode?: string;
+  /**
+   * What the caller can do about a refusal. Surfaced as `error.recovery` in the
+   * JSON envelope, so a refusal an agent cannot act on is a bug, not a style
+   * choice.
+   */
+  recovery?: string;
   /** Where the offending syntax error is, when `errorCode` is PARSE_ERROR. */
   parseIssue?: ParseIssue;
 }
@@ -870,6 +877,361 @@ function addJsImportMerged(
   };
 }
 
+/**
+ * A JS import spec broken into the pieces a `require` call needs (#139).
+ *
+ * `single` covers both `import d from "m"` and `import * as d from "m"`: each
+ * binds exactly one local name, and in CommonJS both resolve to the module
+ * object. For a namespace import that is exact; for a default import it is the
+ * usual `module.exports`-is-the-default interop convention.
+ */
+interface CjsSpecParts {
+  module: string;
+  /** `{ a, b as c }` bindings, kept in their source form. */
+  named: string[];
+  /** The single local name bound by a default or namespace import. */
+  single?: string;
+  isType: boolean;
+}
+
+/** Local name a `{ a }` / `{ a as b }` binding introduces. */
+function cjsBindingLocal(binding: string): string {
+  const m = binding.match(/\bas\s+([A-Za-z_$][\w$]*)\s*$/);
+  return m ? m[1] : binding.trim();
+}
+
+/** `a as b` → `a: b`, the CommonJS destructuring spelling of a rename. */
+function cjsBindingText(binding: string): string {
+  const m = binding.trim().match(/^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/);
+  return m ? `${m[1]}: ${m[2]}` : binding.trim();
+}
+
+/**
+ * Parse an import spec for the CommonJS emitter. Unlike `parseJsImportSpec`
+ * this accepts `* as ns`, because a namespace import has a direct `require`
+ * form even though it has no ESM merge form.
+ */
+function parseCjsImportSpec(spec: string): CjsSpecParts | null {
+  const m = spec.trim().match(/^(.*?)\s+from\s+['"]([^'"]+)['"];?$/);
+  if (!m) return null;
+  let clause = m[1].trim();
+  const module = m[2];
+  let isType = false;
+  if (/^type\s/.test(clause)) {
+    isType = true;
+    clause = clause.slice(4).trim();
+  }
+
+  const named: string[] = [];
+  const namedMatch = clause.match(/\{([^}]*)\}/);
+  if (namedMatch) {
+    for (const part of namedMatch[1].split(",")) {
+      const t = part.trim();
+      if (t) named.push(t);
+    }
+  }
+  const before = namedMatch ? clause.slice(0, namedMatch.index).replace(/,\s*$/, "").trim() : clause;
+
+  let single: string | undefined;
+  if (before.length > 0) {
+    const ns = before.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+    if (ns) single = ns[1];
+    else if (/^[A-Za-z_$][\w$]*$/.test(before)) single = before;
+    else return null;
+  }
+
+  if (named.length === 0 && single === undefined) return null;
+  return { module, named, single, isType };
+}
+
+/** The `const ... = require("m");` line for a parsed spec. */
+function cjsRequireLine(parts: CjsSpecParts): string {
+  const binding =
+    parts.single !== undefined
+      ? parts.single
+      : "{ " + parts.named.map(cjsBindingText).join(", ") + " }";
+  return `const ${binding} = require("${parts.module}");\n`;
+}
+
+/** A `const x = require("m")` / `const { x } = require("m")` declaration. */
+interface CjsRequireDecl {
+  /** The whole declaration statement, including its semicolon. */
+  node: Parser.SyntaxNode;
+  module: string;
+  /** `object_pattern` for a destructured require, `identifier` for a whole-module one. */
+  pattern: Parser.SyntaxNode;
+}
+
+/** The module string of a `require("m")` call expression, or null. */
+function requireCallModule(node: Parser.SyntaxNode | null): string | null {
+  if (!node || node.type !== "call_expression") return null;
+  const fn = node.child(0);
+  if (!fn || fn.type !== "identifier" || fn.text !== "require") return null;
+  const args = findChildByType(node, "arguments");
+  if (!args) return null;
+  const strings = args.children.filter((c) => c.type === "string");
+  if (strings.length !== 1) return null;
+  return unquoteLiteral(strings[0].text);
+}
+
+function collectRequireDecls(root: Parser.SyntaxNode): CjsRequireDecl[] {
+  const found: CjsRequireDecl[] = [];
+  function walk(node: Parser.SyntaxNode) {
+    if (node.type === "lexical_declaration" || node.type === "variable_declaration") {
+      const declarators = node.children.filter((c) => c.type === "variable_declarator");
+      // `const a = require("x"), b = require("y")` shares one statement, so
+      // editing it by statement would take both bindings out. Leave those alone.
+      if (declarators.length === 1) {
+        const d = declarators[0];
+        const pattern = d.child(0);
+        const value = d.childForFieldName ? d.childForFieldName("value") : null;
+        const module = requireCallModule(value ?? d.children[d.children.length - 1] ?? null);
+        if (module !== null && pattern && (pattern.type === "object_pattern" || pattern.type === "identifier")) {
+          found.push({ node, module, pattern });
+          return;
+        }
+      }
+    }
+    for (const child of node.children) walk(child);
+  }
+  walk(root);
+  return found;
+}
+
+/** Bindings inside a `const { a, b: c } = require(...)` pattern. */
+function cjsPatternEntries(pattern: Parser.SyntaxNode): { node: Parser.SyntaxNode; names: string[] }[] {
+  const entries: { node: Parser.SyntaxNode; names: string[] }[] = [];
+  for (const c of pattern.children) {
+    if (c.type === "shorthand_property_identifier_pattern") {
+      entries.push({ node: c, names: [c.text] });
+    } else if (c.type === "pair_pattern") {
+      const names = c.children.filter((n) => n.type !== ":").map((n) => n.text);
+      entries.push({ node: c, names });
+    }
+  }
+  return entries;
+}
+
+function moduleSystemRefusal(
+  filePath: string,
+  operation: string,
+  message: string,
+  recovery: string
+): ASTEditResult {
+  return {
+    success: false,
+    path: filePath,
+    operation,
+    changes: 0,
+    message,
+    errorCode: ErrorCode.MODULE_SYSTEM_MISMATCH,
+    recovery,
+  };
+}
+
+/**
+ * Add an import to a CommonJS JavaScript file as a `require` declaration (#139).
+ *
+ * Emitting the ESM form here is the one outcome that must not happen: it parses,
+ * so the validity gate passes it, and the file then fails to load at runtime.
+ */
+function addCjsImport(
+  source: string,
+  tree: Parser,
+  filePath: string,
+  importSpec: string
+): ASTEditResult {
+  const parts = parseCjsImportSpec(importSpec);
+  if (!parts) {
+    return {
+      success: false,
+      path: filePath,
+      operation: "add-import",
+      changes: 0,
+      message: `Could not read '${importSpec}' as an import clause`,
+      errorCode: ErrorCode.INVALID_ARGUMENT,
+      recovery:
+        'Pass a full import clause, e.g. \'{ join } from "path"\', \'path from "path"\', or \'* as path from "path"\'.',
+    };
+  }
+  if (parts.isType) {
+    return moduleSystemRefusal(
+      filePath,
+      "add-import",
+      `'${importSpec}' is a type-only import, which has no CommonJS form`,
+      "Type-only imports are erased at compile time; drop the `type` keyword, or make the edit in a TypeScript file.",
+    );
+  }
+  if (parts.single !== undefined && parts.named.length > 0) {
+    return moduleSystemRefusal(
+      filePath,
+      "add-import",
+      `'${importSpec}' combines a default and named bindings, which has no single CommonJS declaration`,
+      `Add them in two calls: '${parts.single} from "${parts.module}"' and '{ ${parts.named.join(", ")} } from "${parts.module}"'.`,
+    );
+  }
+
+  const decls = collectRequireDecls(tree.rootNode);
+  const sameModule = decls.filter((d) => d.module === parts.module);
+
+  // Merge into an existing destructured require for the same module, mirroring
+  // the ESM merge (#103) so repeated one-name-at-a-time calls do not accumulate
+  // a duplicate declaration per call.
+  if (parts.single === undefined) {
+    const mergeTarget = sameModule.find((d) => d.pattern.type === "object_pattern");
+    if (mergeTarget) {
+      const existing = cjsPatternEntries(mergeTarget.pattern);
+      const existingLocals = new Set(existing.map((e) => cjsBindingLocal(e.node.text)));
+      const fresh = parts.named.filter((n) => !existingLocals.has(cjsBindingLocal(n)));
+      if (fresh.length === 0) {
+        return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
+      }
+      const all = [...existing.map((e) => e.node.text), ...fresh.map(cjsBindingText)];
+      const newSource =
+        source.slice(0, mergeTarget.pattern.startIndex) +
+        "{ " + all.join(", ") + " }" +
+        source.slice(mergeTarget.pattern.endIndex);
+      return { success: true, path: filePath, operation: "add-import", changes: 1, message: `Added import: ${importSpec}`, newSource };
+    }
+  } else {
+    const already = sameModule.find((d) => d.pattern.type === "identifier" && d.pattern.text === parts.single);
+    if (already) {
+      return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
+    }
+  }
+
+  const line = cjsRequireLine(parts);
+
+  // Anchor: after the last existing require declaration, else after any shebang
+  // and leading comments, so the declaration lands with the other imports rather
+  // than above the file's header.
+  let insertAt: number;
+  if (decls.length > 0) {
+    const lastEnd = Math.max(...decls.map((d) => d.node.endIndex));
+    insertAt = lastEnd;
+    if (source[insertAt] === "\r") insertAt++;
+    if (source[insertAt] === "\n") insertAt++;
+    return {
+      success: true,
+      path: filePath,
+      operation: "add-import",
+      changes: 1,
+      message: `Added import: ${importSpec}`,
+      newSource: source.slice(0, insertAt) + line + source.slice(insertAt),
+    };
+  }
+
+  insertAt = 0;
+  for (const child of tree.rootNode.children) {
+    if (child.type === "hash_bang_line" || child.type === "comment") {
+      insertAt = child.endIndex;
+      continue;
+    }
+    break;
+  }
+  if (insertAt === 0) {
+    return {
+      success: true,
+      path: filePath,
+      operation: "add-import",
+      changes: 1,
+      message: `Added import: ${importSpec}`,
+      newSource: line + source,
+    };
+  }
+  if (source[insertAt] === "\r") insertAt++;
+  if (source[insertAt] === "\n") insertAt++;
+  return {
+    success: true,
+    path: filePath,
+    operation: "add-import",
+    changes: 1,
+    message: `Added import: ${importSpec}`,
+    newSource: source.slice(0, insertAt) + line + source.slice(insertAt),
+  };
+}
+
+/**
+ * Remove a `require` declaration, or one binding out of a destructured one
+ * (#139). Returns a failure the caller may ignore when nothing matched, so a
+ * file holding both `require` and `import` still gets the ESM pass.
+ */
+function removeCjsImport(
+  source: string,
+  tree: Parser,
+  filePath: string,
+  importSpec: string
+): ASTEditResult {
+  const form = parseImportSpecForm(importSpec);
+  const wantModule = form.module;
+  const wantName = form.name ?? (wantModule ? undefined : importSpec.trim());
+
+  const decls = collectRequireDecls(tree.rootNode).filter(
+    (d) => wantModule === undefined || d.module === wantModule
+  );
+
+  const edits: { start: number; end: number; replace?: string }[] = [];
+  let changes = 0;
+
+  for (const decl of decls) {
+    if (wantName === undefined) {
+      edits.push({ start: decl.node.startIndex, end: decl.node.endIndex });
+      changes++;
+      continue;
+    }
+    if (decl.pattern.type === "identifier") {
+      if (decl.pattern.text === wantName || (wantModule === undefined && decl.module === wantName)) {
+        edits.push({ start: decl.node.startIndex, end: decl.node.endIndex });
+        changes++;
+      }
+      continue;
+    }
+    const entries = cjsPatternEntries(decl.pattern);
+    const matched = entries.filter((e) => e.names.includes(wantName));
+    if (matched.length === 0) {
+      // A bare spec may name the module rather than a binding.
+      if (wantModule === undefined && decl.module === wantName) {
+        edits.push({ start: decl.node.startIndex, end: decl.node.endIndex });
+        changes++;
+      }
+      continue;
+    }
+    const keep = entries.filter((e) => !matched.includes(e));
+    if (keep.length === 0) {
+      edits.push({ start: decl.node.startIndex, end: decl.node.endIndex });
+    } else {
+      edits.push({
+        start: decl.pattern.startIndex,
+        end: decl.pattern.endIndex,
+        replace: "{ " + keep.map((e) => e.node.text).join(", ") + " }",
+      });
+    }
+    changes += matched.length;
+  }
+
+  if (edits.length === 0) {
+    return { success: false, path: filePath, operation: "remove-import", changes: 0, message: `No import for '${importSpec}' found` };
+  }
+
+  edits.sort((a, b) => b.start - a.start);
+  let newSource = source;
+  for (const e of edits) {
+    if (e.replace !== undefined) {
+      newSource = newSource.slice(0, e.start) + e.replace + newSource.slice(e.end);
+    } else {
+      // Exactly one line ending, never a run of them: `add-import` inserts one
+      // line, so consuming every following newline would swallow the blank line
+      // separating the requires from the code and break the round-trip.
+      let end = e.end;
+      if (newSource[end] === "\r") end++;
+      if (newSource[end] === "\n") end++;
+      newSource = newSource.slice(0, e.start) + newSource.slice(end);
+    }
+  }
+
+  return { success: true, path: filePath, operation: "remove-import", changes, message: `Removed ${changes} import(s) for '${importSpec}'`, newSource };
+}
+
 function addImportUnchecked(
   source: string,
   filePath: string,
@@ -883,6 +1245,22 @@ function addImportUnchecked(
   if (!parser) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
 
   const tree = parseSource(parser, source);
+
+  // JavaScript has two module systems and only one of them takes `import`.
+  // tree-sitter parses either, so the validity gate cannot tell them apart —
+  // the module system has to be established before any syntax is chosen (#139).
+  if (lang === "javascript") {
+    const verdict = detectModuleSystem(filePath, source);
+    if (verdict.system === null) {
+      return moduleSystemRefusal(
+        filePath,
+        "add-import",
+        `Cannot tell whether ${filePath} is ESM or CommonJS: ${verdict.detail}`,
+        'Rename the file to .mjs or .cjs, or set "type" in the nearest package.json, then retry.',
+      );
+    }
+    if (verdict.system === "cjs") return addCjsImport(source, tree, filePath, importSpec);
+  }
 
   // JS/TS merge into an existing import of the same module, which also covers
   // the duplicate check for that module (#103).
@@ -966,6 +1344,14 @@ function removeImportUnchecked(
   // --- Rust grouped-use: separate code path for surgical removal ---
   if (lang === "rust") {
     return removeRustImport(source, tree, filePath, importSpec);
+  }
+
+  // A CommonJS `require` declaration is not an `import_statement`, so the
+  // generic model never sees it. Try it first for JavaScript and fall through
+  // when nothing matched, which keeps mixed files working (#139).
+  if (lang === "javascript") {
+    const cjs = removeCjsImport(source, tree, filePath, importSpec);
+    if (cjs.success) return cjs;
   }
 
   // --- Other languages: binding-level surgical removal (#102) ---

@@ -62,6 +62,28 @@ hashpilot ast add-import f.ts '{ Foo } from "./bar"'     # ✅
 hashpilot ast add-import f.ts '{ Foo } from ./bar'       # ❌ PARSE_ERROR
 ```
 
+### A JavaScript import spec is always written in ESM form
+
+You pass the same `'{ join } from "path"'` spec whatever the file's module system
+is. For a CommonJS JavaScript file, `add-import` translates it and writes
+`const { join } = require("path");` — passing `require` syntax as the spec is not
+supported. The module system is decided by, in order: a `.cjs`/`.mjs` extension,
+the nearest `package.json` `type` field (absent ⇒ CommonJS, per Node), then a
+content sniff.
+
+```bash
+hashpilot ast add-import mod.cjs '{ join } from "path"'   # → const { join } = require("path");
+hashpilot ast add-import mod.mjs '{ join } from "path"'   # → import { join } from "path";
+```
+
+A JavaScript file that mixes `require` and `import` with no extension or
+`package.json` to settle it is refused with `MODULE_SYSTEM_MISMATCH` rather than
+guessing — emitting either syntax risks a file that parses but will not load
+(#139). Two specs have no single CommonJS declaration and are also refused:
+a combined default-and-named spec (`'fs, { join } from "path"'` — issue it as two
+calls) and a `type`-only spec. TypeScript and TSX are unaffected: they are always
+emitted in ESM form.
+
 ### `read-many` returns a bare top-level array, not an envelope
 
 ```jsonc
