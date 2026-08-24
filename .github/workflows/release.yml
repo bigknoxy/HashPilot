@@ -36,6 +36,66 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
+      # semantic-release runs under Bun, but @semantic-release/npm shells out to
+      # the real `npm` to publish. OIDC trusted publishing needs npm >= 11.5.1 on
+      # Node >= 22.14, and the runner image's bundled versions drift, so pin them
+      # here rather than inherit whatever the image ships (#147).
+      - name: Setup Node (for the npm publish subprocess)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # Deliberately no `registry-url`: that writes a project .npmrc holding
+          # `_authToken=${NODE_AUTH_TOKEN}`, which @semantic-release/npm's
+          # set-npmrc-auth would read as "auth already configured" and then
+          # publish with an unset variable. It writes its own .npmrc.
+
+      # Publishing needs either a usable NPM_TOKEN or an OIDC trusted-publishing
+      # context. Both absences used to surface as a semantic-release stack trace
+      # forty lines deep; say it plainly and early instead (#147).
+      - name: Verify a publishing credential is available
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "node $(node --version)  npm $(npm --version)"
+
+          oidc=no
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then oidc=yes; fi
+          echo "OIDC id-token available: $oidc"
+
+          if [ -n "$NPM_TOKEN" ]; then
+            # Length only — never the value.
+            echo "NPM_TOKEN is set (${#NPM_TOKEN} chars)"
+            npmrc="$(mktemp)"
+            echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$npmrc"
+            if npm whoami --userconfig "$npmrc" --registry https://registry.npmjs.org >/dev/null 2>&1; then
+              echo "NPM_TOKEN authenticates as: $(npm whoami --userconfig "$npmrc" --registry https://registry.npmjs.org)"
+              token_ok=yes
+            else
+              echo "NPM_TOKEN is set but the registry rejected it (401) — revoked, expired, or mistyped."
+              token_ok=no
+            fi
+            rm -f "$npmrc"
+          else
+            echo "NPM_TOKEN is unset or empty."
+            # Only advice worth printing when there is no OIDC context to fall
+            # back on — a tokenless trusted-publishing setup is the goal state,
+            # not a misconfiguration to nag about.
+            if [ "$oidc" = "no" ]; then
+              echo "  \`gh secret set NPM_TOKEN\` with no --body reads the value from stdin;"
+              echo "  run it non-interactively and it stores an empty string, which fails as ENONPMTOKEN."
+              echo "  Set it with: gh secret set NPM_TOKEN --repo bigknoxy/HashPilot --body '<token>'"
+            fi
+            token_ok=no
+          fi
+
+          if [ "$token_ok" = "no" ] && [ "$oidc" = "no" ]; then
+            echo "::error::No usable publishing credential: NPM_TOKEN is missing or rejected, and no OIDC id-token is available."
+            exit 1
+          fi
+          if [ "$token_ok" = "no" ]; then
+            echo "::warning::No usable NPM_TOKEN — the publish will succeed only if trusted publishing is configured for this package on npmjs.com."
+          fi
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
