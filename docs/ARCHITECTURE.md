@@ -338,6 +338,29 @@ highest-frequency operations.
   valid for comparisons made within a single process at a fixed cwd. Persisted or
   cross-process keys must stay cwd-independent — see `locking.ts` below.
 
+#### `src/core/module-system.ts` — JavaScript Module-System Detection (#139)
+- `detectModuleSystem(filePath, source)` answers ESM or CommonJS, and returns the
+  signal it used so a refusal can explain itself. Signals, first match wins:
+  a `.cjs`/`.mjs` extension; the nearest `package.json` `type` field (walking up
+  from the file — an **absent** field is CommonJS, per Node's own default, not
+  silence); then a content sniff for `require`/`module.exports` versus a
+  top-level `import`/`export`.
+- **Why it has to exist at all.** The parse-validity gate cannot substitute for
+  it. tree-sitter's JavaScript grammar accepts `import` and `require` in the same
+  file, so ESM syntax written into a CommonJS file parses cleanly, passes the
+  gate, reports success, and then fails to load at runtime — the silent
+  corruption class the gate was built to stop. Module system is a *packaging*
+  fact, not a syntactic one, so it cannot be read off the tree.
+- `ast-edit.ts` consults it for **JavaScript only** before choosing import
+  syntax. TypeScript and TSX compile to whichever system their own config
+  selects, so their emission stays ESM unconditionally.
+- Both markers present with no extension or `package.json` to settle it yields
+  **no verdict**, and `add-import` refuses with `MODULE_SYSTEM_MISMATCH` rather
+  than picking. No signal at all defaults to ESM, reported as
+  `signal: "default"` so a caller can tell a guess from a finding.
+- Deliberately free of tree-sitter: every signal is a path or a regex, so it
+  costs nothing and works on a file that does not parse.
+
 #### `src/core/locking.ts` — Advisory Locks and Concurrency (#21 / B18)
 - Lockfiles under `<project root>/.hashpilot/locks/`, named by a SHA-256 of the
   **absolute** target path, holding `{pid, nonce, ts, targets}`.
