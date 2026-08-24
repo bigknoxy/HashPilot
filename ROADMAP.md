@@ -36,6 +36,7 @@ Correctness of the edit engine itself, plus the output contract everything downs
 
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
+| [#139](../../issues/139) | B54 — `add-import` emits ESM syntax into CommonJS files, reports success, breaks the file | 62 | P0 | verified | correctness · data-loss |
 | [#60](../../issues/60) | B53 — `read-hash` emits an 8-char `lineHash` that `replace-hash` rejects as stale ✅ shipped | 61 | P1 | verified | correctness |
 | [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB ✅ shipped | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage ✅ shipped | 59 | P1 | verified | correctness |
@@ -68,6 +69,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#30](../../issues/30) | B27 — Encoding fidelity: trailing newline stripped, CRLF destroyed, BOM folded | 47 | P2 | verified | correctness |
 | [#33](../../issues/33) | B30 — Fuzzy match window far wider than the `fuzzy` parameter implies | 47 | P2 | reported | correctness |
 | [#35](../../issues/35) | B34 — Not installable without Bun; `dist/` is not published | 47 | P2 | verified | ops |
+| [#96](../../issues/96) | B55 — Distribution: publish to npm under a scoped name (`hashpilot` is taken) | 46 | P2 | verified | ops |
 | [#26](../../issues/26) | B22 — Publish benchmark numbers; there are none | 46 | P2 | reported | strategy |
 | [#27](../../issues/27) | B24 — Interactive mode as a rendering layer over the existing flags | 46 | P2 | verified | cli |
 | [#29](../../issues/29) | B26 — `--yes` and `--dry-run` on destructive operations | 46 | P2 | verified | cli |
@@ -75,7 +77,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#32](../../issues/32) | B29 — Deleted line starting with `--` breaks unified-diff parsing | 42 | P2 | reported | correctness |
 | [#59](../../issues/59) | B52 — Telemetry reads report corruption and I/O failure as an empty log ✅ shipped in [#61](../../pull/61) | 38 | P2 | verified | ops |
 
-**Sequencing:** B21's operation registry subsumes [#48](../../issues/48) (B46, `cli.ts` duplication) — do not fix the duplication separately. B34 must be resolved before flipping `npmPublish` in B20's fix.
+**Sequencing:** B21's operation registry subsumes [#48](../../issues/48) (B46, `cli.ts` duplication) — do not fix the duplication separately. B55 (#96) flips `npmPublish` and ships the package with today's Bun-shim `bin`; it does **not** wait on B34 (#35), which owes a Bun-free runtime, and it blocks [#81](../../issues/81) (publishing `hashpilot-mcp`).
 
 ## Sprint 4 — Differentiation
 
@@ -89,7 +91,6 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 
 | # | Item | Score | Pri | Area |
 |---|------|-------|-----|------|
-| [#96](../../issues/96) | Distribution — publish to npm under a scoped name (`hashpilot` is taken) | 46 | P2 | distribution |
 | [#37](../../issues/37) | B35 — Installer hygiene: template injection, unpinned clone, rc clobber, `rsync --delete` | 45 | P3 | security |
 | [#44](../../issues/44) | B42 — Shell completions, help examples, `intent --schema`, `explain` | 44 | P3 | cli |
 | [#38](../../issues/38) | B36 — `insert-before/after` can splice a statement into a parameter list | 42 | P3 | correctness |

@@ -29,6 +29,8 @@ export {
 } from "./ast-edit";
 export type { ParseIssue, ParserProbe } from "./ast-edit";
 export type { ASTEditResult, SymbolInfo, LanguageCapability } from "./ast-edit";
+export { detectModuleSystem, nearestPackageType } from "./module-system";
+export type { ModuleSystem, ModuleSystemSignal, ModuleSystemVerdict } from "./module-system";
 export { verifyChanges, recordVerifyBaseline } from "./verify";
 export type { VerifyResult, VerifyOptions, ToolRun, RecordBaselineResult } from "./verify";
 export { buildTestInvocation, parseFailures } from "./verify-scope";

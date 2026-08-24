@@ -16,7 +16,8 @@ import {
   firstParseError,
   setAllowParseErrors,
 } from "../src/core/ast-edit";
-import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { join } from "path";
 
 const TMP_DIR = join(import.meta.dir, "__tmp_test_ast__");
@@ -1285,4 +1286,227 @@ describe("renameSymbol — binding-aware ambiguity guard (#14)", () => {
     expect(r.message).toContain("config");
     expect(r.message).toMatch(/binding/i);
     });
+});
+
+// ── #139: add-import must not write ESM syntax into a CommonJS file ──────
+
+describe("addImport — module system (#139)", () => {
+  const CJS_DIR = join(TMP_DIR, "cjs");
+
+  /** Write a file under its own directory, optionally with a package.json above it. */
+  function fixture(name: string, source: string, pkg?: string): string {
+    const dir = join(CJS_DIR, name.replace(/\W/g, "_"));
+    mkdirSync(dir, { recursive: true });
+    if (pkg !== undefined) writeFileSync(join(dir, "package.json"), pkg);
+    const path = join(dir, name);
+    writeFileSync(path, source);
+    return path;
+  }
+
+  const CJS_SOURCE = 'const path = require("path");\n\nmodule.exports = {};\n';
+
+  beforeEach(() => mkdirSync(CJS_DIR, { recursive: true }));
+  afterEach(() => rmSync(CJS_DIR, { recursive: true, force: true }));
+
+  test("a .cjs file gets a require declaration, not an import statement", () => {
+    const p = fixture("a.cjs", CJS_SOURCE);
+    const r = addImport(CJS_SOURCE, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toContain('const { join } = require("path");');
+    expect(r.newSource).not.toContain("import ");
+  });
+
+  test("the require declaration lands with the other requires, above the code", () => {
+    const p = fixture("order.cjs", CJS_SOURCE);
+    const r = addImport(CJS_SOURCE, p, '{ join } from "path"');
+    expect(r.newSource).toBe(
+      'const path = require("path");\nconst { join } = require("path");\n\nmodule.exports = {};\n',
+    );
+  });
+
+  test("a .js file under a package.json with no type field is CommonJS", () => {
+    const p = fixture("plain.js", CJS_SOURCE, '{"name":"fixture"}');
+    const r = addImport(CJS_SOURCE, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toContain('const { join } = require("path");');
+  });
+
+  test('a .js file under "type": "module" still gets ESM', () => {
+    const src = "export const x = 1;\n";
+    const p = fixture("esm.js", src, '{"type":"module"}');
+    const r = addImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toContain('import { join } from "path";');
+  });
+
+  test(".mjs is ESM and .cjs is CommonJS regardless of package.json", () => {
+    const mjsSrc = "export const x = 1;\n";
+    const mjs = fixture("forced.mjs", mjsSrc, '{"type":"commonjs"}');
+    expect(addImport(mjsSrc, mjs, '{ join } from "path"').newSource).toContain('import { join } from "path";');
+
+    const cjs = fixture("forced.cjs", CJS_SOURCE, '{"type":"module"}');
+    expect(addImport(CJS_SOURCE, cjs, '{ join } from "path"').newSource).toContain('const { join } = require("path");');
+  });
+
+  // The content sniff is only reachable with no package.json anywhere above the
+  // file, so these two fixtures live outside the repo — HashPilot's own
+  // package.json would otherwise settle the question first, and correctly.
+  test("content decides when there is no extension or package.json signal", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hp-sniff-"));
+    const src = 'const a = require("a");\n';
+    const p = join(dir, "sniff.js");
+    writeFileSync(p, src);
+    try {
+      const r = addImport(src, p, '{ join } from "path"');
+      expect(r.success).toBe(true);
+      expect(r.newSource).toContain('const { join } = require("path");');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a file mixing require and import is refused, and left byte-identical", () => {
+    const dir = mkdtempSync(join(tmpdir(), "hp-mixed-"));
+    const src = 'const a = require("a");\nimport b from "b";\n';
+    const p = join(dir, "mixed.js");
+    writeFileSync(p, src);
+    try {
+      const r = addImport(src, p, '{ join } from "path"');
+      expect(r.success).toBe(false);
+      expect(r.errorCode).toBe("MODULE_SYSTEM_MISMATCH");
+      expect(r.recovery).toBeTruthy();
+      expect(r.newSource).toBeUndefined();
+      expect(readFileSync(p, "utf8")).toBe(src);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    ['{ join } from "path"', 'const { join } = require("path");'],
+    ['{ join, resolve } from "path"', 'const { join, resolve } = require("path");'],
+    ['{ join as j } from "path"', 'const { join: j } = require("path");'],
+    ['pathmod from "path"', 'const pathmod = require("path");'],
+    ['* as pathns from "path"', 'const pathns = require("path");'],
+  ])("spec %p emits %p", (spec, expected) => {
+    const src = "module.exports = {};\n";
+    const p = fixture(`form_${spec.replace(/\W/g, "")}.cjs`, src);
+    const r = addImport(src, p, spec);
+    expect(r.success).toBe(true);
+    expect(r.newSource).toContain(expected);
+  });
+
+  test("a second name for the same module merges instead of duplicating", () => {
+    const src = 'const { join } = require("path");\n\nmodule.exports = {};\n';
+    const p = fixture("merge.cjs", src);
+    const r = addImport(src, p, '{ resolve } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toBe('const { join, resolve } = require("path");\n\nmodule.exports = {};\n');
+  });
+
+  test("re-adding a binding that is already required is refused", () => {
+    const src = 'const { join } = require("path");\n';
+    const p = fixture("dupe.cjs", src);
+    const r = addImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(false);
+    expect(r.message).toContain("already exists");
+  });
+
+  test("a combined default-and-named spec is refused with the two calls to make", () => {
+    const src = "module.exports = {};\n";
+    const p = fixture("combined.cjs", src);
+    const r = addImport(src, p, 'fs, { join } from "path"');
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("MODULE_SYSTEM_MISMATCH");
+    expect(r.recovery).toContain('{ join } from "path"');
+  });
+
+  test("a type-only spec is refused rather than emitted into JavaScript", () => {
+    const src = "module.exports = {};\n";
+    const p = fixture("typeonly.cjs", src);
+    const r = addImport(src, p, 'type { Stats } from "fs"');
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("MODULE_SYSTEM_MISMATCH");
+  });
+
+  test("a bare module name is a usage error naming the accepted form", () => {
+    const src = "module.exports = {};\n";
+    const p = fixture("bare.cjs", src);
+    const r = addImport(src, p, "fs");
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe("INVALID_ARGUMENT");
+    expect(r.recovery).toContain("from");
+  });
+
+  test("the require declaration goes below a shebang, not above it", () => {
+    const src = "#!/usr/bin/env node\nmodule.exports = {};\n";
+    const p = fixture("shebang.cjs", src);
+    const r = addImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource!.startsWith("#!/usr/bin/env node\n")).toBe(true);
+    expect(r.newSource).toContain('const { join } = require("path");');
+  });
+
+  test("TypeScript is untouched by module-system detection", () => {
+    const src = "export const x = 1;\n";
+    const p = fixture("still-esm.ts", src, '{"name":"cjs-package"}');
+    const r = addImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toContain('import { join } from "path";');
+  });
+});
+
+describe("removeImport — CommonJS require declarations (#139)", () => {
+  const CJS_DIR = join(TMP_DIR, "cjs-remove");
+  beforeEach(() => mkdirSync(CJS_DIR, { recursive: true }));
+  afterEach(() => rmSync(CJS_DIR, { recursive: true, force: true }));
+
+  function fixture(name: string, source: string): string {
+    const path = join(CJS_DIR, name);
+    writeFileSync(path, source);
+    return path;
+  }
+
+  test("add then remove returns the file to its original bytes", () => {
+    const original = 'const path = require("path");\n\nmodule.exports = {};\n';
+    const p = fixture("roundtrip.cjs", original);
+    const added = addImport(original, p, '{ join } from "path"');
+    expect(added.success).toBe(true);
+    const removed = removeImport(added.newSource!, p, '{ join } from "path"');
+    expect(removed.success).toBe(true);
+    expect(removed.newSource).toBe(original);
+  });
+
+  test("removing one binding keeps the rest of the destructure", () => {
+    const src = 'const { join, resolve } = require("path");\n';
+    const p = fixture("partial.cjs", src);
+    const r = removeImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toBe('const { resolve } = require("path");\n');
+  });
+
+  test("removing the last binding deletes the declaration", () => {
+    const src = 'const { join } = require("path");\nmodule.exports = {};\n';
+    const p = fixture("last.cjs", src);
+    const r = removeImport(src, p, '{ join } from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toBe("module.exports = {};\n");
+  });
+
+  test("a whole-module require is removed by its local name", () => {
+    const src = 'const path = require("path");\nmodule.exports = {};\n';
+    const p = fixture("whole.cjs", src);
+    const r = removeImport(src, p, 'path from "path"');
+    expect(r.success).toBe(true);
+    expect(r.newSource).toBe("module.exports = {};\n");
+  });
+
+  test("a require that is not there reports not-found and changes nothing", () => {
+    const src = 'const { join } = require("path");\n';
+    const p = fixture("missing.cjs", src);
+    const r = removeImport(src, p, '{ readFile } from "fs"');
+    expect(r.success).toBe(false);
+    expect(r.message).toContain("No import");
+    expect(r.newSource).toBeUndefined();
+  });
 });

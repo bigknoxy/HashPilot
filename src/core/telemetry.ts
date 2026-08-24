@@ -96,6 +96,13 @@ export enum ErrorCode {
   READ_FAILED = "READ_FAILED",
   /** Lock acquisition timed out — another process holds the advisory lock. */
   LOCK_TIMEOUT = "LOCK_TIMEOUT",
+  /**
+   * The requested import cannot be expressed in the target file's module
+   * system, or the file's module system is indeterminate. Emitting ESM syntax
+   * into a CommonJS file parses cleanly and then fails to load at runtime, so
+   * refusing is the only safe answer (#139).
+   */
+  MODULE_SYSTEM_MISMATCH = "MODULE_SYSTEM_MISMATCH",
   /** A failure that carried no code of its own. Better than an empty `error.code`. */
   UNKNOWN = "UNKNOWN",
   /** Uncaught internal error — a bug in HashPilot. */

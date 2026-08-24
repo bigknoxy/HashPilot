@@ -42,6 +42,11 @@ const ERROR_CODE_EXITS: Record<string, ExitCode> = {
     // anchor — so it shares the EDIT_FAILED band with SYMBOL_NOT_FOUND.
     [ErrorCode.AMBIGUOUS_SYMBOL]: ExitCode.EDIT_FAILED,
   [ErrorCode.UNSUPPORTED_LANGUAGE]: ExitCode.EDIT_FAILED,
+  // The file is fine and the operation exists; this particular import cannot
+  // be written into this particular module system. Same band as
+  // UNSUPPORTED_LANGUAGE: the edit failed on a precondition the caller can
+  // fix, and retrying the same call verbatim will not help (#139).
+  [ErrorCode.MODULE_SYSTEM_MISMATCH]: ExitCode.EDIT_FAILED,
   // The search did not complete, so the edit did not happen for a reason the
   // caller can act on (raise the cap, target a shallower node) — an edit
   // failure, not a retryable precondition (#39).
