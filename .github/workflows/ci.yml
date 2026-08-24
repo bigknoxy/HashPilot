@@ -72,18 +72,27 @@ jobs:
         with:
           node-version: 20
 
+      # The tarball name follows the package name, so it changed with the scope
+      # (#96). Take it from npm's own output rather than globbing a name.
       - name: Pack the tarball
-        run: npm pack --pack-destination /tmp
+        run: echo "TARBALL=/tmp/$(npm pack --pack-destination /tmp | tail -1)" >> "$GITHUB_ENV"
 
       - name: Inspect tarball contents
         run: |
-          tar -tzf /tmp/hashpilot-*.tgz | sort
+          tar -tzf "$TARBALL" | sort
           # The bin target must actually be in the package, or the install is broken.
-          tar -tzf /tmp/hashpilot-*.tgz | grep -qx 'package/src/cli-node.cjs'
-          tar -tzf /tmp/hashpilot-*.tgz | grep -qx 'package/src/cli.ts'
+          tar -tzf "$TARBALL" | grep -qx 'package/src/cli-node.cjs'
+          tar -tzf "$TARBALL" | grep -qx 'package/src/cli.ts'
+          # The MCP server is the primary distribution surface; shipping without
+          # it would be a silently useless package.
+          tar -tzf "$TARBALL" | grep -qx 'package/src/mcp/server.ts'
+          # Nothing from the test or bench trees belongs in a published tarball.
+          if tar -tzf "$TARBALL" | grep -qE '^package/(tests|bench)/'; then
+            echo "FAIL: tarball ships tests/ or bench/"; exit 1
+          fi
 
       - name: Install globally without Bun present
-        run: npm i -g /tmp/hashpilot-*.tgz
+        run: npm i -g "$TARBALL"
 
       - name: Assert actionable message, not a stack trace
         run: |
