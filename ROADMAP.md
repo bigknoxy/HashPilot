@@ -62,6 +62,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | # | Item | Score | Pri | Evidence | Area |
 |---|------|-------|-----|----------|------|
 | [#25](../../issues/25) | B21 — Ship an MCP server generated from a shared operation registry | 53 | P2 | verified | strategy |
+| [#145](../../issues/145) | B56 — tree-sitter has no linux-arm64 prebuild: install fails, and a missing binding kills every command | 51 | P2 | verified | ops |
 | [#28](../../issues/28) | B25 — Git-awareness, blast-radius gate, checkpointing | 50 | P2 | verified | security |
 | [#34](../../issues/34) | B33 — CI: single OS, no typecheck, no smoke/installer test, no coverage | 48 | P2 | reported | ops |
 | [#30](../../issues/30) | B27 — Encoding fidelity: trailing newline stripped, CRLF destroyed, BOM folded | 47 | P2 | verified | correctness |
