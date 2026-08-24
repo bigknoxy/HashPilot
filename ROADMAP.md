@@ -65,6 +65,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#25](../../issues/25) | B21 — Ship an MCP server generated from a shared operation registry | 53 | P2 | verified | strategy |
 | [#145](../../issues/145) | B56 — tree-sitter has no linux-arm64 prebuild: install fails, and a missing binding kills every command | 51 | P2 | verified | ops |
 | [#28](../../issues/28) | B25 — Git-awareness, blast-radius gate, checkpointing | 50 | P2 | verified | security |
+| [#147](../../issues/147) | B57 — Publish via npm OIDC trusted publishing and drop the NPM_TOKEN secret | 49 | P2 | verified | ops · security |
 | [#34](../../issues/34) | B33 — CI: single OS, no typecheck, no smoke/installer test, no coverage | 48 | P2 | reported | ops |
 | [#30](../../issues/30) | B27 — Encoding fidelity: trailing newline stripped, CRLF destroyed, BOM folded | 47 | P2 | verified | correctness |
 | [#33](../../issues/33) | B30 — Fuzzy match window far wider than the `fuzzy` parameter implies | 47 | P2 | reported | correctness |

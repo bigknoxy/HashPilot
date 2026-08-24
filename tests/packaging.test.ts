@@ -35,10 +35,42 @@ describe("package manifest", () => {
     expect(npmPlugin![1].npmPublish).toBe(true);
   });
 
-  test("the release workflow passes NPM_TOKEN, without which the publish cannot run", () => {
+  test("the release workflow passes NPM_TOKEN and grants id-token for provenance", () => {
     const wf = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
     expect(wf).toContain("NPM_TOKEN: ${{ secrets.NPM_TOKEN }}");
     expect(wf).toContain("id-token: write");
+  });
+
+  // #147 — trusted publishing needs npm >= 11.5.1 on Node >= 22.14, and the
+  // publish is a subprocess of a Bun-run semantic-release, so the Node pin is
+  // load-bearing rather than decorative.
+  test("the release workflow pins Node for the npm publish subprocess", () => {
+    const wf = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+    expect(wf).toContain("actions/setup-node@v4");
+    expect(wf).toMatch(/node-version:\s*2[24]/);
+  });
+
+  test("setup-node does not set registry-url, which would shadow the publish auth", () => {
+    const wf = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+    // `registry-url` writes a project .npmrc holding `_authToken=${NODE_AUTH_TOKEN}`;
+    // set-npmrc-auth reads that as auth already configured and then publishes
+    // with an unset variable.
+    expect(wf).not.toMatch(/^\s*registry-url:/m);
+  });
+
+  test("a missing or rejected credential is caught before semantic-release runs", () => {
+    const wf = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+    expect(wf).toContain("Verify a publishing credential is available");
+    // The guard must run before the release step, or it guards nothing.
+    expect(wf.indexOf("Verify a publishing credential")).toBeLessThan(wf.indexOf("bun run semantic-release"));
+  });
+
+  test("@semantic-release/npm is new enough to publish without a token", () => {
+    // 12.x throws ENONPMTOKEN whenever NPM_TOKEN is falsy — it has no OIDC path
+    // at all. Trusted publishing needs the lib/trusted-publishing/ added in 13.x.
+    const range = pkg.devDependencies["@semantic-release/npm"];
+    const major = Number(range.replace(/^[^\d]*/, "").split(".")[0]);
+    expect(major).toBeGreaterThanOrEqual(13);
   });
 });
 
