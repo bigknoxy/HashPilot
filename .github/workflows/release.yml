@@ -97,7 +97,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Semantic Release
         run: bun run semantic-release
