@@ -41,7 +41,7 @@ jobs:
       # Node >= 22.14, and the runner image's bundled versions drift, so pin them
       # here rather than inherit whatever the image ships (#147).
       - name: Setup Node (for the npm publish subprocess)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           # Deliberately no `registry-url`: that writes a project .npmrc holding
