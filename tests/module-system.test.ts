@@ -96,6 +96,52 @@ describe("detectModuleSystem — package.json", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  /**
+   * #161 — `path.parse().root` is `""` for a relative path, so the ancestor
+   * walk's stop condition (`dir === root`) never fired against a relative
+   * `startDir`: the walk quietly stopped at `cwd` instead of continuing to
+   * the real filesystem root. In a monorepo, that means a relative-path
+   * lookup from a subpackage misses a `package.json` that sits above `cwd`
+   * and falls through to the wrong default, while the identical absolute
+   * path correctly finds it.
+   */
+  test("relative and absolute paths from a monorepo subpackage agree (#161)", () => {
+    const root = sandbox({
+      "package.json": '{"name":"monorepo"}', // no "type" field: CommonJS per Node's default
+      "packages/pkgA/src/bare.js": "",
+    });
+    const prevCwd = process.cwd();
+    try {
+      process.chdir(join(root, "packages/pkgA"));
+      const relative = detectModuleSystem("src/bare.js", "");
+      const absolute = detectModuleSystem(join(root, "packages/pkgA/src/bare.js"), "");
+      expect(relative).toEqual(absolute);
+      expect(relative.system).toBe("cjs");
+      expect(relative.signal).toBe("package.json");
+    } finally {
+      process.chdir(prevCwd);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("nearestPackageType itself agrees on a relative vs. absolute startDir", () => {
+    const root = sandbox({
+      "package.json": '{"name":"monorepo"}',
+      "packages/pkgA/src/bare.js": "",
+    });
+    const prevCwd = process.cwd();
+    try {
+      process.chdir(join(root, "packages/pkgA"));
+      const relative = nearestPackageType("src");
+      const absolute = nearestPackageType(join(root, "packages/pkgA/src"));
+      expect(relative).toEqual(absolute);
+      expect(relative?.system).toBe("cjs");
+    } finally {
+      process.chdir(prevCwd);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("detectModuleSystem — content sniff", () => {
