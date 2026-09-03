@@ -51,6 +51,29 @@ describe("redactSecrets", () => {
     const src = "function add(a: number, b: number) { return a + b; }";
     expect(redactSecrets(src)).toBe(src);
   });
+
+  test("redacts bare cloud-credential *Key assignments", () => {
+    for (const line of [
+      "AccountKey=Eby8vdM3v==",
+      '"primaryKey": "xyz123abc456"',
+      "MasterKey: supersecretvalue",
+      "AuthKey = qwertyuiopas",
+      "PrivateKey=abcdef123456",
+    ]) {
+      expect(redactSecrets(line)).toContain("[REDACTED]");
+    }
+  });
+
+  test("does not redact ordinary identifiers that merely contain 'key'", () => {
+    for (const line of [
+      "const primaryKeyColumn = 'user_id'",
+      "function keyboardHandler(event) { return event.key; }",
+      "const keyCode = 13",
+      'obj["someKey"] = getValue()',
+    ]) {
+      expect(redactSecrets(line)).not.toContain("[REDACTED]");
+    }
+  });
 });
 
 describe("isSensitiveFile", () => {
