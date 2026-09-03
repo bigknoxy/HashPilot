@@ -2,7 +2,11 @@
 # HashPilot Doctor — Standalone installation health check
 # Can run even when CLI is not on PATH.
 
-HASHPILOT_VERSION="0.1.0"
+# Derive the version from package.json rather than hardcoding a stale literal
+# here (#156). This script is standalone (runs before the CLI is installed),
+# so it reads package.json directly instead of importing any TS module.
+HASHPILOT_VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$(dirname "$0")/../package.json" 2>/dev/null | head -1)"
+HASHPILOT_VERSION="${HASHPILOT_VERSION:-unknown}"
 # shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'

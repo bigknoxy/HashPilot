@@ -13,6 +13,13 @@
 
 import { OPERATIONS, getOperation, inputSchemaFor } from "../core/operations";
 import { API_VERSION, setCommand, takeWarnings } from "../core/envelope";
+// Single source of truth for the version. Bun inlines this JSON import at
+// build time, so any bundle carries the real published version instead of a
+// stale env-var fallback (#156).
+import pkg from "../../package.json" with { type: "json" };
+
+/** The package version, echoed back in `initialize`'s `serverInfo`. */
+const SERVER_VERSION: string = pkg.version;
 
 /** The MCP revision we implement. Echoed back in `initialize`. */
 export const PROTOCOL_VERSION = "2024-11-05";
@@ -223,7 +230,7 @@ export async function handleRequest(req: JsonRpcRequest): Promise<JsonRpcRespons
           result: {
             protocolVersion: PROTOCOL_VERSION,
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: "hashpilot", version: process.env.HASHPILOT_VERSION || "dev" },
+            serverInfo: { name: "hashpilot", version: SERVER_VERSION },
           },
         };
 
