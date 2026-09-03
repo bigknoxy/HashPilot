@@ -290,7 +290,15 @@ export async function executePlan(
   // it did. A step that failed is the root cause; "verification-failed" is the
   // case where every step applied but a check (test/lint/typecheck) failed.
   let revertReason: "verification-failed" | "step-failure" | undefined;
-  if ((stepFailed || verifyFailed) && doRevert && !dryRun && originals.size > 0) {
+  // Gated on (stepFailed || verifyFailed) && doRevert && !dryRun only — NOT on
+  // originals.size > 0. If the snapshot pass failed for every file, originals
+  // is empty and the restore loop below is a no-op, but the unsnapshotted/
+  // editedFiles accounting still must run: a step can succeed in writing a
+  // file whose blanket snapshot read failed (its own read-before-write
+  // succeeded independently), and that edit is exactly as unrevertable as one
+  // whose restore write threw (#160/B59). Skipping this whole block when
+  // originals is empty silently dropped that signal.
+  if ((stepFailed || verifyFailed) && doRevert && !dryRun) {
     revertReason = stepFailed ? "step-failure" : "verification-failed";
     for (const [file, original] of originals) {
       try { await safeWrite(file, original); }
