@@ -372,4 +372,48 @@ export const astCases: BenchCase[] = [
       "no extension, package.json, or in-file signal settles which module system Node will use, and emitting either syntax risks a file that does not load (#139)",
     tags: ["add-import", "javascript", "ambiguity", "139"],
   },
+  // ── #139/#142: the actual failure class, not just the extension shortcut ──
+  // The cases above all settle the module system via `.cjs`/`.mjs` or in-file
+  // markers. #139 itself was a *bare* `.js` file whose only signal is the
+  // nearest `package.json` — the code path these two cases exercise. Both
+  // assert with `assertLoads`: a real `node` subprocess actually loads the
+  // post-edit file, so a result that merely parses under tree-sitter (import
+  // and require share a grammar) but crashes at runtime cannot slip through
+  // on a string match alone.
+  {
+    id: "ast-add-import-bare-js-package-json-cjs",
+    description:
+      "add-import into a bare .js file with no in-file markers, governed only by a sibling package.json with no \"type\" field (#139's original failure class)",
+    file: "bare.js",
+    source: ["function util() {", "  return 1;", "}", "", "module.exports = { util };", ""].join("\n"),
+    extraFiles: {
+      // No "type" field: CommonJS per Node's own default. This is the only
+      // signal available — the file itself has neither require() nor import.
+      "package.json": '{"name":"pkg"}',
+    },
+    edit: { operation: "add-import", importSpec: '{ join } from "path"' },
+    expected: ['const { join } = require("path");', "function util() {", "  return 1;", "}", "", "module.exports = { util };", ""].join("\n"),
+    assertLoads: true,
+    tags: ["add-import", "javascript", "commonjs", "139", "142"],
+  },
+  {
+    id: "ast-add-import-bare-js-monorepo-relative-cjs",
+    description:
+      "add-import into a bare .js file addressed by a relative path from a monorepo subpackage, with the nearest package.json several directories above cwd (#161)",
+    file: "packages/pkgA/src/bare.js",
+    source: ["function util() {", "  return 1;", "}", "", "module.exports = { util };", ""].join("\n"),
+    extraFiles: {
+      // Sits at the monorepo root, above cwd — only reachable if the
+      // ancestor walk resolves the relative startDir before comparing
+      // against the filesystem root (#161).
+      "package.json": '{"name":"monorepo"}',
+    },
+    // Runner chdir's here and addresses the file as "src/bare.js" — the
+    // exact relative-path shape #161 reported.
+    cwdSubdir: "packages/pkgA",
+    edit: { operation: "add-import", importSpec: '{ join } from "path"' },
+    expected: ['const { join } = require("path");', "function util() {", "  return 1;", "}", "", "module.exports = { util };", ""].join("\n"),
+    assertLoads: true,
+    tags: ["add-import", "javascript", "commonjs", "monorepo", "161", "142"],
+  },
 ];

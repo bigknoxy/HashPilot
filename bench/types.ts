@@ -82,6 +82,32 @@ export interface BenchCase {
    * promised a diff is the regression #98 was filed for.
    */
   expectPreview?: "diff" | "source";
+  /**
+   * Extra files written into the case's scratch root before the edit runs
+   * (relative path -> content). Used to plant a `package.json` above or
+   * beside the target file so module-system detection has something real to
+   * find (#139, #142) — the target file itself stays a single-purpose
+   * fixture.
+   */
+  extraFiles?: Record<string, string>;
+  /**
+   * Directory, relative to the case's scratch root, to `process.chdir()`
+   * into before calling `routeEdit`, addressing `file` by a *relative* path
+   * computed from that directory instead of the usual absolute path. Exists
+   * to reproduce bugs that only manifest for relative-path input, such as
+   * the monorepo ancestor-walk gap in #161 — routing the identical edit by
+   * absolute path from the same cwd must produce the same result.
+   */
+  cwdSubdir?: string;
+  /**
+   * After a `correct` outcome, actually run the resulting JavaScript file
+   * under Node (not just tree-sitter) and require the process to exit
+   * cleanly. tree-sitter parses both `import` and `require` in the same
+   * grammar, so a byte-for-byte `expected` match can still hide a file that
+   * reports `ok: true` and then fails to load — the exact shape of #139.
+   * This is the assertion the string-equality check alone cannot make.
+   */
+  assertLoads?: boolean;
   /** Free-form tags for slicing the report (e.g. "grouped-import", "unicode"). */
   tags?: string[];
   /**
