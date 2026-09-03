@@ -1,59 +1,12 @@
 ## Install HashPilot
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash
-```
-
-This installs the `hashpilot` CLI and injects the sections below into `~/.claude/CLAUDE.md`.
-
----
+`curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash` — installs `hashpilot` CLI on PATH; injects the section below into `~/.claude/CLAUDE.md`.
 
 ## HashPilot Claude — Structured Editing Integration
-
-This session has HashPilot Claude active at user scope.
-HashPilot Core (`hashpilot`) is available on PATH.
-
-### Preferred: use the MCP server
-
-If this host speaks MCP, register HashPilot once and use its tools directly
-instead of shelling out:
-
-```bash
-claude mcp add hashpilot -- hashpilot mcp --stdio
-```
-
-The MCP tools mirror the CLI one-for-one (`rename_symbol`, `replace_hash`,
-`route_edit`, `verify_changes`, and the read/search tools), and multi-line
-content with quotes or backticks rides inside JSON rather than through shell
-quoting. Setup for other hosts: `docs/INTEGRATION-MCP.md`.
-
-The CLI commands below remain fully supported and are the fallback when MCP is
-not available in this host.
-
-**Use HashPilot when:** editing existing files, renaming symbols, replacing function bodies, managing imports, batch reading, or verifying changes.
-
-**Skip HashPilot when:** creating new files, deleting files, moving/renaming files, simple one-off edits, or file system operations — use direct commands instead.
-
-Edit hierarchy (prefer top first):
-1. **`hashpilot ast <subcommand>`** — syntax-aware structured edit (best)
-2. **`hashpilot replace-hash`** — hash-anchored content replacement (safe)
-3. **Direct Edit/Write** — fallback only
-
-Batched operations (use these over single-file tools when practical):
-- `/hashpilot-read <paths>` — batched file reads via hashpilot read-many
-- `/hashpilot-search <pattern>` — batched search via hashpilot grep-many
-- `/hashpilot-verify [files]` — bundled verification via hashpilot verify-changes
-
-Route introspection and config:
-- `hashpilot route <file> <op> [--policy <json>]` — detailed route explanation with policy testing
-- `hashpilot config` — show current merged configuration
-
-Output shape (all commands, apiVersion 1):
-`{ apiVersion, ok, command, data, error, warnings }` — the per-command payload is under
-`data`, failures carry `error.code` (+ `error.recovery` where a next command exists), and
-`ok` always agrees with the exit code. `warnings` reports route fallbacks, relocated
-anchors, and corrupt telemetry lines. See `docs/ADAPTER-CONTRACT.md`.
-
-Status and control:
-- `/hashpilot-status` — check adapter status
-- `HASHPILOT_DISABLE=1` — bypass HashPilot entirely (env var)
+Active at user scope; `hashpilot` is on PATH.
+- **Preferred:** `claude mcp add hashpilot -- hashpilot mcp --stdio`. Tools mirror the CLI 1:1 (`rename_symbol`, `replace_hash`, `route_edit`, `verify_changes`, plus read/search tools); JSON avoids shell-quoting. Other hosts: `docs/INTEGRATION-MCP.md`. CLI below is the fallback when MCP is unavailable.
+- **Use when:** editing existing files, renaming symbols, replacing function bodies, managing imports, batch reading, verifying changes. **Skip when:** creating/deleting/moving files, one-off edits, other filesystem ops — use direct Edit/Write.
+- **Edit hierarchy** (top preferred): `hashpilot ast <subcommand>` (syntax-aware, best) → `hashpilot replace-hash` (hash-anchored, safe) → direct Edit/Write (fallback only).
+- **Batched ops:** `/hashpilot-read <paths>` (→ `read-many`), `/hashpilot-search <pattern>` (→ `grep-many`), `/hashpilot-verify [files]` (→ `verify-changes`).
+- **Introspection:** `hashpilot route <file> <op> [--policy <json>]`; `hashpilot config`.
+- **Output** (apiVersion 1): `{ apiVersion, ok, command, data, error, warnings }` — payload in `data`; failures carry `error.code` (+`error.recovery` when actionable); `ok` matches exit code; `warnings` covers route fallbacks/relocated anchors/corrupt telemetry. See `docs/ADAPTER-CONTRACT.md`.
+- **Status/control:** `/hashpilot-status`; `HASHPILOT_DISABLE=1` bypasses HashPilot entirely.
