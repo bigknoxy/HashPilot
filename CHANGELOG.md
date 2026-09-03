@@ -1,3 +1,16 @@
+# [4.6.0](https://github.com/bigknoxy/HashPilot/compare/v4.5.3...v4.6.0) (2026-09-02)
+
+
+### Bug Fixes
+
+* **workflows:** remove misplaced dependabot.yml (it lives at .github/dependabot.yml, not in workflows/) ([26dccd7](https://github.com/bigknoxy/HashPilot/commit/26dccd76d77cc3c0241b27b6696f1b134330030e))
+* **workflows:** remove misplaced dependabot.yml config ([#155](https://github.com/bigknoxy/HashPilot/issues/155)) ([5354108](https://github.com/bigknoxy/HashPilot/commit/5354108b7f6aeb7cdfa374d1f3863116254baa19))
+
+
+### Features
+
+* **dist:** publish to npm as @bigknoxy/hashpilot ([#144](https://github.com/bigknoxy/HashPilot/issues/144)) ([467908c](https://github.com/bigknoxy/HashPilot/commit/467908ca4d2c544e19b64d7ff3010a1f01aa35e4)), closes [#96](https://github.com/bigknoxy/HashPilot/issues/96) [#96](https://github.com/bigknoxy/HashPilot/issues/96)
+
 ## [4.5.3](https://github.com/bigknoxy/HashPilot/compare/v4.5.2...v4.5.3) (2026-08-24)
 
 
