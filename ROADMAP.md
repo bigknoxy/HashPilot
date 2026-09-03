@@ -101,6 +101,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#40](../../issues/40) | B38 — Empty-string `newContent` unroutable; hash-tier deletion impossible | 39 | P3 | correctness |
 | [#46](../../issues/46) | B44 — `doctor` inverts stdout/stderr and always exits 0 | 39 | P3 | cli |
 | [#49](../../issues/49) | B47 — `gh-pages` publishes the entire repository | 39 | P3 | ops |
+| [#157](../../issues/157) | B58 — Install script version banner always shows `vunknown` under curl-pipe install | 38 | P3 | ops |
 | [#57](../../issues/57) | B52 — `grep-many` args are positional but read as flags; Commander errors escape the JSON envelope | 38 | P3 | cli |
 | [#39](../../issues/39) | B37 — Symbol search silently truncates at depth 10 | 37 | P3 | correctness |
 | [#45](../../issues/45) | B43 — Publish a config JSON Schema; add `config validate` and `init` | 37 | P3 | cli |
