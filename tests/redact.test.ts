@@ -55,13 +55,14 @@ describe("redactSecrets", () => {
   test("redacts bare cloud-credential *Key assignments", () => {
     for (const line of [
       // Azure Storage AccountKey: real keys are ~88-char base64.
-      "AccountKey=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==",
-      // Cosmos DB PrimaryKey: also ~88-char base64.
-      '"primaryKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA=="',
-      "MasterKey: AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA==",
-      // Redis-style AUTH key: ~40 chars.
-      "AuthKey = M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU",
-      "PrivateKey=M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU",
+      // Synthetic fixture, not a real credential. gitleaks:allow
+      "AccountKey=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==", // gitleaks:allow
+      // Cosmos DB PrimaryKey: also ~88-char base64. Synthetic fixture. gitleaks:allow
+      '"primaryKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA=="', // gitleaks:allow
+      "MasterKey: AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA==", // gitleaks:allow
+      // Redis-style AUTH key: ~40 chars. Synthetic fixture. gitleaks:allow
+      "AuthKey = M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU", // gitleaks:allow
+      "PrivateKey=M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU", // gitleaks:allow
     ]) {
       expect(redactSecrets(line)).toContain("[REDACTED]");
     }
