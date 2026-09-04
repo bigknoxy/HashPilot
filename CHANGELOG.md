@@ -1,3 +1,10 @@
+## [4.6.5](https://github.com/bigknoxy/HashPilot/compare/v4.6.4...v4.6.5) (2026-09-04)
+
+
+### Bug Fixes
+
+* **ast:** lazy-load tree-sitter so a missing binding degrades, not crashes ([#145](https://github.com/bigknoxy/HashPilot/issues/145)) ([#191](https://github.com/bigknoxy/HashPilot/issues/191)) ([a806913](https://github.com/bigknoxy/HashPilot/commit/a806913a8927115287327d5421c87da8e1553880)), closes [#46](https://github.com/bigknoxy/HashPilot/issues/46) [#46](https://github.com/bigknoxy/HashPilot/issues/46)
+
 ## [4.6.4](https://github.com/bigknoxy/HashPilot/compare/v4.6.3...v4.6.4) (2026-09-04)
 
 
