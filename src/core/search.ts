@@ -172,7 +172,7 @@ export async function search(query: string, paths: string[], opts: SearchOptions
     };
   }
 
-  const args = [query];
+  const args = ["query", query];
   for (const g of queryGlobs) args.push("-g", g);
   const { stdout, stderr, code } = await runZg(args, zgBin!);
 

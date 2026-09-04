@@ -11,8 +11,10 @@
  *   FAKE_ZG_EXIT   if set, exit with this code and print `FAKE ERROR` on stderr
  */
 const argv = process.argv.slice(2);
-const q = process.argv.slice(2).join(" ");
-const target = q.split(/\s+/)[0] ?? q; // first token often holds globs; use full q for words
+// Accept both `zg "<query>"` and `zg query "<query>"` (the real CLI uses the latter).
+if (argv[0] === "query") argv.shift();
+const q = argv.join(" ");
+const target = q.split(/\s+/)[0] ?? q;
 
 if (process.env.FAKE_ZG_LOG) {
   require("fs").appendFileSync(process.env.FAKE_ZG_LOG, `${argv.join(" ")}\n`);
