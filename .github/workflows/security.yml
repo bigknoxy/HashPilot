@@ -22,6 +22,10 @@ permissions:
 jobs:
   security:
     uses: bigknoxy/.github/.github/workflows/security-reusable.yml@main
+    permissions:
+      contents: read
+      security-events: write   # SARIF upload (CodeQL)
+      pull-requests: write     # dependency-review PR comment
     with:
       language: node
       has_docker: false
