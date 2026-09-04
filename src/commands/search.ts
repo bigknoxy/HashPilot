@@ -4,7 +4,6 @@ import {
   loadConfig,
   recordEvent,
   finish,
-  usageError,
   DEFAULT_SOURCE_GLOBS,
 } from "../core/index";
 import type { SearchResult } from "../core/index";
@@ -40,9 +39,6 @@ export function register(program: Command): void {
     .option("--zg-bin <path>", "Path to the zg binary (default: ZG_BIN env, then PATH)")
 
     .action(async (query: string, paths: string[], opts) => {
-      if (!query) {
-        return usageError('search requires a query: search "<query>"');
-      }
       const start = Date.now();
       const config = loadConfig();
       // Config defaults apply only when the CLI flag is left at its "auto" default.

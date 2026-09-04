@@ -82,39 +82,55 @@ export function parseZgMarkdown(text: string): SearchHit[] {
   return hits;
 }
 
-function matchesSource(file: string, globs: string[]): boolean {
+export function matchesSource(file: string, globs: string[]): boolean {
   if (!globs || globs.length === 0) return true;
   return globs.some((g) => {
-    if (g.startsWith("*.")) return file.endsWith(g.slice(1));
+    if (g.startsWith("*.")) {
+      const ext = g.slice(1); // e.g. ".ts"
+      // Check that the file's actual extension matches. We use the last "."
+      // in the final path segment as the extension boundary — same as path.extname.
+      const basename = file.split("/").pop()!;
+      const dotIdx = basename.lastIndexOf(".");
+      if (dotIdx === -1) return false;
+      return basename.slice(dotIdx) === ext;
+    }
     return file.endsWith(g);
   });
 }
 
-function runZg(argv: string[], bin: string, timeoutMs = 60_000): Promise<{ stdout: string; stderr: string; code: number | null }> {
+interface ZgProcessResult {
+  stdout: string;
+  stderr: string;
+  code: number | null;
+  timedOut?: boolean;
+  spawnError?: string;
+}
+
+function runZg(argv: string[], bin: string, timeoutMs = 60_000): Promise<ZgProcessResult> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
     let settled = false;
-    const done = (code: number | null) => {
+    const done = (result: ZgProcessResult) => {
       if (settled) return;
       settled = true;
-      resolve({ stdout, stderr, code });
+      resolve(result);
     };
     try {
       const proc = spawn(bin, argv, { stdio: ["ignore", "pipe", "pipe"] });
       const timer = setTimeout(() => {
         proc.kill("SIGKILL");
-        done(null);
+        done({ stdout, stderr, code: null, timedOut: true });
       }, timeoutMs);
       proc.stdout.on("data", (d) => (stdout += d));
       proc.stderr.on("data", (d) => (stderr += d));
-      proc.on("error", () => done(null));
+      proc.on("error", (err) => done({ stdout, stderr, code: null, spawnError: err.message }));
       proc.on("close", (code) => {
         clearTimeout(timer);
-        done(code);
+        done({ stdout, stderr, code });
       });
-    } catch {
-      done(null);
+    } catch (err: unknown) {
+      done({ stdout, stderr, code: null, spawnError: err instanceof Error ? err.message : String(err) });
     }
   });
 }
@@ -139,10 +155,21 @@ export async function search(query: string, paths: string[], opts: SearchOptions
   const zgBin = resolveZgBinary(opts.zgBin);
   const zgUsable = !!zgBin && existsSync(zgBin);
 
-  // Which engine do we run? "off"/"grep" never touch zg. "auto" prefers zg when
-  // available. "zg" uses zg but degrades to grep rather than failing (F2): a
-  // misconfigured / missing binary must not hard-crash the search command.
-  const engineIsGrep = engine === "grep" || engine === "off";
+  // Which engine do we run? "off" means search is disabled — return empty immediately.
+  // "grep" never touches zg. "auto" prefers zg when available. "zg" uses zg but
+  // degrades to grep rather than failing (F2): a misconfigured / missing binary
+  // must not hard-crash the search command.
+  if (engine === "off") {
+    return {
+      engine: "grep",
+      query,
+      pattern: "",
+      results: [],
+      degraded: false,
+      elapsed_ms: Date.now() - start,
+    };
+  }
+  const engineIsGrep = engine === "grep";
   const degraded = engineIsGrep ? false : !zgUsable;
   const useZg = !engineIsGrep && zgUsable;
 
@@ -174,19 +201,24 @@ export async function search(query: string, paths: string[], opts: SearchOptions
 
   const args = ["query", query];
   for (const g of queryGlobs) args.push("-g", g);
-  const { stdout, stderr, code } = await runZg(args, zgBin!);
+  const { stdout, stderr, code, timedOut, spawnError } = await runZg(args, zgBin!);
 
   if (code !== 0) {
     if (code === 1 && !stderr) {
       // zg mirrors ripgrep: exit 1 with no stderr = no matches.
       return { engine: "zg", query, hits: [], elapsed_ms: Date.now() - start };
     }
+    const diagnostic = timedOut
+      ? `zg timed out after 60s`
+      : spawnError
+        ? `zg spawn failed: ${spawnError}`
+        : (stderr || stdout || "zg exited unsuccessfully");
     return {
       engine: "zg",
       query,
       hits: [],
       errorCode: "SEARCH_FAILED",
-      error: (stderr || stdout || "zg exited unsuccessfully").slice(0, 300),
+      error: diagnostic.slice(0, 300),
       elapsed_ms: Date.now() - start,
     };
   }

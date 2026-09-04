@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { parseZgMarkdown, search, type SearchHit } from "../src/core/search";
+import { parseZgMarkdown, search, matchesSource, DEFAULT_SOURCE_GLOBS, type SearchHit } from "../src/core/search";
 import { grepMany } from "../src/core/grep";
 import { readFileSync, mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
 import { join } from "path";
@@ -80,12 +80,15 @@ describe("search grep parity (F5) + degrade (F2)", () => {
 });
 
 describe("search engine=off never spawns zg (F6)", () => {
-  test("force-grep leaves the fake zg uninvoked", async () => {
+  test("engine=off returns empty results and never invokes zg", async () => {
     const log = join(TMP_DIR, "zg-invocations.log");
     process.env.FAKE_ZG_LOG = log;
     const res = await search("router", [join(TMP_DIR, "a.ts")], { engine: "off", zgBin: FAKE_ZG, root: TMP_DIR });
     delete process.env.FAKE_ZG_LOG;
-    if (res.engine === "grep") expect(res.degraded).toBe(false);
+    expect(res.engine).toBe("grep");
+    if (res.engine !== "grep") return;
+    expect(res.degraded).toBe(false);
+    expect(res.results).toEqual([]);
     expect(existsSync(log)).toBe(false);
   });
 });
@@ -99,6 +102,14 @@ describe("search sourceGlobs drop docs ranked above source (F1)", () => {
     expect(res.hits.length).toBeGreaterThan(0);
     expect(res.hits.every((h) => !h.file.endsWith(".md"))).toBe(true);
     expect(res.hits.some((h) => h.file === "src/core/config.ts")).toBe(true);
+  });
+
+  test("matchesSource rejects false extension matches like foo.ats for *.ts", () => {
+    expect(matchesSource("bar.ts", DEFAULT_SOURCE_GLOBS)).toBe(true);
+    expect(matchesSource("foo.ats", DEFAULT_SOURCE_GLOBS)).toBe(false);
+    expect(matchesSource("README.md", DEFAULT_SOURCE_GLOBS)).toBe(false);
+    expect(matchesSource("src/main.go", DEFAULT_SOURCE_GLOBS)).toBe(true);
+    expect(matchesSource("noext", DEFAULT_SOURCE_GLOBS)).toBe(false);
   });
 });
 
