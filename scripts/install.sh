@@ -78,8 +78,15 @@ fetch_and_extract_tarball() {
     elif command -v openssl >/dev/null 2>&1; then
       actual_sha1="$(openssl sha1 "$tmp_tarball" 2>/dev/null | awk '{print $NF}')"
     else
-      warn "no sha1sum/shasum/openssl found; skipping tarball checksum verification"
-      actual_sha1="$expected_sha1"
+      # Fail closed, not open: forging a match here would silently disable
+      # the integrity guarantee this whole check exists for. Returning
+      # failure instead routes through this function's normal
+      # failure-handling — the caller already treats that identically to a
+      # checksum mismatch or a failed download, falling back to the GitHub
+      # source rather than installing something unverified.
+      warn "no sha1sum/shasum/openssl found; cannot verify tarball checksum"
+      rm -f "$tmp_tarball"
+      return 1
     fi
     if [ "$actual_sha1" != "$expected_sha1" ]; then
       warn "tarball checksum mismatch (expected ${expected_sha1}, got ${actual_sha1:-<none>})"
