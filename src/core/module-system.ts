@@ -13,7 +13,7 @@
  * nearest `package.json`, and a content sniff, none of which need a parse.
  */
 import { readFileSync } from "node:fs";
-import { dirname, join, parse as parsePath } from "node:path";
+import { dirname, join, parse as parsePath, resolve } from "node:path";
 
 export type ModuleSystem = "esm" | "cjs";
 
@@ -36,10 +36,16 @@ export interface ModuleSystemVerdict {
  * A `package.json` that exists but declares no `type` is not silence: the field
  * defaults to `"commonjs"` per Node's own resolution rules, so that is a real
  * CJS signal.
+ *
+ * `startDir` is absolutized against `process.cwd()` before the walk begins
+ * (#161): `path.parse()` reports `root: ""` for a relative path, which would
+ * otherwise never equal `dir` and let the walk run past the real filesystem
+ * root — silently stopping at `cwd` instead of reaching a monorepo root
+ * `package.json` that sits above it.
  */
 export function nearestPackageType(startDir: string): { system: ModuleSystem; path: string } | null {
-  const { root } = parsePath(startDir);
-  let dir = startDir;
+  let dir = resolve(startDir);
+  const { root } = parsePath(dir);
   // Bounded by the filesystem root; `dirname("/") === "/"` terminates the walk.
   for (;;) {
     const candidate = join(dir, "package.json");
