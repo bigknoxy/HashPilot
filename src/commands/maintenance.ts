@@ -25,7 +25,7 @@ export function register(program: Command): void {
 
   program
     .command("upgrade")
-    .description("Upgrade HashPilot to the latest version from GitHub")
+    .description("Upgrade HashPilot to the latest version (npm, falling back to GitHub)")
     .option("--channel <channel>", "Release channel (default: main)", "main")
     .option("--target <dir>", "Install target directory (default: ~/.agentic-tools)")
     .option("--keep-telemetry", "Preserve existing telemetry on upgrade")
@@ -55,8 +55,12 @@ export function register(program: Command): void {
         }
         const script = await response.text();
 
-        // Write script to temp file and execute
+        // Write script to temp file and execute. targetDir may not exist yet
+        // on a genuinely first-time install (the `uninstall` command below
+        // already does this — `upgrade` didn't, and failed with a plain
+        // ENOENT on a brand-new target).
         const tmpScript = join(targetDir, `.hashpilot-upgrade-${Date.now()}.sh`);
+        mkdirSync(targetDir, { recursive: true });
         writeFileSync(tmpScript, script, { mode: 0o755 });
 
         const args = ["--target", targetDir];
@@ -66,7 +70,20 @@ export function register(program: Command): void {
         const proc = Bun.spawn(["bash", tmpScript, ...args], {
           stdout: "pipe",
           stderr: "pipe",
-          env: { ...process.env, PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}` },
+          env: {
+            ...process.env,
+            PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}`,
+            // Always set explicitly (never omitted) so a stale
+            // HASHPILOT_SOURCE_CHANNEL already exported in the caller's
+            // shell or a CI job's environment can't silently override the
+            // channel actually requested on *this* invocation — install.sh
+            // skips its npm-primary source fetch entirely when this is set
+            // to anything other than "main", since npm's published releases
+            // can't provide an arbitrary git ref, so an inherited stale
+            // value would silently install from git instead of npm with no
+            // warning at all.
+            HASHPILOT_SOURCE_CHANNEL: channel === "main" ? "" : channel,
+          },
         });
 
         const stdout = await new Response(proc.stdout).text();
