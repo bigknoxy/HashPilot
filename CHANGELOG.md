@@ -1,3 +1,10 @@
+## [4.6.4](https://github.com/bigknoxy/HashPilot/compare/v4.6.3...v4.6.4) (2026-09-04)
+
+
+### Bug Fixes
+
+* **redact:** add missing Azure cloud-credential *Key names ([#187](https://github.com/bigknoxy/HashPilot/issues/187)) ([1340734](https://github.com/bigknoxy/HashPilot/commit/1340734df0f4a6980a7a4d4b84c150f0ca528770)), closes [#179](https://github.com/bigknoxy/HashPilot/issues/179)
+
 ## [4.6.3](https://github.com/bigknoxy/HashPilot/compare/v4.6.2...v4.6.3) (2026-09-04)
 
 
