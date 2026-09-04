@@ -29,6 +29,8 @@ jobs:
 
   osv-scanner:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install + run OSV-Scanner
@@ -62,8 +64,6 @@ jobs:
           fi
       - name: Upload SARIF
         if: always()
-        permissions:
-          security-events: write
         uses: github/codeql-action/upload-sarif@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
         with:
           sarif_file: osv-results.sarif
