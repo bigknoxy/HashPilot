@@ -167,7 +167,7 @@ looks unrelated to AST. Green baseline is `bun test` fully passing (515 pass / 0
 
 <!-- BEGIN GENERATED: command reference -->
 
-_36 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
+_37 commands, generated from `--help`. Do not edit by hand — run `bun run gen:cli-quickref`._
 
 ### Global options
 
@@ -823,5 +823,24 @@ hashpilot config [options]
 | Flag | Meaning |
 |------|---------|
 | `--config <path>` | Config file path override |
+
+#### `search`
+
+Search a workspace: zg (zvec-grep) semantic/lexical when available, grep fallback. Usage: search "<query>" (zg) or search --engine grep "<pattern>" [paths...]
+
+```
+hashpilot search [options] <query> [paths...]
+```
+
+| Positional | Meaning |
+|------------|---------|
+| `query` | Query text (plain language for zg; a regex only makes sense on the grep engine) |
+| `paths` | Paths to search (grep engine only; zg searches its indexed workspace) |
+
+| Flag | Meaning |
+|------|---------|
+| `--engine <engine>` | Search engine: auto, zg, grep, off (default: config or auto) (default: "auto") |
+| `--glob <glob>` | Source glob filter, repeatable (default: code extensions) (default: []) |
+| `--zg-bin <path>` | Path to the zg binary (default: ZG_BIN env, then PATH) |
 
 <!-- END GENERATED: command reference -->

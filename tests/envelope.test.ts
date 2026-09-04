@@ -67,6 +67,7 @@ const INVOCATIONS: Array<[name: string, args: string[]]> = [
   ["read-many", ["read-many", "sample.ts"]],
   ["read-hash", ["read-hash", "sample.ts", "1"]],
   ["grep-many", ["grep-many", "alpha", "sample.ts"]],
+  ["search (grep)", ["search", "alpha", "--engine", "grep", "sample.ts"]],
   ["symbol-lookup-many", ["symbol-lookup-many", "sample.ts", "--names", "alpha"]],
   ["replace-hash (stale)", ["replace-hash", "sample.ts", "0".repeat(12), "x"]],
   ["ast capabilities", ["ast", "capabilities"]],

@@ -53,11 +53,26 @@ export interface SnapshotConfig {
   maxAgeDays?: number;
 }
 
+/**
+ * Optional zg (zvec-grep) integration. zg is an external search layer — HashPilot
+ * never depends on it; these set the default behavior of `hashpilot search`.
+ * See docs/zvec-grep-integration.md.
+ */
+export interface SearchConfig {
+  /** `auto` uses zg when a binary resolves, else grep. `off` never spawns zg. */
+  engine?: "auto" | "zg" | "grep" | "off";
+  /** Only these globs are returned from zg's results. Defaults to code extensions. */
+  sourceGlobs?: string[];
+  /** Path to the zg binary. Defaults to ZG_BIN env, then PATH. */
+  zgBin?: string;
+}
+
 export interface HashPilotConfig {
   routePolicy?: RoutePolicy;
   telemetry?: TelemetryConfig;
   provenance?: ProvenanceConfig;
   snapshots?: SnapshotConfig;
+  search?: SearchConfig;
   /** Extra directories writes may target, beyond the project root. Relative entries resolve against cwd. */
   allowedRoots?: string[];
 }
@@ -182,6 +197,9 @@ function mergeConfig(base: HashPilotConfig, override: Partial<HashPilotConfig>):
   }
   if (override.snapshots) {
     base.snapshots = { ...base.snapshots, ...override.snapshots };
+  }
+  if (override.search) {
+    base.search = { ...base.search, ...override.search };
   }
   if (override.allowedRoots) {
     base.allowedRoots = [...(base.allowedRoots || []), ...override.allowedRoots];

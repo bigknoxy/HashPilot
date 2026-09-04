@@ -40,6 +40,7 @@ import { register as registerProvenance } from "./commands/provenance";
 import { register as registerMcp } from "./commands/mcp";
 import { register as registerMaintenance } from "./commands/maintenance";
 import { register as registerRoute } from "./commands/route";
+import { register as registerSearch } from "./commands/search";
 
 const VERSION: string = pkg.version;
 
@@ -108,6 +109,7 @@ registerProvenance(program);
 registerMcp(program);
 registerMaintenance(program);
 registerRoute(program);
+registerSearch(program);
 
 /** Node syscall codes that mean "the filesystem said no", not "HashPilot has a bug". */
 const IO_SYSCALL_CODES = new Set([
