@@ -1,6 +1,6 @@
 {
   "name": "@bigknoxy/hashpilot",
-  "version": "4.6.5",
+  "version": "4.6.6",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "engines": {
@@ -73,5 +73,9 @@
     "conventional-changelog-conventionalcommits": "^10.4.0",
     "fast-check": "^4.9.0",
     "semantic-release": "^25.0.9"
+  },
+  "overrides": {
+    "ip-address": "^10.3.1",
+    "js-yaml": "^4.3.1"
   }
 }

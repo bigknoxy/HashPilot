@@ -1,3 +1,10 @@
+## [4.6.6](https://github.com/bigknoxy/HashPilot/compare/v4.6.5...v4.6.6) (2026-09-04)
+
+
+### Bug Fixes
+
+* **security:** override transitive ip-address and js-yaml to patched versions ([#193](https://github.com/bigknoxy/HashPilot/issues/193)) ([1be9559](https://github.com/bigknoxy/HashPilot/commit/1be9559ec2b7522f4dd4c82a5a85c575a7c78ca1)), closes [hi#severity](https://github.com/hi/issues/severity)
+
 ## [4.6.5](https://github.com/bigknoxy/HashPilot/compare/v4.6.4...v4.6.5) (2026-09-04)
 
 
