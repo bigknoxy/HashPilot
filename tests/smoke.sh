@@ -130,27 +130,45 @@ echo "--- install.sh source routing ---"
 
 INSTALL_SCRIPT_SRC="$(cat "$REPO_ROOT/scripts/install.sh")"
 
-# 1. Default channel, real npm registry: must take the npm path and must not
-#    pull devDependencies (the whole point of preferring npm).
+# 1. Default channel, real npm registry: must take the npm path AND actually
+#    end up with npm's file set — checked on the filesystem, not just the
+#    log, since "Downloading ... from npm" is logged before extraction is
+#    even attempted and would still match a run that logs that line, then
+#    fails, then silently falls back to GitHub (a demonstrated false-pass
+#    in an earlier version of this check). The npm package's `files` field
+#    excludes tests/ entirely, so its absence is a strong, source-agnostic
+#    signal of which path actually won.
 SCRATCH1=$(mktemp -d)
 NPM_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HOME="$SCRATCH1" bash -s -- --target "$SCRATCH1/.agentic-tools" --force 2>&1)
-if echo "$NPM_LOG" | grep -q "Downloading HashPilot v.* from npm"; then
+if echo "$NPM_LOG" | grep -q "Downloading HashPilot v.* from npm" \
+   && ! echo "$NPM_LOG" | grep -q "falling back to GitHub source" \
+   && [ ! -d "$SCRATCH1/.agentic-tools/structured-editing/tests" ]; then
   ok "install.sh prefers the npm tarball on the default channel"
 else
-  fail "install.sh did not use the npm path by default: $(echo "$NPM_LOG" | head -3 | tr '\n' ' ')"
+  fail "install.sh did not actually install from npm: $(echo "$NPM_LOG" | grep -E "npm|GitHub" | tr '\n' ' ')"
 fi
-if echo "$NPM_LOG" | grep -q "semantic-release@"; then
+# devDependency exclusion checked on disk (semantic-release absent as an
+# installed package), not by grepping install output for a name that could
+# appear as a substring of something else entirely.
+if [ -d "$SCRATCH1/.agentic-tools/structured-editing/node_modules/semantic-release" ]; then
   fail "npm-path install pulled devDependencies (semantic-release) — --production is not being applied"
+elif [ -d "$SCRATCH1/.agentic-tools/structured-editing/node_modules/tree-sitter" ]; then
+  ok "npm-path install correctly skips devDependencies while keeping production deps"
 else
-  ok "npm-path install correctly skips devDependencies"
+  fail "npm-path install has neither devDependencies nor tree-sitter — dependency install may not have run at all"
 fi
 rm -rf "$SCRATCH1"
 
 # 2. npm registry unreachable: must warn and fall back to the real GitHub
-#    release tarball, not just fail outright.
+#    source tarball, not just fail outright. Accepts either the release-tag
+#    or main-branch phrasing — api.github.com's unauthenticated rate limit
+#    (60 req/hr, shared across a CI runner) can make the release lookup
+#    itself fail intermittently, which is a distinct, already-handled
+#    fallback-within-the-fallback, not a bug in this path.
 SCRATCH2=$(mktemp -d)
 FALLBACK_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HASHPILOT_NPM_REGISTRY="https://invalid-registry.example.invalid" HOME="$SCRATCH2" bash -s -- --target "$SCRATCH2/.agentic-tools" --force 2>&1)
-if echo "$FALLBACK_LOG" | grep -q "falling back to GitHub source" && echo "$FALLBACK_LOG" | grep -q "Downloading HashPilot .* from GitHub"; then
+if echo "$FALLBACK_LOG" | grep -q "npm registry unreachable" \
+   && echo "$FALLBACK_LOG" | grep -qE "Downloading HashPilot (v\S+ )?from (GitHub|main branch)"; then
   ok "install.sh falls back to GitHub source when the npm registry is unreachable"
 else
   fail "install.sh did not fall back correctly when npm was unreachable: $(echo "$FALLBACK_LOG" | head -5 | tr '\n' ' ')"

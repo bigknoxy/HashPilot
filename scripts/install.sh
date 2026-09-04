@@ -18,8 +18,27 @@ detail() { printf "${DIM}  →${NC} %s\n" "$1"; }
 REMOTE_MODE=false
 SOURCE_DIR=""
 
+# An explicit --source wins over everything else, checked here (before the
+# real argument-parsing loop below, which runs too late for this) so that
+# passing --source skips local-clone detection AND the auto-download below
+# entirely — downloading anything when the caller already told us exactly
+# where the source is would be pure waste, and previously caused a real bug:
+# HASHPILOT_VERSION got read from the auto-fetched npm/GitHub tarball, not
+# from the --source directory that was actually installed, silently
+# mislabeling the manifest/version banner whenever the two versions differed.
+EXPLICIT_SOURCE=""
+_ARGV=("$@")
+for ((_i = 0; _i < ${#_ARGV[@]}; _i++)); do
+  if [ "${_ARGV[$_i]}" = "--source" ] && [ $((_i + 1)) -lt ${#_ARGV[@]} ]; then
+    EXPLICIT_SOURCE="${_ARGV[$((_i + 1))]}"
+    break
+  fi
+done
+
+if [ -n "$EXPLICIT_SOURCE" ]; then
+  SOURCE_DIR="$EXPLICIT_SOURCE"
 # Try to resolve from script location (local clone mode)
-if SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"; then
+elif SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"; then
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." 2>/dev/null && pwd 2>/dev/null || echo "")"
   if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/package.json" ]; then
     SOURCE_DIR="$REPO_ROOT"
@@ -60,12 +79,35 @@ if [ -z "$SOURCE_DIR" ]; then
     NPM_INFO=$(curl -fsSL "${NPM_REGISTRY}/@bigknoxy/hashpilot/latest" 2>/dev/null || echo "")
     NPM_TARBALL_URL=$(echo "$NPM_INFO" | grep -o '"tarball"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\(https\{0,1\}:[^"]*\)"/\1/' || true)
     NPM_VERSION=$(echo "$NPM_INFO" | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)
+    # The sed above only replaces the match when the value is a real
+    # http(s) URL — on anything else (a relative path, an empty string, a
+    # registry mirror that rewrites `dist.tarball`) it silently leaves the
+    # whole grep-matched line untouched, which is still non-empty and would
+    # pass a bare `-n` check as if it were a real URL. Require the http(s)
+    # prefix explicitly instead of just non-empty.
+    case "$NPM_TARBALL_URL" in
+      https://*|http://*) ;;
+      *) NPM_TARBALL_URL="" ;;
+    esac
     if [ -n "$NPM_TARBALL_URL" ]; then
       log "Downloading HashPilot v${NPM_VERSION} from npm..."
+      # A tarball can download and extract cleanly (exit 0) while still
+      # being useless — e.g. a registry response that resolved to some
+      # unrelated or malformed archive. Require a package.json to actually
+      # be there before trusting this source; otherwise every later step
+      # (the version read right after this block especially) fails with a
+      # bare, undiagnosed exit instead of falling back like every other
+      # failure mode here does.
       if curl -fsSL "$NPM_TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done; then
-        NPM_INSTALLED=true
+        if [ -f "$CLONE_DIR/package.json" ]; then
+          NPM_INSTALLED=true
+        else
+          warn "npm tarball extracted but had no package.json; falling back to GitHub source"
+        fi
       else
         warn "npm tarball download/extract failed; falling back to GitHub source"
+      fi
+      if [ "$NPM_INSTALLED" = "false" ]; then
         rm -rf "$CLONE_DIR"
         CLONE_DIR=$(mktemp -d)
       fi
@@ -241,19 +283,32 @@ detail "Core source copied to $TARGET_DIR/structured-editing"
 
 # ── Install dependencies ────────────────────────────────────────────────
 log "Installing dependencies..."
-cd "$TARGET_DIR/structured-editing"
-# The npm-published package.json still lists devDependencies (npm's `files`
-# field controls which FILES ship, not which package.json fields do) — a
-# plain `bun install` would resolve and install semantic-release,
-# fast-check, and the rest of the dev toolchain for no reason on an end
-# user's machine. --production skips them; the CLI never needs them.
-if [ -f bun.lock ]; then
+# Decide frozen-vs-production from $SOURCE_DIR (what we just copied FROM),
+# not from whatever bun.lock might already be sitting in the target
+# directory. The rsync fallback for hosts without rsync (`cp -r`, a few
+# lines up) does not delete files absent from the source — an upgrade from
+# a prior git-sourced install (which does ship bun.lock) to a new npm-
+# sourced one (which doesn't) would otherwise leave the old lockfile
+# behind, be found by a target-relative `[ -f bun.lock ]` check, and run
+# --frozen-lockfile against the npm package's own package.json — which
+# never matches, and hard-aborts the upgrade after node_modules has
+# already been removed, leaving no working install at all.
+if [ -f "$SOURCE_DIR/bun.lock" ]; then
+  cd "$TARGET_DIR/structured-editing"
   bun install --frozen-lockfile 2>&1 | while IFS= read -r line; do detail "$line"; done
+  cd "$OLDPWD"
 else
+  # The npm-published package.json still lists devDependencies (npm's
+  # `files` field controls which FILES ship, not which package.json fields
+  # do) — a plain `bun install` would resolve and install semantic-release,
+  # fast-check, and the rest of the dev toolchain for no reason on an end
+  # user's machine. --production skips them; the CLI never needs them.
   detail "No bun.lock shipped (npm package install) — resolving production dependencies fresh"
+  rm -f "$TARGET_DIR/structured-editing/bun.lock"
+  cd "$TARGET_DIR/structured-editing"
   bun install --production 2>&1 | while IFS= read -r line; do detail "$line"; done
+  cd "$OLDPWD"
 fi
-cd "$OLDPWD"
 detail "Dependencies installed"
 
 # ── Create CLI launcher ──────────────────────────────────────────────────

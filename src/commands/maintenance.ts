@@ -55,8 +55,12 @@ export function register(program: Command): void {
         }
         const script = await response.text();
 
-        // Write script to temp file and execute
+        // Write script to temp file and execute. targetDir may not exist yet
+        // on a genuinely first-time install (the `uninstall` command below
+        // already does this — `upgrade` didn't, and failed with a plain
+        // ENOENT on a brand-new target).
         const tmpScript = join(targetDir, `.hashpilot-upgrade-${Date.now()}.sh`);
+        mkdirSync(targetDir, { recursive: true });
         writeFileSync(tmpScript, script, { mode: 0o755 });
 
         const args = ["--target", targetDir];
