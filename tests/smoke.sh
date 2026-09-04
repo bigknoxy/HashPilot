@@ -82,6 +82,25 @@ else
   fail "install.sh version banner (expected v${PKG_VERSION}, got: $(echo "$INSTALL_HELP_OUTPUT" | grep 'HashPilot Installer' || echo 'no match'))"
 fi
 
+# ── 0b. Lockfile is not stale (regression guard) ────────────────────────
+# bun.lock drifted out of sync with package.json after a Dependabot bump
+# landed without a lockfile regen, which silently broke every fresh
+# install/upgrade: install.sh's `bun install --frozen-lockfile` failed, but
+# the failure was swallowed by a bare pipe (no `set -o pipefail`), so the
+# script printed "Dependencies installed" and only surfaced the problem
+# later, vaguely, at the verification step. Found by manually dogfooding
+# `hashpilot upgrade` on a live box — not caught by any existing CI check,
+# since .github/workflows/ci.yml's bun install step also had `|| true`.
+# Both were fixed alongside this test; this check exists so drift is caught
+# here, fast and locally, instead of only in a real user's install.
+echo "--- Lockfile is in sync with package.json ---"
+
+if (cd "$REPO_ROOT" && bun install --frozen-lockfile >/tmp/hashpilot-smoke-lockfile-check.log 2>&1); then
+  ok "bun.lock is in sync with package.json (--frozen-lockfile succeeds)"
+else
+  fail "bun.lock is stale — run 'bun install' and commit the regenerated bun.lock: $(tail -3 /tmp/hashpilot-smoke-lockfile-check.log | tr '\n' ' ')"
+fi
+
 # ── 1. Language detection ──────────────────────────────────────────────
 echo "--- Language detection ---"
 
