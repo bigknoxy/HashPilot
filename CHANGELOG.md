@@ -1,3 +1,14 @@
+## [4.6.2](https://github.com/bigknoxy/HashPilot/compare/v4.6.1...v4.6.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* **install:** resolve version from SOURCE_DIR, not $0 (closes [#157](https://github.com/bigknoxy/HashPilot/issues/157)) ([#158](https://github.com/bigknoxy/HashPilot/issues/158)) ([8e9b621](https://github.com/bigknoxy/HashPilot/commit/8e9b62154a356b0302def7f425ac143ce397808d))
+* **mcp:** derive self-reported version from package.json ([#176](https://github.com/bigknoxy/HashPilot/issues/176)) ([74e508f](https://github.com/bigknoxy/HashPilot/commit/74e508fa99272d9d755b1c38e1bf3d4214818505)), closes [#156](https://github.com/bigknoxy/HashPilot/issues/156) [157/#158](https://github.com/bigknoxy/HashPilot/issues/158)
+* monorepo relative-path module-system detection + bench coverage gap ([#177](https://github.com/bigknoxy/HashPilot/issues/177)) ([3d045b8](https://github.com/bigknoxy/HashPilot/commit/3d045b883ac2c93ba2239130e0aea7c113654c15)), closes [#161](https://github.com/bigknoxy/HashPilot/issues/161) [#139](https://github.com/bigknoxy/HashPilot/issues/139) [#161](https://github.com/bigknoxy/HashPilot/issues/161) [#139](https://github.com/bigknoxy/HashPilot/issues/139) [#142](https://github.com/bigknoxy/HashPilot/issues/142)
+* **plan-executor:** run rollback accounting even when the snapshot pass fails for all files ([#178](https://github.com/bigknoxy/HashPilot/issues/178)) ([156b476](https://github.com/bigknoxy/HashPilot/commit/156b476f89a52b558b4a35495585b33183b135a5)), closes [#160](https://github.com/bigknoxy/HashPilot/issues/160)
+* **redact:** match bare cloud-credential *Key field names ([#175](https://github.com/bigknoxy/HashPilot/issues/175)) ([d4670e7](https://github.com/bigknoxy/HashPilot/commit/d4670e76bd00045976bca6f90950a341462d6e97)), closes [#168](https://github.com/bigknoxy/HashPilot/issues/168) [hi#entropy](https://github.com/hi/issues/entropy)
+
 ## [4.6.1](https://github.com/bigknoxy/HashPilot/compare/v4.6.0...v4.6.1) (2026-09-04)
 
 
