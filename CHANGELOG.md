@@ -1,3 +1,10 @@
+## [4.6.1](https://github.com/bigknoxy/HashPilot/compare/v4.6.0...v4.6.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **ci:** gitleaks allowlist uses [[allowlists]], which gitleaks 8.24.3 never applies ([#180](https://github.com/bigknoxy/HashPilot/issues/180)) ([6f9c08e](https://github.com/bigknoxy/HashPilot/commit/6f9c08eb7e041e20a811c009475183e088242f37))
+
 # [4.6.0](https://github.com/bigknoxy/HashPilot/compare/v4.5.3...v4.6.0) (2026-09-02)
 
 
