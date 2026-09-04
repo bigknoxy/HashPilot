@@ -173,6 +173,29 @@ jobs:
         # (libchafa-dev, etc.) the runner may not have.
         run: cargo test
 
+  # HashPilot-specific: tests/smoke.sh exercises the *installed* CLI binary
+  # end to end (real install.sh run, real hashpilot invocations, envelope-shape
+  # assertions) rather than importing modules directly like `bun test` does.
+  # CLAUDE.md and tests/smoke-contract-130.test.ts both assert this runs in
+  # CI; neither was actually true until now — the generic `test-node` job
+  # below only best-effort probes `bun test` (with `|| true` on other
+  # ecosystems it also tries), it never installed or exercised the real
+  # binary. Found while dogfooding `hashpilot upgrade` on a live box.
+  test-packaging:
+    name: Packaging smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - name: Install HashPilot from this checkout
+        run: bash scripts/install.sh --force
+      - name: Run smoke test against the installed binary
+        run: |
+          export PATH="$HOME/.agentic-tools/bin:$PATH"
+          bash tests/smoke.sh
+
   test-node:
     name: Node test
     runs-on: ubuntu-latest
@@ -220,7 +243,16 @@ jobs:
         if: steps.node-check.outputs.has_node == 'true'
         run: |
           if [ -f package-lock.json ]; then npm ci || true; fi
-          if [ -f bun.lock ]; then npm install -g bun && bun install --frozen-lockfile || true; fi
+          # bun.lock is this repo's actual, active lockfile (HashPilot is a Bun
+          # project) — do NOT swallow its failure with `|| true` like the other
+          # ecosystem branches below. A frozen-lockfile failure here means the
+          # lockfile has drifted from package.json (e.g. after a Dependabot
+          # bump landed without a lockfile regen) and every fresh install/
+          # upgrade will break for real users; it must fail this job loudly.
+          # See: install.sh had the exact same silent-failure bug (swallowed
+          # via a bare pipe with no `pipefail`) until it was fixed alongside
+          # this — both must stay strict together.
+          if [ -f bun.lock ]; then npm install -g bun && bun install --frozen-lockfile; fi
           if [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm install --frozen-lockfile || true; fi
           if [ -f yarn.lock ]; then npm install -g yarn && yarn install --frozen-lockfile || true; fi
       - name: Audit
@@ -230,4 +262,7 @@ jobs:
         if: steps.node-check.outputs.has_node == 'true'
         run: |
           if grep -q '"test"' package.json; then npm test -- --run || true; fi
-          if [ -f bunfig.toml ]; then bun test || true; fi
+          # Same rationale as the Install step above: bunfig.toml means this
+          # IS the project's real test suite, not a generic best-effort probe.
+          # A failing `bun test` must fail this job.
+          if [ -f bunfig.toml ]; then bun test; fi

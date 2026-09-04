@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eu
+set -euo pipefail
 
 # shellcheck disable=SC2034
 BOLD='\033[1m'
@@ -34,8 +34,8 @@ if [ -z "$SOURCE_DIR" ]; then
   # Determine version to download (latest release)
   log "Fetching latest release info from GitHub..."
   RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
-  if [ -n "$RELEASE_INFO" ]; then
-    TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+  if [ -n "$TAG_NAME" ]; then
     TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/tags/${TAG_NAME}.tar.gz"
     log "Downloading HashPilot ${TAG_NAME} from GitHub..."
   else

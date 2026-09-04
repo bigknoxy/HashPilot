@@ -38,7 +38,9 @@ Correctness of the edit engine itself, plus the output contract everything downs
 | [#60](../../issues/60) | B53 — `read-hash` emits an 8-char `lineHash` that `replace-hash` rejects as stale ✅ shipped | 61 | P1 | verified | correctness |
 | [#55](../../issues/55) | B50 — AST tier is non-functional on any file larger than 32KB ✅ shipped | 60 | P1 | verified | correctness |
 | [#13](../../issues/13) | B8 — No `hasError` parse-validity gate; AST edits write garbage ✅ shipped | 59 | P1 | verified | correctness |
+| [#182](../../issues/182) | B76 — Stale `bun.lock` silently broke every fresh install/upgrade; `install.sh` swallowed the failure | 58 | P1 | verified | ops |
 | [#12](../../issues/12) | B4 — No atomic writes, no backups, no undo ✅ shipped | 56 | P0 | verified | correctness · data-loss |
+| [#183](../../issues/183) | B77 — CI's Node test job swallows all failures with a trailing `true` fallback, including this project's own `bun test` suite | 56 | P1 | verified | ops |
 | [#161](../../issues/161) | B60 — Relative-path module-system detection walks to cwd, misdetects ESM in monorepos | 52 | P1 | verified | correctness |
 | [#16](../../issues/16) | B12 — Plans inject C-style `/* TODO */` comments into Python/Go/Rust ✅ shipped | 52 | P1 | verified | correctness |
 | [#18](../../issues/18) | B15 — Uniform JSON envelope with `error.code` and `error.recovery` | 52 | P1 | verified | cli · ✅ shipped |
@@ -80,6 +82,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#81](../../issues/81) | Publish `hashpilot-mcp` on npm as the MCP distribution surface | 43 | P2 | reported | strategy |
 | [#32](../../issues/32) | B29 — Deleted line starting with `--` breaks unified-diff parsing | 42 | P2 | reported | correctness |
 | [#163](../../issues/163) | B62 — `add-import` dedup uses unanchored substring match, false-refuses distinct Python/Rust imports | 42 | P2 | verified | correctness |
+| [#184](../../issues/184) | B78 — Branch protection's required status checks (Test, ShellCheck) don't match any real CI job | 42 | P2 | verified | security · ops |
 | [#59](../../issues/59) | B52 — Telemetry reads report corruption and I/O failure as an empty log ✅ shipped in [#61](../../pull/61) | 38 | P2 | verified | ops |
 | [#170](../../issues/170) | B69 — gh-pages workflow installs/executes unpinned npm package with write-scoped token | 36 | P2 | reported | ops · security |
 | [#142](../../issues/142) | bench: coverage gaps that let #139/#140/#141 through | 36 | P2 | reported | testing |

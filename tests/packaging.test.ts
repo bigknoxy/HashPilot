@@ -43,10 +43,14 @@ describe("package manifest", () => {
 
   // #147 — trusted publishing needs npm >= 11.5.1 on Node >= 22.14, and the
   // publish is a subprocess of a Bun-run semantic-release, so the Node pin is
-  // load-bearing rather than decorative.
+  // load-bearing rather than decorative. Match the action by name only, not
+  // an exact version pin — Dependabot bumps this action periodically, and a
+  // hardcoded version here just goes stale and fails on every such bump
+  // without ever having tested anything real (as happened with the previous
+  // "@v4" pin, silently broken since a Dependabot bump landed "@v7").
   test("the release workflow pins Node for the npm publish subprocess", () => {
     const wf = readFileSync(join(ROOT, ".github", "workflows", "release.yml"), "utf8");
-    expect(wf).toContain("actions/setup-node@v4");
+    expect(wf).toMatch(/actions\/setup-node@v\d+/);
     expect(wf).toMatch(/node-version:\s*2[24]/);
   });
 
