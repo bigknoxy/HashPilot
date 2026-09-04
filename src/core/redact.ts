@@ -45,7 +45,7 @@ const RULES: Rule[] = [
   // that merely contain "key" followed by more name, e.g. `primaryKeyColumn`.
   {
     name: "cloud-credential-key",
-    pattern: /\b([A-Za-z0-9_.-]*(?:account|primary|master|auth|private)[_-]?key["']?\s*[:=]\s*)(["']?)([^\s"',;)}]{6,})\2/gi,
+    pattern: /\b([A-Za-z0-9_.-]*(?:account|primary|master|auth|private)[_-]?key["']?\s*[:=]\s*)(["']?)([^\s"',;)}]{20,})\2/gi,
     replacement: `$1$2${REDACTED}$2`,
   },
 ];

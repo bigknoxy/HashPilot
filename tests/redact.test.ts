@@ -54,11 +54,14 @@ describe("redactSecrets", () => {
 
   test("redacts bare cloud-credential *Key assignments", () => {
     for (const line of [
-      "AccountKey=Eby8vdM3v==",
-      '"primaryKey": "xyz123abc456"',
-      "MasterKey: supersecretvalue",
-      "AuthKey = qwertyuiopas",
-      "PrivateKey=abcdef123456",
+      // Azure Storage AccountKey: real keys are ~88-char base64.
+      "AccountKey=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==",
+      // Cosmos DB PrimaryKey: also ~88-char base64.
+      '"primaryKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA=="',
+      "MasterKey: AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4/QA==",
+      // Redis-style AUTH key: ~40 chars.
+      "AuthKey = M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU",
+      "PrivateKey=M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU",
     ]) {
       expect(redactSecrets(line)).toContain("[REDACTED]");
     }
@@ -70,6 +73,18 @@ describe("redactSecrets", () => {
       "function keyboardHandler(event) { return event.key; }",
       "const keyCode = 13",
       'obj["someKey"] = getValue()',
+    ]) {
+      expect(redactSecrets(line)).not.toContain("[REDACTED]");
+    }
+  });
+
+  test("does not redact short, non-secret *Key business identifiers", () => {
+    // Motivating false positive: a DB/ORM row identifier named like a credential
+    // field but far too short to be a real Azure/Cosmos/Redis key.
+    for (const line of [
+      '{"primaryKey": "ord_8827441"}',
+      "MasterKey: row-42",
+      "AccountKey=acct_001",
     ]) {
       expect(redactSecrets(line)).not.toContain("[REDACTED]");
     }
