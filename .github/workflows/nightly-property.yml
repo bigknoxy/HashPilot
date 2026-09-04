@@ -16,11 +16,11 @@ jobs:
   property:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - run: bun install
       - name: Property tests with a random seed
         env:
           FC_RANDOM_SEED: "1"
