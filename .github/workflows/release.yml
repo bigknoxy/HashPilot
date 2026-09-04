@@ -3,6 +3,10 @@ name: Release
 on:
   push:
     branches: [main]
+  # Manual re-run without needing a new commit — e.g. to retry a release
+  # after fixing a publishing-credential issue (#147/#181) without waiting
+  # for the next fix/feat commit to land.
+  workflow_dispatch:
 
 permissions:
   contents: write
