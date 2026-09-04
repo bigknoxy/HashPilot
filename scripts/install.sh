@@ -26,25 +26,75 @@ if SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"; then
   fi
 fi
 
-# No local source — download release tarball from GitHub (curl-pipe / remote mode)
+# No local source — fetch a tarball (curl-pipe / remote mode).
+#
+# Primary source is the published npm package: it's the tested, minimal
+# artifact (no devDependencies, no tests/docs bloat — see
+# tests/packaging.test.ts for what it guarantees ships) instead of the full
+# git source tree, and it stops this installer silently drifting from the
+# npm distribution channel now that publishing actually works (#193). Only
+# curl is used — no `npm`/`node` binary required, since bun is this script's
+# only external prerequisite.
+#
+# Falls back to the GitHub source tarball (release tag, or a branch) when:
+#   - the npm registry is unreachable or the package/version can't be found
+#     (offline-but-git-reachable environments, corporate proxies that allow
+#     github.com but not registry.npmjs.org), or
+#   - HASHPILOT_SOURCE_CHANNEL is set to something other than "main" — an
+#     explicit non-default channel (e.g. `hashpilot upgrade --channel
+#     some-branch`) means the user wants that exact git ref, which npm's
+#     published releases can't provide.
+#
+# HASHPILOT_NPM_REGISTRY overrides the registry base URL — used by tests to
+# deterministically force the npm path to fail without relying on a real
+# outage, and by anyone behind an npm registry mirror/proxy.
 if [ -z "$SOURCE_DIR" ]; then
   REMOTE_MODE=true
   CLONE_DIR=$(mktemp -d)
-  
-  # Determine version to download (latest release)
-  log "Fetching latest release info from GitHub..."
-  RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
-  TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
-  if [ -n "$TAG_NAME" ]; then
-    TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/tags/${TAG_NAME}.tar.gz"
-    log "Downloading HashPilot ${TAG_NAME} from GitHub..."
-  else
-    # Fallback to main branch if no release
-    TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/heads/main.tar.gz"
-    log "Downloading HashPilot from main branch..."
+  SOURCE_CHANNEL="${HASHPILOT_SOURCE_CHANNEL:-main}"
+  NPM_REGISTRY="${HASHPILOT_NPM_REGISTRY:-https://registry.npmjs.org}"
+  NPM_INSTALLED=false
+
+  if [ "$SOURCE_CHANNEL" = "main" ]; then
+    log "Fetching latest release info from npm..."
+    NPM_INFO=$(curl -fsSL "${NPM_REGISTRY}/@bigknoxy/hashpilot/latest" 2>/dev/null || echo "")
+    NPM_TARBALL_URL=$(echo "$NPM_INFO" | grep -o '"tarball"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\(https\{0,1\}:[^"]*\)"/\1/' || true)
+    NPM_VERSION=$(echo "$NPM_INFO" | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)
+    if [ -n "$NPM_TARBALL_URL" ]; then
+      log "Downloading HashPilot v${NPM_VERSION} from npm..."
+      if curl -fsSL "$NPM_TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done; then
+        NPM_INSTALLED=true
+      else
+        warn "npm tarball download/extract failed; falling back to GitHub source"
+        rm -rf "$CLONE_DIR"
+        CLONE_DIR=$(mktemp -d)
+      fi
+    else
+      warn "npm registry unreachable or package not found; falling back to GitHub source"
+    fi
   fi
-  
-  curl -fsSL "$TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done
+
+  if [ "$NPM_INSTALLED" = "false" ]; then
+    if [ "$SOURCE_CHANNEL" = "main" ]; then
+      log "Fetching latest release info from GitHub..."
+      RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
+      TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+      if [ -n "$TAG_NAME" ]; then
+        TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/tags/${TAG_NAME}.tar.gz"
+        log "Downloading HashPilot ${TAG_NAME} from GitHub..."
+      else
+        # Fallback to main branch if no release
+        TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/heads/main.tar.gz"
+        log "Downloading HashPilot from main branch..."
+      fi
+    else
+      TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/heads/${SOURCE_CHANNEL}.tar.gz"
+      log "Downloading HashPilot from branch ${SOURCE_CHANNEL}..."
+    fi
+
+    curl -fsSL "$TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done
+  fi
+
   SOURCE_DIR="$CLONE_DIR"
   detail "Extracted to $CLONE_DIR"
 fi
@@ -71,12 +121,17 @@ while [ $# -gt 0 ]; do
       echo "HashPilot Installer v${HASHPILOT_VERSION}"
       echo "Usage: $0 [options]"
       echo "  --source <dir>     Source directory (default: repo root)."
-      echo "                     If omitted and no local source found,"
-      echo "                     auto-downloads release tarball from GitHub."
+      echo "                     If omitted and no local source found, auto-downloads"
+      echo "                     from npm (falls back to the GitHub release/main tarball"
+      echo "                     if npm is unreachable)."
       echo "  --target <dir>     Install target (default: ~/.agentic-tools)"
       echo "  --keep-telemetry   Preserve existing telemetry on reinstall"
       echo '  --force, -f        Overwrite existing install without any prompt (including the non-interactive existing-install notice)'
       echo "  --help, -h         Show this help"
+      echo ""
+      echo "Env vars: HASHPILOT_SOURCE_CHANNEL=<branch> skips npm and installs that exact"
+      echo "          git branch instead (e.g. for bleeding-edge testing)."
+      echo "          HASHPILOT_NPM_REGISTRY=<url> overrides the npm registry base URL."
       echo ""
       echo "One-liner: curl -fsSL https://raw.githubusercontent.com/bigknoxy/HashPilot/main/scripts/install.sh | bash"
       exit 0
@@ -187,7 +242,17 @@ detail "Core source copied to $TARGET_DIR/structured-editing"
 # ── Install dependencies ────────────────────────────────────────────────
 log "Installing dependencies..."
 cd "$TARGET_DIR/structured-editing"
-bun install --frozen-lockfile 2>&1 | while IFS= read -r line; do detail "$line"; done
+# The npm-published package.json still lists devDependencies (npm's `files`
+# field controls which FILES ship, not which package.json fields do) — a
+# plain `bun install` would resolve and install semantic-release,
+# fast-check, and the rest of the dev toolchain for no reason on an end
+# user's machine. --production skips them; the CLI never needs them.
+if [ -f bun.lock ]; then
+  bun install --frozen-lockfile 2>&1 | while IFS= read -r line; do detail "$line"; done
+else
+  detail "No bun.lock shipped (npm package install) — resolving production dependencies fresh"
+  bun install --production 2>&1 | while IFS= read -r line; do detail "$line"; done
+fi
 cd "$OLDPWD"
 detail "Dependencies installed"
 

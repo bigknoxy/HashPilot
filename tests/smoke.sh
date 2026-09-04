@@ -114,6 +114,65 @@ else
   fail "bun.lock is stale — run 'bun install' and commit the regenerated bun.lock: $(tail -3 /tmp/hashpilot-smoke-lockfile-check.log | tr '\n' ' ')"
 fi
 
+# ── 0c. install.sh remote-mode source routing (npm-primary, git fallback) ──
+# install.sh used to always clone the full git source tree (tests, docs, all
+# devDependencies) even though a much smaller, tested npm package has been
+# publishable since #147/#96 landed — two distribution paths that could
+# silently drift from each other, and a heavier install than necessary.
+# It now prefers the published npm tarball, falling back to the GitHub
+# source tarball when npm is unreachable or an explicit non-default channel
+# is requested. Each scenario below runs install.sh piped via stdin (`bash
+# -s --`) rather than by file path, so `$0` isn't a real path and the
+# local-clone detection at the top of the script can't short-circuit these
+# into testing nothing — the same mistake made once already while verifying
+# this manually.
+echo "--- install.sh source routing ---"
+
+INSTALL_SCRIPT_SRC="$(cat "$REPO_ROOT/scripts/install.sh")"
+
+# 1. Default channel, real npm registry: must take the npm path and must not
+#    pull devDependencies (the whole point of preferring npm).
+SCRATCH1=$(mktemp -d)
+NPM_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HOME="$SCRATCH1" bash -s -- --target "$SCRATCH1/.agentic-tools" --force 2>&1)
+if echo "$NPM_LOG" | grep -q "Downloading HashPilot v.* from npm"; then
+  ok "install.sh prefers the npm tarball on the default channel"
+else
+  fail "install.sh did not use the npm path by default: $(echo "$NPM_LOG" | head -3 | tr '\n' ' ')"
+fi
+if echo "$NPM_LOG" | grep -q "semantic-release@"; then
+  fail "npm-path install pulled devDependencies (semantic-release) — --production is not being applied"
+else
+  ok "npm-path install correctly skips devDependencies"
+fi
+rm -rf "$SCRATCH1"
+
+# 2. npm registry unreachable: must warn and fall back to the real GitHub
+#    release tarball, not just fail outright.
+SCRATCH2=$(mktemp -d)
+FALLBACK_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HASHPILOT_NPM_REGISTRY="https://invalid-registry.example.invalid" HOME="$SCRATCH2" bash -s -- --target "$SCRATCH2/.agentic-tools" --force 2>&1)
+if echo "$FALLBACK_LOG" | grep -q "falling back to GitHub source" && echo "$FALLBACK_LOG" | grep -q "Downloading HashPilot .* from GitHub"; then
+  ok "install.sh falls back to GitHub source when the npm registry is unreachable"
+else
+  fail "install.sh did not fall back correctly when npm was unreachable: $(echo "$FALLBACK_LOG" | head -5 | tr '\n' ' ')"
+fi
+rm -rf "$SCRATCH2"
+
+# 3. Explicit non-default channel: must skip npm entirely and go straight to
+#    that branch's GitHub tarball (proven here by a deliberately-nonexistent
+#    branch — the assertion is about ROUTING, not that the branch exists;
+#    the script correctly fails loudly on the 404 either way, which is the
+#    desired behavior, not a silent no-op).
+SCRATCH3=$(mktemp -d)
+CHANNEL_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HASHPILOT_SOURCE_CHANNEL="hashpilot-smoke-test-nonexistent-branch" HOME="$SCRATCH3" bash -s -- --target "$SCRATCH3/.agentic-tools" --force 2>&1 || true)
+if echo "$CHANNEL_LOG" | grep -q "Fetching latest release info from npm"; then
+  fail "install.sh queried npm despite an explicit non-default HASHPILOT_SOURCE_CHANNEL"
+elif echo "$CHANNEL_LOG" | grep -q "Downloading HashPilot from branch hashpilot-smoke-test-nonexistent-branch"; then
+  ok "install.sh skips npm and targets the exact requested branch when a channel is explicitly set"
+else
+  fail "install.sh did not route to the explicit channel: $(echo "$CHANNEL_LOG" | head -3 | tr '\n' ' ')"
+fi
+rm -rf "$SCRATCH3"
+
 # ── 1. Language detection ──────────────────────────────────────────────
 echo "--- Language detection ---"
 

@@ -66,7 +66,16 @@ export function register(program: Command): void {
         const proc = Bun.spawn(["bash", tmpScript, ...args], {
           stdout: "pipe",
           stderr: "pipe",
-          env: { ...process.env, PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}` },
+          env: {
+            ...process.env,
+            PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}`,
+            // A non-default channel means the user wants that exact git ref
+            // (e.g. bleeding-edge branch testing) — install.sh skips its
+            // npm-primary source fetch entirely when this is set to
+            // anything other than "main", since npm's published releases
+            // can't provide an arbitrary branch.
+            ...(channel !== "main" ? { HASHPILOT_SOURCE_CHANNEL: channel } : {}),
+          },
         });
 
         const stdout = await new Response(proc.stdout).text();
