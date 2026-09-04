@@ -1,0 +1,40 @@
+query groups (1):
+Q1 [primary]: where the router decides which edit strategy
+hits: 10
+
+#1 matchedBy=fts+vector src/core/router.ts:108-423
+status: possibly_stale
+symbol: function routeEdit
+145	const start = Date.now();
+
+#2 matchedBy=fts+vector src/core/index.ts:49-110
+49	  exportEvents,
+
+#3 matchedBy=fts+vector src/commands/edit.ts:12-93
+symbol: function register
+13	withProvenance(
+
+#4 matchedBy=fts+vector src/core/hash-edit.ts:90-257
+symbol: function replaceHash
+222	    // Exactly one match: the content moved. Re-anchor onto it.
+
+#5 matchedBy=fts+vector src/core/config.ts:5-19
+5	interface RoutePolicy {
+
+#6 matchedBy=fts+vector bench/runner.ts:40-152
+symbol: function runCase
+41	const path = join(workRoot, c.id, c.file);
+
+#7 matchedBy=fts+vector src/core/verify.ts:145-187
+symbol: function resolveCommand
+146	const parts = cmd.trim().split(/\s+/).filter(Boolean);
+
+#8 matchedBy=fts+vector src/core/diff-engine.ts:18-25
+18	interface HunkPlacement {
+
+#9 matchedBy=fts+vector bench/cases/diff.ts:1-43
+1	import type { BenchCase } from "../types";
+
+#10 matchedBy=fts+vector bench/types.ts:41-93
+symbol: interface BenchCase
+42	/** Stable identifier; appears in results JSON and must not be renamed casually. */

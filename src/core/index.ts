@@ -2,6 +2,8 @@ export { readMany, readHash, computeHash, computeLineHash } from "./read";
 export type { ReadResult, ReadHashResult } from "./read";
 export { grepMany, symbolLookupMany } from "./grep";
 export type { GrepResult, GrepManyResult, SymbolLookupResult } from "./grep";
+export { search, parseZgMarkdown, DEFAULT_SOURCE_GLOBS } from "./search";
+export type { SearchResult, SearchHit, ZgSearchResult, GrepSearchResult, SearchOptions } from "./search";
 export { replaceHash } from "./hash-edit";
 export type { ReplaceHashResult, ReplaceHashOptions } from "./hash-edit";
 export {
@@ -93,7 +95,7 @@ export type {
 export { executeIntent, executePlan } from "./plan-executor";
 export type { StepResult, PlanResult, IntentResult } from "./plan-executor";
 export { loadConfig, policyForce } from "./config";
-export type { HashPilotConfig, RoutePolicy, TelemetryConfig, ProvenanceConfig, SnapshotConfig } from "./config";
+export type { HashPilotConfig, RoutePolicy, TelemetryConfig, ProvenanceConfig, SnapshotConfig, SearchConfig } from "./config";
 export {
   recordSnapshot,
   listChangeSets,
