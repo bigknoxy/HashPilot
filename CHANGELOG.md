@@ -1,3 +1,10 @@
+# [4.8.0](https://github.com/bigknoxy/HashPilot/compare/v4.7.0...v4.8.0) (2026-09-04)
+
+
+### Features
+
+* add hashpilot search command with zg (zvec-grep) adapter ([#197](https://github.com/bigknoxy/HashPilot/issues/197)) ([58fc085](https://github.com/bigknoxy/HashPilot/commit/58fc0855e16063a715e9d3a8a647cc59814ebe8a))
+
 # [4.7.0](https://github.com/bigknoxy/HashPilot/compare/v4.6.6...v4.7.0) (2026-09-04)
 
 
