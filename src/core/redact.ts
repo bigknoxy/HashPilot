@@ -38,6 +38,16 @@ const RULES: Rule[] = [
     pattern: /\b([A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key|access[_-]?key|credential)[A-Za-z0-9_.-]*\s*[:=]\s*)(["']?)([^\s"',;)}]{6,})\2/gi,
     replacement: `$1$2${REDACTED}$2`,
   },
+  // Bare cloud-credential "*Key" field names (Azure AccountKey, Cosmos DB
+  // PrimaryKey/MasterKey, Redis AuthKey, non-PEM PrivateKey). The prefix word
+  // must sit immediately before "key" *and* "key" must be the end of the
+  // identifier (right before `:`/`=`), so this doesn't fire on identifiers
+  // that merely contain "key" followed by more name, e.g. `primaryKeyColumn`.
+  {
+    name: "cloud-credential-key",
+    pattern: /\b([A-Za-z0-9_.-]*(?:account|primary|master|auth|private)[_-]?key["']?\s*[:=]\s*)(["']?)([^\s"',;)}]{20,})\2/gi,
+    replacement: `$1$2${REDACTED}$2`,
+  },
 ];
 
 /** Redact every known secret shape in a string. Returns the input unchanged when nothing matches. */

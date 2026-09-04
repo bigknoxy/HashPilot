@@ -19,8 +19,9 @@
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { routeEdit } from "../src/core/router";
 import { computeLineRangeHashOf } from "./hash-util";
 import { detectLanguage, firstParseError } from "../src/core/ast-edit";
@@ -37,10 +38,35 @@ const ALL_CASES: BenchCase[] = [...astCases, ...hashCases, ...diffCases];
 
 const RESULTS_PATH = join(import.meta.dir, "results", "latest.json");
 
+/**
+ * Actually run a post-edit JavaScript file under Node and require it to exit
+ * cleanly. tree-sitter parses both `import` and `require` in the same
+ * grammar, so a passing parse check (and even a byte-for-byte `expected`
+ * match against a hand-typed string) can still hide a file that Node itself
+ * refuses to load — the exact shape of #139. This is a real `node <file>`
+ * subprocess, run from the file's own directory so its real ancestor
+ * `package.json` governs module resolution exactly as it would for a caller.
+ */
+function nodeLoadError(path: string): string | null {
+  const res = spawnSync(process.execPath, [path], { cwd: dirname(path), timeout: 10_000, encoding: "utf8" });
+  if (res.error) return `node could not be spawned: ${res.error.message}`;
+  if (res.status !== 0) return `node exited ${res.status}: ${(res.stderr || res.stdout || "").trim().slice(0, 500)}`;
+  return null;
+}
+
 async function runCase(c: BenchCase, workRoot: string): Promise<CaseResult> {
-  const path = join(workRoot, c.id, c.file);
+  const caseRoot = join(workRoot, c.id);
+  const path = join(caseRoot, c.file);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, c.source);
+
+  if (c.extraFiles) {
+    for (const [rel, content] of Object.entries(c.extraFiles)) {
+      const extraPath = join(caseRoot, rel);
+      mkdirSync(dirname(extraPath), { recursive: true });
+      writeFileSync(extraPath, content);
+    }
+  }
 
   const language = detectLanguage(c.file) || "unknown";
   const started = Date.now();
@@ -50,105 +76,129 @@ async function runCase(c: BenchCase, workRoot: string): Promise<CaseResult> {
     edit.oldHash = computeLineRangeHashOf(c.source, c.hashRange.start, c.hashRange.end);
   }
 
-  let routed;
-  try {
-    routed = await routeEdit({ filePath: path, ...edit });
-  } catch (err) {
-    return {
-      id: c.id,
-      description: c.description,
-      language,
-      route: "n/a",
-      outcome: "harness-error",
-      unparseable: false,
-      elapsed_ms: Date.now() - started,
-      detail: `routeEdit threw: ${err instanceof Error ? err.message : String(err)}`,
-      knownIssue: c.knownIssue,
-      tags: c.tags,
-    };
+  // Reproduces bugs that only manifest for relative-path input (#161): chdir
+  // into `cwdSubdir` and address the target relative to it instead of by its
+  // usual absolute path. Always restored, even on an early return.
+  const prevCwd = process.cwd();
+  let editFilePath = path;
+  if (c.cwdSubdir) {
+    const cwdAbs = join(caseRoot, c.cwdSubdir);
+    mkdirSync(cwdAbs, { recursive: true });
+    process.chdir(cwdAbs);
+    editFilePath = relative(cwdAbs, path);
   }
 
-  // A chained case re-edits the same region using only what the first edit
-  // returned, with no intervening read (#101).
-  if (c.chain && routed.result?.success === true) {
-    const first: any = routed.result;
+  try {
+    let routed;
     try {
-      routed = await routeEdit({
-        filePath: path,
-        operation: "replace-hash",
-        method: "hash",
-        oldHash: first.newHash,
-        range: first.newRange,
-        newContent: c.chain.newContent,
-      });
+      routed = await routeEdit({ filePath: editFilePath, ...edit });
     } catch (err) {
       return {
         id: c.id,
         description: c.description,
         language,
-        route: "hash",
+        route: "n/a",
         outcome: "harness-error",
         unparseable: false,
         elapsed_ms: Date.now() - started,
-        detail: `chained routeEdit threw: ${err instanceof Error ? err.message : String(err)}`,
+        detail: `routeEdit threw: ${err instanceof Error ? err.message : String(err)}`,
         knownIssue: c.knownIssue,
         tags: c.tags,
       };
     }
-  }
 
-  const elapsed_ms = Date.now() - started;
-  const after = existsSync(path) ? readFileSync(path, "utf8") : "";
-  const route = routed.route ?? "unknown";
-  const succeeded = routed.result?.success === true;
-  const unparseable = firstParseError(after, c.file) !== null;
+    // A chained case re-edits the same region using only what the first edit
+    // returned, with no intervening read (#101).
+    if (c.chain && routed.result?.success === true) {
+      const first: any = routed.result;
+      try {
+        routed = await routeEdit({
+          filePath: editFilePath,
+          operation: "replace-hash",
+          method: "hash",
+          oldHash: first.newHash,
+          range: first.newRange,
+          newContent: c.chain.newContent,
+        });
+      } catch (err) {
+        return {
+          id: c.id,
+          description: c.description,
+          language,
+          route: "hash",
+          outcome: "harness-error",
+          unparseable: false,
+          elapsed_ms: Date.now() - started,
+          detail: `chained routeEdit threw: ${err instanceof Error ? err.message : String(err)}`,
+          knownIssue: c.knownIssue,
+          tags: c.tags,
+        };
+      }
+    }
 
-  const base = { id: c.id, description: c.description, language, route, unparseable, elapsed_ms, knownIssue: c.knownIssue, tags: c.tags };
-  const classify = (outcome: Outcome, detail?: string): CaseResult => ({ ...base, outcome, detail });
+    const elapsed_ms = Date.now() - started;
+    const after = existsSync(path) ? readFileSync(path, "utf8") : "";
+    const route = routed.route ?? "unknown";
+    const succeeded = routed.result?.success === true;
+    const unparseable = firstParseError(after, c.file) !== null;
 
-  // Refusal cases: failure plus an untouched file is the passing outcome.
-  if (c.expectRefusal) {
-    if (!succeeded && after === c.source) return classify("correct-refusal");
-    if (succeeded) {
+    const base = { id: c.id, description: c.description, language, route, unparseable, elapsed_ms, knownIssue: c.knownIssue, tags: c.tags };
+    const classify = (outcome: Outcome, detail?: string): CaseResult => ({ ...base, outcome, detail });
+
+    // Refusal cases: failure plus an untouched file is the passing outcome.
+    if (c.expectRefusal) {
+      if (!succeeded && after === c.source) return classify("correct-refusal");
+      if (succeeded) {
+        return classify(
+          "silent-corruption",
+          `expected a refusal (${c.expectRefusal}) but the edit reported success`
+        );
+      }
+      return classify("silent-corruption", "the edit was refused but the file was modified anyway");
+    }
+
+    // Dry-run cases: the payload is the thing under test. A preview that hands
+    // back the whole file when it promised a diff is the #98 regression, and it
+    // costs the caller a context window, so it counts as a failed case.
+    if (c.expectPreview) {
+      const r: any = routed.result;
+      if (!succeeded) return classify("false-refusal", r?.message || "dry run refused with no message");
+      if (after !== c.source) return classify("silent-corruption", "a dry run wrote to disk");
+      if (c.expectPreview === "diff") {
+        if (r.newSource !== undefined) return classify("silent-corruption", "dry run returned the whole file instead of a diff");
+        if (typeof r.diff !== "string" || !r.diff.includes("@@")) return classify("false-refusal", "dry run returned no usable diff");
+        if (r.diff.length >= c.source.length) return classify("false-refusal", `preview (${r.diff.length}B) is no cheaper than the file (${c.source.length}B)`);
+      } else if (typeof r.newSource !== "string") {
+        return classify("false-refusal", "includeSource did not return the post-edit file");
+      }
+      return classify("correct");
+    }
+
+    // Edit cases.
+    if (!succeeded) {
+      if (after !== c.source) {
+        return classify("silent-corruption", "the edit reported failure but the file was modified");
+      }
+      return classify("false-refusal", routed.result?.message || "refused with no message");
+    }
+    if (after !== c.expected) {
       return classify(
         "silent-corruption",
-        `expected a refusal (${c.expectRefusal}) but the edit reported success`
+        unparseable
+          ? "reported success; the result does not parse"
+          : `reported success; result differs from expected\n--- expected\n${c.expected}\n--- actual\n${after}`
       );
     }
-    return classify("silent-corruption", "the edit was refused but the file was modified anyway");
-  }
-
-  // Dry-run cases: the payload is the thing under test. A preview that hands
-  // back the whole file when it promised a diff is the #98 regression, and it
-  // costs the caller a context window, so it counts as a failed case.
-  if (c.expectPreview) {
-    const r: any = routed.result;
-    if (!succeeded) return classify("false-refusal", r?.message || "dry run refused with no message");
-    if (after !== c.source) return classify("silent-corruption", "a dry run wrote to disk");
-    if (c.expectPreview === "diff") {
-      if (r.newSource !== undefined) return classify("silent-corruption", "dry run returned the whole file instead of a diff");
-      if (typeof r.diff !== "string" || !r.diff.includes("@@")) return classify("false-refusal", "dry run returned no usable diff");
-      if (r.diff.length >= c.source.length) return classify("false-refusal", `preview (${r.diff.length}B) is no cheaper than the file (${c.source.length}B)`);
-    } else if (typeof r.newSource !== "string") {
-      return classify("false-refusal", "includeSource did not return the post-edit file");
+    if (c.assertLoads) {
+      const loadError = nodeLoadError(path);
+      if (loadError) {
+        return classify("silent-corruption", `reported success and matched expected bytes, but Node fails to load the result: ${loadError}`);
+      }
     }
     return classify("correct");
+  } finally {
+    if (c.cwdSubdir) process.chdir(prevCwd);
   }
-
-  // Edit cases.
-  if (!succeeded) {
-    if (after !== c.source) {
-      return classify("silent-corruption", "the edit reported failure but the file was modified");
-    }
-    return classify("false-refusal", routed.result?.message || "refused with no message");
-  }
-  if (after === c.expected) return classify("correct");
-  return classify(
-    "silent-corruption",
-    unparseable
-      ? "reported success; the result does not parse"
-      : `reported success; result differs from expected\n--- expected\n${c.expected}\n--- actual\n${after}`
-  );
 }
 
 function tally(results: CaseResult[], key: (r: CaseResult) => string) {

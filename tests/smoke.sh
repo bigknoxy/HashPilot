@@ -60,6 +60,28 @@ assert e['data'].get('success') is False, 'refusal payload reported success'
 echo "=== HashPilot Core AST Smoke Test ==="
 echo ""
 
+# ── 0. Install script version banner (#157 / B58) ──────────────────────
+# Local-clone mode: `bash scripts/install.sh --help` resolves SOURCE_DIR to
+# the repo root and prints the version before any actual install work runs,
+# so this is a fast, non-destructive way to check that the printed version
+# matches package.json's "version" field. Remote (curl-pipe) mode reads the
+# same $HASHPILOT_VERSION variable from the same $SOURCE_DIR/package.json
+# lookup once SOURCE_DIR is set to the downloaded tarball dir — see
+# scripts/install.sh — so it isn't re-verified here with a live GitHub
+# release; this local-clone assertion plus that code-level guarantee is the
+# intended coverage per issue #157.
+echo "--- Install script version banner ---"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PKG_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -1)
+INSTALL_HELP_OUTPUT=$(bash "$REPO_ROOT/scripts/install.sh" --help 2>&1)
+
+if [ -n "$PKG_VERSION" ] && echo "$INSTALL_HELP_OUTPUT" | grep -qF "HashPilot Installer v${PKG_VERSION}"; then
+  ok "install.sh prints package.json version ($PKG_VERSION) in local-clone mode"
+else
+  fail "install.sh version banner (expected v${PKG_VERSION}, got: $(echo "$INSTALL_HELP_OUTPUT" | grep 'HashPilot Installer' || echo 'no match'))"
+fi
+
 # ── 1. Language detection ──────────────────────────────────────────────
 echo "--- Language detection ---"
 

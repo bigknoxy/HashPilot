@@ -1,26 +1,26 @@
 {
   "harnessVersion": "1",
-  "hashpilotVersion": "4.4.11",
-  "commit": "c72fddb",
-  "generatedAt": "2026-08-19T18:48:32.143Z",
+  "hashpilotVersion": "4.5.3",
+  "commit": "ea5e0c3",
+  "generatedAt": "2026-09-03T20:24:57.677Z",
   "totals": {
-    "cases": 34,
-    "correct": 25,
+    "cases": 42,
+    "correct": 32,
     "silentCorruption": 0,
     "falseRefusal": 0,
-    "correctRefusal": 9,
+    "correctRefusal": 10,
     "harnessError": 0,
     "correctnessRate": 1,
     "silentCorruptionRate": 0,
-    "totalElapsedMs": 51
+    "totalElapsedMs": 851
   },
   "byRoute": {
     "ast": {
-      "cases": 16,
-      "correct": 12,
+      "cases": 24,
+      "correct": 19,
       "silentCorruption": 0,
       "falseRefusal": 0,
-      "correctRefusal": 4
+      "correctRefusal": 5
     },
     "hash": {
       "cases": 9,
@@ -59,6 +59,13 @@
       "falseRefusal": 0,
       "correctRefusal": 0
     },
+    "javascript": {
+      "cases": 8,
+      "correct": 7,
+      "silentCorruption": 0,
+      "falseRefusal": 0,
+      "correctRefusal": 1
+    },
     "unknown": {
       "cases": 18,
       "correct": 13,
@@ -74,7 +81,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 7,
+      "elapsed_ms": 36,
       "tags": [
         "rename",
         "typescript"
@@ -87,7 +94,7 @@
       "language": "python",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 39,
       "tags": [
         "rename",
         "python"
@@ -100,7 +107,7 @@
       "language": "go",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 32,
       "tags": [
         "rename",
         "go"
@@ -126,7 +133,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 20,
       "tags": [
         "replace-body",
         "typescript"
@@ -139,7 +146,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 21,
       "tags": [
         "insert",
         "typescript"
@@ -152,7 +159,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 19,
       "tags": [
         "import",
         "typescript",
@@ -166,7 +173,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 18,
       "tags": [
         "import",
         "typescript",
@@ -180,7 +187,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 16,
       "tags": [
         "import",
         "typescript"
@@ -193,7 +200,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 18,
       "tags": [
         "import",
         "typescript",
@@ -207,7 +214,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": true,
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "tags": [
         "parse-gate",
         "typescript"
@@ -220,7 +227,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 16,
       "knownIssue": 39,
       "tags": [
         "rename",
@@ -235,7 +242,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 12,
       "tags": [
         "rename",
         "typescript",
@@ -249,7 +256,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 9,
       "tags": [
         "rename",
         "typescript",
@@ -263,7 +270,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 3,
       "tags": [
         "insert-after",
         "typescript",
@@ -278,7 +285,7 @@
       "language": "typescript",
       "route": "ast",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "insert-after",
         "typescript",
@@ -288,12 +295,135 @@
       "outcome": "correct-refusal"
     },
     {
+      "id": "ast-add-import-cjs-named",
+      "description": "add-import into a .cjs file emits require, not an ESM import",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 34,
+      "tags": [
+        "add-import",
+        "javascript",
+        "commonjs",
+        "139"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-cjs-default",
+      "description": "a default-form spec becomes a whole-module require in CommonJS",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 31,
+      "tags": [
+        "add-import",
+        "javascript",
+        "commonjs",
+        "139"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-cjs-merge",
+      "description": "a second binding for an already-required module merges instead of duplicating",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 23,
+      "tags": [
+        "add-import",
+        "javascript",
+        "commonjs",
+        "139"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-mjs-stays-esm",
+      "description": "add-import into a .mjs file still emits an ESM import statement",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 38,
+      "tags": [
+        "add-import",
+        "javascript",
+        "esm",
+        "139"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-remove-import-cjs-roundtrip",
+      "description": "remove-import takes out a require binding and leaves the rest of the destructure",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 31,
+      "tags": [
+        "remove-import",
+        "javascript",
+        "commonjs",
+        "139"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-js-mixed-refused",
+      "description": "a JavaScript file mixing require and import refuses rather than guessing a module system",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 1,
+      "tags": [
+        "add-import",
+        "javascript",
+        "ambiguity",
+        "139"
+      ],
+      "outcome": "correct-refusal"
+    },
+    {
+      "id": "ast-add-import-bare-js-package-json-cjs",
+      "description": "add-import into a bare .js file with no in-file markers, governed only by a sibling package.json with no \"type\" field (#139's original failure class)",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 31,
+      "tags": [
+        "add-import",
+        "javascript",
+        "commonjs",
+        "139",
+        "142"
+      ],
+      "outcome": "correct"
+    },
+    {
+      "id": "ast-add-import-bare-js-monorepo-relative-cjs",
+      "description": "add-import into a bare .js file addressed by a relative path from a monorepo subpackage, with the nearest package.json several directories above cwd (#161)",
+      "language": "javascript",
+      "route": "ast",
+      "unparseable": false,
+      "elapsed_ms": 60,
+      "tags": [
+        "add-import",
+        "javascript",
+        "commonjs",
+        "monorepo",
+        "161",
+        "142"
+      ],
+      "outcome": "correct"
+    },
+    {
       "id": "hash-replace-exact",
       "description": "replace a line range whose hash still matches",
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 27,
       "tags": [
         "hash"
       ],
@@ -305,7 +435,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 3,
+      "elapsed_ms": 51,
       "tags": [
         "hash",
         "chaining"
@@ -318,7 +448,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 43,
       "tags": [
         "hash",
         "chaining"
@@ -344,7 +474,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 12,
       "tags": [
         "hash",
         "relocation"
@@ -357,7 +487,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 2,
+      "elapsed_ms": 22,
       "tags": [
         "hash",
         "multiline"
@@ -370,7 +500,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 20,
       "tags": [
         "hash",
         "deletion"
@@ -383,7 +513,7 @@
       "language": "unknown",
       "route": "hash",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 21,
       "tags": [
         "hash",
         "unicode"
@@ -409,7 +539,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 18,
       "tags": [
         "diff"
       ],
@@ -421,7 +551,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 0,
+      "elapsed_ms": 1,
       "tags": [
         "diff",
         "ambiguity"
@@ -434,7 +564,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "tags": [
         "diff"
       ],
@@ -446,7 +576,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 15,
       "knownIssue": 32,
       "tags": [
         "diff",
@@ -460,7 +590,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 13,
       "tags": [
         "diff",
         "reserved-tokens",
@@ -474,7 +604,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 17,
       "tags": [
         "diff",
         "reserved-tokens",
@@ -488,7 +618,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 43,
       "tags": [
         "diff",
         "multiline"
@@ -501,7 +631,7 @@
       "language": "unknown",
       "route": "diff",
       "unparseable": false,
-      "elapsed_ms": 1,
+      "elapsed_ms": 33,
       "tags": [
         "diff",
         "encoding"

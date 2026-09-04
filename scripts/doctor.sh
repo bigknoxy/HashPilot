@@ -2,7 +2,17 @@
 # HashPilot Doctor — Standalone installation health check
 # Can run even when CLI is not on PATH.
 
-HASHPILOT_VERSION="0.1.0"
+# Derive the version from package.json rather than hardcoding a stale literal
+# here (#156). This script is standalone (runs before the CLI is installed),
+# so it reads package.json directly instead of importing any TS module.
+# Resolve the script's real directory (not just dirname "$0") so this still
+# works if invoked via a relative path from another cwd or through a symlink —
+# the same lesson #157/#158 learned the hard way for install.sh. This script
+# is documented to run from a local checkout (`bash scripts/doctor.sh`), not
+# curl-piped, so $0 is always a real path here and this resolution is safe.
+HASHPILOT_SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd 2>/dev/null)"
+HASHPILOT_VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${HASHPILOT_SCRIPT_DIR:-.}/../package.json" 2>/dev/null | head -1)"
+HASHPILOT_VERSION="${HASHPILOT_VERSION:-unknown}"
 # shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'
