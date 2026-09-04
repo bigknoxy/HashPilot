@@ -104,9 +104,67 @@ jobs:
         run: bun install
 
       - name: Semantic Release
+        id: semantic_release
         run: bun run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           # Consumed by @semantic-release/npm. Without this secret the npm
           # publish step fails and no release is cut (#96).
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # WHY THIS STEP EXISTS (#181): semantic-release's lifecycle runs every
+      # plugin's `prepare` step (changelog generation, the package.json version
+      # bump, and @semantic-release/git's commit+push to `main`) BEFORE any
+      # plugin's `publish` step (npm publish, GitHub release creation). That
+      # ordering is intrinsic to semantic-release's architecture — reordering
+      # `.releaserc.json`'s plugins array does not change it. So if the
+      # "Semantic Release" step above fails partway through (npm outage,
+      # expired trusted-publishing config, rate limiting, a credential
+      # regression, anything), the version-bump commit has ALREADY landed on
+      # `main` — package.json/CHANGELOG.md now claim a version that was never
+      # actually published anywhere, and nothing else in this workflow would
+      # otherwise notice. This happened for real, twice, and once persisted
+      # silently for 11 days before being caught by accident (see #181,
+      # #147, #96). Rather than trying to make semantic-release publish before
+      # it prepares (out of scope — it doesn't support that without replacing
+      # its core orchestration), this step guarantees the failure can never
+      # again go unnoticed: it files a GitHub issue naming the drifted
+      # version and linking straight to the failed run. Do not remove this as
+      # "seems redundant" without re-reading #181 first.
+      - name: Alert on release failure (package.json may be ahead of what's published)
+        if: failure() && steps.semantic_release.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          version="$(node -p "require('./package.json').version")"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          title="Release pipeline failed after version bump to v${version} — package.json is ahead of what's published"
+          body="$(printf '%s\n' \
+            "The **Semantic Release** step in this workflow run failed *after* semantic-release's \`prepare\` phase had already committed and pushed the version bump to \`main\`." \
+            "" \
+            "- Failed run: ${run_url}" \
+            "- \`package.json\` on \`main\` now reports version **${version}**." \
+            "" \
+            "semantic-release runs every plugin's \`prepare\` lifecycle step (changelog generation, the \`package.json\` version bump, \`@semantic-release/git\`'s commit+push) before any plugin's \`publish\` step (\`npm publish\`, GitHub release creation). This ordering is intrinsic to semantic-release's architecture, not just plugin list order — so a publish failure here does not undo the already-pushed commit." \
+            "" \
+            "**What this means:** \`package.json\` and/or \`CHANGELOG.md\` on \`main\` may now be ahead of what is actually published to npm and/or GitHub Releases. Manual investigation is needed:" \
+            "" \
+            "1. Check the failed run's log (link above) for the actual error." \
+            "2. Check whether npm (\`npm view @bigknoxy/hashpilot version\`) and/or the GitHub Releases page actually have v${version}." \
+            "3. If not published, fix the underlying issue (credentials, registry outage, etc.) and re-run the release (\`workflow_dispatch\`) — semantic-release will not re-bump the version since \`package.json\` already reflects it, so a manual publish or a targeted fix may be required depending on how far it got." \
+            "" \
+            "See #181 for the full background on this architectural gap (prepare-before-publish ordering) and why this alert exists instead of a silent failure.")"
+
+          labels=(--label bug)
+          if gh label list --repo "${{ github.repository }}" --json name -q '.[].name' | grep -qx "release-failure"; then
+            labels+=(--label release-failure)
+          fi
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$title" \
+            --body "$body" \
+            "${labels[@]}"
