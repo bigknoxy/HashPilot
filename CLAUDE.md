@@ -52,6 +52,24 @@ Style: strict TypeScript, ES modules, two-space indent; camelCase values, Pascal
 
 `AGENTS.md` covers the same ground for other agents — keep the two in sync when commands or conventions change.
 
+### Branch protection required checks
+
+`main`'s branch protection `required_status_checks.contexts` must list the *real*
+current CI job names — not aspirational or historical ones. They drifted silently
+once before (#184/B78): the contexts were `Test` and `ShellCheck`, names that once
+matched real jobs in `.github/workflows/ci.yml` but were replaced (PR #149's
+language-agnostic CI rewrite) without updating branch protection, so those two
+required contexts never reported on any PR again. As of this fix the required
+contexts are: `Node test`, `actionlint`, `yaml lint`, `Packaging smoke test`,
+`codeql (javascript-typescript)`, `gitleaks`, `osv-scanner`. Note that plain
+`codeql` (unlike `gitleaks`/`osv-scanner`) never matches anything either: the
+`codeql` job in `security.yml` is matrixed by language, so its real check names
+are `codeql (<language>)` — `codeql (javascript-typescript)` is the one that
+actually runs against this repo's source. If you rename or restructure `ci.yml`
+or `security.yml` job `name:`/matrix values, update branch protection's required
+contexts in the *same* change — a stale context silently stops gating merges
+instead of failing loudly.
+
 ## Architecture
 
 HashPilot is a global, tool-agnostic structured editing core for coding agents. It exposes a single CLI binary (`hashpilot`) that agents invoke for safe, syntax-aware file edits.
