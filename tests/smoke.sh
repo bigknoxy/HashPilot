@@ -82,6 +82,19 @@ else
   fail "install.sh version banner (expected v${PKG_VERSION}, got: $(echo "$INSTALL_HELP_OUTPUT" | grep 'HashPilot Installer' || echo 'no match'))"
 fi
 
+# ── 0a2. Standalone doctor.sh version banner (#156 sibling gap) ─────────
+# scripts/doctor.sh had a hardcoded stale "0.1.0" literal until #156 was
+# fixed alongside the MCP server's own version bug; nothing previously
+# asserted this script prints the real version either.
+echo "--- doctor.sh version banner ---"
+DOCTOR_OUTPUT=$(bash "$REPO_ROOT/scripts/doctor.sh" 2>&1 || true)
+
+if [ -n "$PKG_VERSION" ] && echo "$DOCTOR_OUTPUT" | grep -qF "HashPilot Doctor v${PKG_VERSION}"; then
+  ok "doctor.sh prints package.json version ($PKG_VERSION)"
+else
+  fail "doctor.sh version banner (expected v${PKG_VERSION}, got: $(echo "$DOCTOR_OUTPUT" | grep 'HashPilot Doctor' || echo 'no match'))"
+fi
+
 # ── 0b. Lockfile is not stale (regression guard) ────────────────────────
 # bun.lock drifted out of sync with package.json after a Dependabot bump
 # landed without a lockfile regen, which silently broke every fresh

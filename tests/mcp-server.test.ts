@@ -14,6 +14,12 @@ import { join } from "path";
 import { handleLine, callTool, PROTOCOL_VERSION } from "../src/mcp/server";
 import { OPERATIONS } from "../src/core/operations";
 
+// #156: the MCP server used to read its version from
+// `process.env.HASHPILOT_VERSION || "dev"`, which nothing in a real install
+// ever sets, so every real install reported "dev" over the wire. It now
+// imports package.json directly (see src/mcp/server.ts).
+const PKG_VERSION: string = require(join(import.meta.dir, "..", "package.json")).version;
+
 /**
  * Fixtures live under the repo, not in `/tmp`.
  *
@@ -63,6 +69,9 @@ describe("mcp server over stdio", () => {
     expect(init.id).toBe(1);
     expect(init.result.protocolVersion).toBe(PROTOCOL_VERSION);
     expect(init.result.serverInfo.name).toBe("hashpilot");
+    // #156: must be the real package.json version, never "dev" or a stale
+    // hardcoded literal.
+    expect(init.result.serverInfo.version).toBe(PKG_VERSION);
     expect(init.result.capabilities.tools).toBeDefined();
 
     const list = responses[1] as any;
