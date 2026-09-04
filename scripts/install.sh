@@ -65,7 +65,22 @@ fetch_and_extract_tarball() {
   fi
   if [ -n "$expected_sha1" ]; then
     local actual_sha1
-    actual_sha1="$(sha1sum "$tmp_tarball" 2>/dev/null | awk '{print $1}')"
+    # `sha1sum` is GNU coreutils only — stock macOS (BSD userland) has
+    # `shasum -a 1` instead, and neither exists on some minimal containers,
+    # where `openssl sha1` is the last resort. Checking only for `sha1sum`
+    # made every npm-path checksum check fail on macOS, silently forcing
+    # every install/upgrade there onto the GitHub fallback — defeating this
+    # PR's actual point on a major platform.
+    if command -v sha1sum >/dev/null 2>&1; then
+      actual_sha1="$(sha1sum "$tmp_tarball" 2>/dev/null | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+      actual_sha1="$(shasum -a 1 "$tmp_tarball" 2>/dev/null | awk '{print $1}')"
+    elif command -v openssl >/dev/null 2>&1; then
+      actual_sha1="$(openssl sha1 "$tmp_tarball" 2>/dev/null | awk '{print $NF}')"
+    else
+      warn "no sha1sum/shasum/openssl found; skipping tarball checksum verification"
+      actual_sha1="$expected_sha1"
+    fi
     if [ "$actual_sha1" != "$expected_sha1" ]; then
       warn "tarball checksum mismatch (expected ${expected_sha1}, got ${actual_sha1:-<none>})"
       rm -f "$tmp_tarball"
@@ -208,7 +223,15 @@ if [ -z "$SOURCE_DIR" ]; then
       log "Downloading HashPilot from branch ${SOURCE_CHANNEL}..."
     fi
 
-    fetch_and_extract_tarball "$TARBALL_URL" "$CLONE_DIR"
+    # This is the last fallback — nothing after this if it fails — so an
+    # unguarded call here would let `set -e` kill the script with a bare,
+    # undiagnosed exit instead of the clear, actionable message every other
+    # failure mode in this block already gets.
+    if ! fetch_and_extract_tarball "$TARBALL_URL" "$CLONE_DIR"; then
+      err "Failed to download or extract HashPilot from ${TARBALL_URL}"
+      err "Check your network connection, or that '${SOURCE_CHANNEL}' is a real branch/tag."
+      exit 1
+    fi
   fi
 
   SOURCE_DIR="$CLONE_DIR"
@@ -379,8 +402,9 @@ if [ "$NPM_INSTALLED" = "true" ] && [ -f "$SOURCE_DIR/bun.lock" ]; then
   err "npm-sourced install unexpectedly has a bun.lock — refusing to guess which dependency mode is correct"
   exit 1
 fi
-if [ "$NPM_INSTALLED" = "false" ] && [ "$REMOTE_MODE" = "true" ] && [ ! -f "$SOURCE_DIR/bun.lock" ]; then
-  err "git-sourced install is missing bun.lock — refusing to guess which dependency mode is correct"
+if [ "$NPM_INSTALLED" = "false" ] && [ ! -f "$SOURCE_DIR/bun.lock" ]; then
+  err "Source is missing bun.lock and wasn't installed from npm — refusing to guess which dependency mode is correct"
+  err "(local-clone and --source installs are expected to have bun.lock, same as the git repo does)"
   exit 1
 fi
 
