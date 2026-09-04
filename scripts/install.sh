@@ -1,10 +1,6 @@
 #!/bin/bash
 set -eu
 
-# Read the version from package.json so the installer can never drift from the
-# released version. Falls back to "unknown" rather than a stale literal.
-HASHPILOT_VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$(dirname "$0")/../package.json" 2>/dev/null | head -1)"
-HASHPILOT_VERSION="${HASHPILOT_VERSION:-unknown}"
 # shellcheck disable=SC2034
 BOLD='\033[1m'
 DIM='\033[2m'
@@ -52,6 +48,13 @@ if [ -z "$SOURCE_DIR" ]; then
   SOURCE_DIR="$CLONE_DIR"
   detail "Extracted to $CLONE_DIR"
 fi
+
+# Read the version from package.json so the installer can never drift from the
+# released version. Falls back to "unknown" rather than a stale literal. Read
+# only now that SOURCE_DIR is resolved, so this works in both local-clone mode
+# and remote (curl-pipe) mode, where $0 doesn't point at the source tree.
+HASHPILOT_VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SOURCE_DIR/package.json" 2>/dev/null | head -1)"
+HASHPILOT_VERSION="${HASHPILOT_VERSION:-unknown}"
 
 # ── Parse arguments ──────────────────────────────────────────────────────
 TARGET_DIR="${HOME}/.agentic-tools"
