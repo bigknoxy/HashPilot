@@ -1,9 +1,13 @@
-import Parser from "tree-sitter";
-import TypeScript from "tree-sitter-typescript";
-import Python from "tree-sitter-python";
-import JavaScript from "tree-sitter-javascript";
-import Go from "tree-sitter-go";
-import Rust from "tree-sitter-rust";
+// `tree-sitter` and its per-language grammars are native Node addons with no
+// prebuilt binary for every platform (e.g. linux-arm64 — #145). A *static*
+// top-level `import Parser from "tree-sitter"` runs at module-load time,
+// before any try/catch in this file can run, so on such a platform it used
+// to crash the whole process — even for commands like `--version` that never
+// touch AST at all. `import type` is erased at compile time (no runtime
+// import is emitted), and the actual native modules are `require()`d lazily
+// inside `getParser()`'s try/catch below, so a broken/missing binding
+// degrades to hash/diff routing with a recorded reason instead of a crash.
+import type Parser from "tree-sitter";
 import { escapeRegex } from "./utils";
 import { detectModuleSystem } from "./module-system";
 import { ErrorCode } from "./telemetry";
@@ -45,25 +49,30 @@ const PARSER_ERRORS: Record<string, string> = {};
 function getParser(lang: string): Parser | null {
   if (SUPPORTED_LANGUAGES[lang]) return SUPPORTED_LANGUAGES[lang].parser;
   try {
-    const p = new Parser();
+    // Lazy, synchronous `require()` — not a top-level `import` — so a
+    // missing/broken native binding throws here, inside this try/catch,
+    // instead of at module load (#145). `getParser` stays synchronous so
+    // every existing call site is unaffected.
+    const ParserCtor: typeof Parser = require("tree-sitter");
+    const p = new ParserCtor();
     switch (lang) {
       case "typescript":
-        p.setLanguage(TypeScript.typescript);
+        p.setLanguage(require("tree-sitter-typescript").typescript);
         break;
       case "tsx":
-        p.setLanguage(TypeScript.tsx);
+        p.setLanguage(require("tree-sitter-typescript").tsx);
         break;
       case "javascript":
-        p.setLanguage(JavaScript);
+        p.setLanguage(require("tree-sitter-javascript"));
         break;
       case "python":
-        p.setLanguage(Python);
+        p.setLanguage(require("tree-sitter-python"));
         break;
       case "go":
-        p.setLanguage(Go);
+        p.setLanguage(require("tree-sitter-go"));
         break;
       case "rust":
-        p.setLanguage(Rust);
+        p.setLanguage(require("tree-sitter-rust"));
         break;
       default:
         return null;
