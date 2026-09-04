@@ -1,3 +1,10 @@
+## [4.6.3](https://github.com/bigknoxy/HashPilot/compare/v4.6.2...v4.6.3) (2026-09-04)
+
+
+### Bug Fixes
+
+* **ops:** regenerate stale bun.lock, harden install.sh, close CI blind spots ([#185](https://github.com/bigknoxy/HashPilot/issues/185)) ([010099e](https://github.com/bigknoxy/HashPilot/commit/010099e98038c6773d338bbc7cdea9a4db880e27)), closes [#154](https://github.com/bigknoxy/HashPilot/issues/154) [#182](https://github.com/bigknoxy/HashPilot/issues/182) [#183](https://github.com/bigknoxy/HashPilot/issues/183) [#145](https://github.com/bigknoxy/HashPilot/issues/145)
+
 ## [4.6.2](https://github.com/bigknoxy/HashPilot/compare/v4.6.1...v4.6.2) (2026-09-04)
 
 
