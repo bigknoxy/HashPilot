@@ -175,8 +175,9 @@ silent one.
 ### Upgrade
 
 ```bash
-hashpilot upgrade          # upgrade to latest from main
+hashpilot upgrade          # upgrade to the latest npm release (falls back to GitHub if npm is unreachable)
 hashpilot upgrade --dry-run  # preview what would happen
+hashpilot upgrade --channel some-branch  # bleeding-edge: install that exact git branch instead, skipping npm
 ```
 
 ### Uninstall
@@ -357,7 +358,7 @@ diffable, and CI fails on any case that regresses from green.
 
 | Command | What It Does |
 |---------|-------------|
-| `upgrade [--dry-run] [--channel <branch>] [--target <dir>] [--keep-telemetry] [--force]` | Upgrade HashPilot from GitHub to latest version |
+| `upgrade [--dry-run] [--channel <branch>] [--target <dir>] [--keep-telemetry] [--force]` | Upgrade HashPilot to the latest version — npm by default, falling back to GitHub; `--channel <branch>` installs that exact git branch instead |
 
 ### Edit — Hash Route
 

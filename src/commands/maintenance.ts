@@ -25,7 +25,7 @@ export function register(program: Command): void {
 
   program
     .command("upgrade")
-    .description("Upgrade HashPilot to the latest version from GitHub")
+    .description("Upgrade HashPilot to the latest version (npm, falling back to GitHub)")
     .option("--channel <channel>", "Release channel (default: main)", "main")
     .option("--target <dir>", "Install target directory (default: ~/.agentic-tools)")
     .option("--keep-telemetry", "Preserve existing telemetry on upgrade")
@@ -73,12 +73,16 @@ export function register(program: Command): void {
           env: {
             ...process.env,
             PATH: `${join(targetDir, "bin")}:${process.env.PATH || ""}`,
-            // A non-default channel means the user wants that exact git ref
-            // (e.g. bleeding-edge branch testing) — install.sh skips its
-            // npm-primary source fetch entirely when this is set to
-            // anything other than "main", since npm's published releases
-            // can't provide an arbitrary branch.
-            ...(channel !== "main" ? { HASHPILOT_SOURCE_CHANNEL: channel } : {}),
+            // Always set explicitly (never omitted) so a stale
+            // HASHPILOT_SOURCE_CHANNEL already exported in the caller's
+            // shell or a CI job's environment can't silently override the
+            // channel actually requested on *this* invocation — install.sh
+            // skips its npm-primary source fetch entirely when this is set
+            // to anything other than "main", since npm's published releases
+            // can't provide an arbitrary git ref, so an inherited stale
+            // value would silently install from git instead of npm with no
+            // warning at all.
+            HASHPILOT_SOURCE_CHANNEL: channel === "main" ? "" : channel,
           },
         });
 

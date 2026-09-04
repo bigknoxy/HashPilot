@@ -765,7 +765,7 @@ hashpilot doctor [options]
 
 #### `upgrade`
 
-Upgrade HashPilot to the latest version from GitHub
+Upgrade HashPilot to the latest version (npm, falling back to GitHub)
 
 ```
 hashpilot upgrade [options]

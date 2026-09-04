@@ -14,9 +14,79 @@ warn() { printf "${YELLOW}[hashpilot]${NC} %s\n" "$1"; }
 err()  { printf "${RED}[hashpilot]${NC} %s\n" "$1"; }
 detail() { printf "${DIM}  →${NC} %s\n" "$1"; }
 
+# Single source of truth for the "use npm, not an explicit git ref" sentinel
+# — referenced in this file and (as a literal, since it's a separate process)
+# in src/commands/maintenance.ts's `--channel` default; keep both in sync.
+DEFAULT_CHANNEL="main"
+
+# None of this script's network calls bounded how long they'd wait — a host
+# that accepts the TCP connection but never responds (common for corporate
+# proxies blocking a specific destination, which is the exact scenario the
+# npm-registry fallback below exists for) hung the installer indefinitely
+# instead of ever reaching that fallback.
+CURL_META_OPTS=(--connect-timeout 10 --max-time 20)
+CURL_DOWNLOAD_OPTS=(--connect-timeout 10 --max-time 300)
+
+# Extract one string field's value from a small JSON blob (grep+sed, no jq
+# dependency, matching this script's existing style) — centralized so every
+# call site gets the same handling instead of each reinventing it slightly
+# differently. Pass "url" as $3 to additionally require the value look like
+# a real http(s) URL: the naive sed substitution only fires on a genuine
+# match, so a non-URL value (empty, relative, a mirror that rewrites the
+# field to something else) would otherwise silently pass the whole
+# grep-matched line through unchanged — still non-empty, so it would pass a
+# bare `-n` check as if it were real.
+json_field() {
+  local json="$1" field="$2" require="${3:-}" value
+  value=$(echo "$json" | grep -o "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 \
+    | sed "s/.*\"${field}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\\1/" || true)
+  if [ "$require" = "url" ]; then
+    case "$value" in
+      https://*|http://*) ;;
+      *) value="" ;;
+    esac
+  fi
+  echo "$value"
+}
+
+# Download a tarball to a temp file (verifying its sha1 against $3 first, if
+# given — npm's registry metadata includes one for free), then extract it.
+# Shared by the npm and GitHub source fetches below so hardening (timeouts,
+# checksum verification) only has to be added once. Leaves nothing behind
+# and returns non-zero on any failure: download, checksum mismatch, or
+# extraction — every failure mode here is handled identically by the caller
+# (fall back to the next source), so there is no reason for them to differ.
+fetch_and_extract_tarball() {
+  local url="$1" dest_dir="$2" expected_sha1="${3:-}" tmp_tarball
+  tmp_tarball="$(mktemp)"
+  if ! curl -fsSL "${CURL_DOWNLOAD_OPTS[@]}" "$url" -o "$tmp_tarball" 2>/dev/null; then
+    rm -f "$tmp_tarball"
+    return 1
+  fi
+  if [ -n "$expected_sha1" ]; then
+    local actual_sha1
+    actual_sha1="$(sha1sum "$tmp_tarball" 2>/dev/null | awk '{print $1}')"
+    if [ "$actual_sha1" != "$expected_sha1" ]; then
+      warn "tarball checksum mismatch (expected ${expected_sha1}, got ${actual_sha1:-<none>})"
+      rm -f "$tmp_tarball"
+      return 1
+    fi
+  fi
+  if ! tar -xz -C "$dest_dir" --strip-components=1 -f "$tmp_tarball" 2>&1 | while IFS= read -r line; do detail "$line"; done; then
+    rm -f "$tmp_tarball"
+    return 1
+  fi
+  rm -f "$tmp_tarball"
+}
+
 # ── Detect source directory ──────────────────────────────────────────────
 REMOTE_MODE=false
 SOURCE_DIR=""
+# Declared here (not just inside the remote-mode block below) so the
+# dependency-install step can use it as the authoritative "did this come
+# from npm" signal — local-clone mode and the GitHub-fallback path both
+# leave it false, which is correct for both.
+NPM_INSTALLED=false
 
 # An explicit --source wins over everything else, checked here (before the
 # real argument-parsing loop below, which runs too late for this) so that
@@ -26,12 +96,16 @@ SOURCE_DIR=""
 # HASHPILOT_VERSION got read from the auto-fetched npm/GitHub tarball, not
 # from the --source directory that was actually installed, silently
 # mislabeling the manifest/version banner whenever the two versions differed.
+# No `break`: --source given twice must resolve to the SAME occurrence the
+# real argument-parsing loop below honors (it keeps the last one), or the
+# version/manifest would be read from one directory while the actual
+# install copies from another — reintroducing the exact class of mismatch
+# this pre-scan exists to prevent.
 EXPLICIT_SOURCE=""
 _ARGV=("$@")
 for ((_i = 0; _i < ${#_ARGV[@]}; _i++)); do
   if [ "${_ARGV[$_i]}" = "--source" ] && [ $((_i + 1)) -lt ${#_ARGV[@]} ]; then
     EXPLICIT_SOURCE="${_ARGV[$((_i + 1))]}"
-    break
   fi
 done
 
@@ -70,35 +144,35 @@ fi
 if [ -z "$SOURCE_DIR" ]; then
   REMOTE_MODE=true
   CLONE_DIR=$(mktemp -d)
-  SOURCE_CHANNEL="${HASHPILOT_SOURCE_CHANNEL:-main}"
+  # A stale HASHPILOT_SOURCE_CHANNEL already exported in the caller's shell
+  # (or a CI job's environment) must not silently override the channel the
+  # user actually asked for on THIS invocation — src/commands/maintenance.ts
+  # always sets this explicitly (to "" on the default channel) precisely so
+  # `${HASHPILOT_SOURCE_CHANNEL:-$DEFAULT_CHANNEL}` can't see a leftover
+  # value from a previous run, but default it defensively here too for
+  # anyone invoking install.sh directly rather than through `hashpilot
+  # upgrade`.
+  SOURCE_CHANNEL="${HASHPILOT_SOURCE_CHANNEL:-$DEFAULT_CHANNEL}"
+  [ -z "$SOURCE_CHANNEL" ] && SOURCE_CHANNEL="$DEFAULT_CHANNEL"
   NPM_REGISTRY="${HASHPILOT_NPM_REGISTRY:-https://registry.npmjs.org}"
   NPM_INSTALLED=false
 
-  if [ "$SOURCE_CHANNEL" = "main" ]; then
+  if [ "$SOURCE_CHANNEL" = "$DEFAULT_CHANNEL" ]; then
     log "Fetching latest release info from npm..."
-    NPM_INFO=$(curl -fsSL "${NPM_REGISTRY}/@bigknoxy/hashpilot/latest" 2>/dev/null || echo "")
-    NPM_TARBALL_URL=$(echo "$NPM_INFO" | grep -o '"tarball"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\(https\{0,1\}:[^"]*\)"/\1/' || true)
-    NPM_VERSION=$(echo "$NPM_INFO" | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/' || true)
-    # The sed above only replaces the match when the value is a real
-    # http(s) URL — on anything else (a relative path, an empty string, a
-    # registry mirror that rewrites `dist.tarball`) it silently leaves the
-    # whole grep-matched line untouched, which is still non-empty and would
-    # pass a bare `-n` check as if it were a real URL. Require the http(s)
-    # prefix explicitly instead of just non-empty.
-    case "$NPM_TARBALL_URL" in
-      https://*|http://*) ;;
-      *) NPM_TARBALL_URL="" ;;
-    esac
+    NPM_INFO=$(curl -fsSL "${CURL_META_OPTS[@]}" "${NPM_REGISTRY}/@bigknoxy/hashpilot/latest" 2>/dev/null || echo "")
+    NPM_TARBALL_URL="$(json_field "$NPM_INFO" "tarball" url)"
+    NPM_VERSION="$(json_field "$NPM_INFO" "version")"
+    NPM_SHASUM="$(json_field "$NPM_INFO" "shasum")"
     if [ -n "$NPM_TARBALL_URL" ]; then
       log "Downloading HashPilot v${NPM_VERSION} from npm..."
-      # A tarball can download and extract cleanly (exit 0) while still
-      # being useless — e.g. a registry response that resolved to some
-      # unrelated or malformed archive. Require a package.json to actually
-      # be there before trusting this source; otherwise every later step
-      # (the version read right after this block especially) fails with a
-      # bare, undiagnosed exit instead of falling back like every other
-      # failure mode here does.
-      if curl -fsSL "$NPM_TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done; then
+      # A tarball can download, checksum-verify, and extract cleanly while
+      # still being useless — e.g. a registry response that resolved to
+      # some unrelated but validly-formed archive. Require a package.json
+      # to actually be there before trusting this source; otherwise every
+      # later step (the version read right after this block especially)
+      # fails with a bare, undiagnosed exit instead of falling back like
+      # every other failure mode here does.
+      if fetch_and_extract_tarball "$NPM_TARBALL_URL" "$CLONE_DIR" "$NPM_SHASUM"; then
         if [ -f "$CLONE_DIR/package.json" ]; then
           NPM_INSTALLED=true
         else
@@ -117,10 +191,10 @@ if [ -z "$SOURCE_DIR" ]; then
   fi
 
   if [ "$NPM_INSTALLED" = "false" ]; then
-    if [ "$SOURCE_CHANNEL" = "main" ]; then
+    if [ "$SOURCE_CHANNEL" = "$DEFAULT_CHANNEL" ]; then
       log "Fetching latest release info from GitHub..."
-      RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
-      TAG_NAME=$(echo "$RELEASE_INFO" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+      RELEASE_INFO=$(curl -fsSL "${CURL_META_OPTS[@]}" "https://api.github.com/repos/bigknoxy/HashPilot/releases/latest" 2>/dev/null || echo "")
+      TAG_NAME="$(json_field "$RELEASE_INFO" "tag_name")"
       if [ -n "$TAG_NAME" ]; then
         TARBALL_URL="https://github.com/bigknoxy/HashPilot/archive/refs/tags/${TAG_NAME}.tar.gz"
         log "Downloading HashPilot ${TAG_NAME} from GitHub..."
@@ -134,7 +208,7 @@ if [ -z "$SOURCE_DIR" ]; then
       log "Downloading HashPilot from branch ${SOURCE_CHANNEL}..."
     fi
 
-    curl -fsSL "$TARBALL_URL" | tar -xz -C "$CLONE_DIR" --strip-components=1 2>&1 | while IFS= read -r line; do detail "$line"; done
+    fetch_and_extract_tarball "$TARBALL_URL" "$CLONE_DIR"
   fi
 
   SOURCE_DIR="$CLONE_DIR"
@@ -293,6 +367,23 @@ log "Installing dependencies..."
 # --frozen-lockfile against the npm package's own package.json — which
 # never matches, and hard-aborts the upgrade after node_modules has
 # already been removed, leaving no working install at all.
+#
+# $NPM_INSTALLED (set above, always defined regardless of which branch was
+# taken) is the authoritative signal for "this came from npm and has no
+# lockfile" — cross-checked against bun.lock's presence rather than relied
+# on alone, so a future source shape that disagrees with what we expect
+# (e.g. an npm extraction that somehow shipped a lockfile, or a git/local
+# source that's missing one) fails loudly here instead of silently
+# guessing.
+if [ "$NPM_INSTALLED" = "true" ] && [ -f "$SOURCE_DIR/bun.lock" ]; then
+  err "npm-sourced install unexpectedly has a bun.lock — refusing to guess which dependency mode is correct"
+  exit 1
+fi
+if [ "$NPM_INSTALLED" = "false" ] && [ "$REMOTE_MODE" = "true" ] && [ ! -f "$SOURCE_DIR/bun.lock" ]; then
+  err "git-sourced install is missing bun.lock — refusing to guess which dependency mode is correct"
+  exit 1
+fi
+
 if [ -f "$SOURCE_DIR/bun.lock" ]; then
   cd "$TARGET_DIR/structured-editing"
   bun install --frozen-lockfile 2>&1 | while IFS= read -r line; do detail "$line"; done
