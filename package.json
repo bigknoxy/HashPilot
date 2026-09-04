@@ -1,6 +1,6 @@
 {
   "name": "@bigknoxy/hashpilot",
-  "version": "4.6.6",
+  "version": "4.7.0",
   "description": "HashPilot — Global Tool-Agnostic Structured Editing Core for Coding Agents",
   "type": "module",
   "engines": {

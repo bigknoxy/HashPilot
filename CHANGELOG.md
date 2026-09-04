@@ -1,3 +1,10 @@
+# [4.7.0](https://github.com/bigknoxy/HashPilot/compare/v4.6.6...v4.7.0) (2026-09-04)
+
+
+### Features
+
+* **install:** prefer the npm package over a full git clone, with fallback ([#194](https://github.com/bigknoxy/HashPilot/issues/194)) ([c2258f5](https://github.com/bigknoxy/HashPilot/commit/c2258f5f29f09d798c83b5cb5da273d34e576902)), closes [147/#96](https://github.com/bigknoxy/HashPilot/issues/96) [hi#effort](https://github.com/hi/issues/effort) [hi#effort](https://github.com/hi/issues/effort) [#195](https://github.com/bigknoxy/HashPilot/issues/195)
+
 ## [4.6.6](https://github.com/bigknoxy/HashPilot/compare/v4.6.5...v4.6.6) (2026-09-04)
 
 
