@@ -88,6 +88,7 @@ Catching up to what competitors already ship: MCP distribution, interactivity, p
 | [#142](../../issues/142) | bench: coverage gaps that let #139/#140/#141 through | 36 | P2 | reported | testing |
 | [#78](../../issues/78) | Adopt competitive positioning & analysis as the tracked strategy artifact | 35 | P2 | reported | strategy |
 | [#79](../../issues/79) | Add Codex CLI integration adapter (4th platform) | 32 | P2 | reported | strategy |
+| [#179](../../issues/179) | B74 — cloud-credential-key redaction rule misses subscriptionKey/storageKey/encryptionKey/clientKey | 32 | P2 | verified | security · ✅ done |
 | [#164](../../issues/164) | B63 — `find-symbols` (read-only) takes the same exclusive lock as mutating AST operations | 31 | P2 | reported | correctness |
 | [#162](../../issues/162) | B61 — Hash-route read failures throw out of `routeEdit` instead of recording a failed result | 29 | P2 | reported | correctness |
 | [#171](../../issues/171) | B70 — Workflows use custom GH_TOKEN secret instead of default scoped GITHUB_TOKEN | 29 | P2 | reported | ops · security |

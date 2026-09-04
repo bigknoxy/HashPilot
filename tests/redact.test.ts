@@ -67,6 +67,20 @@ describe("redactSecrets", () => {
     }
   });
 
+  test("redacts bare Azure-style *Key names beyond the original account/primary/master/auth/private set", () => {
+    // #179/B74: subscriptionKey (Cognitive Services), storageKey (Azure Storage),
+    // encryptionKey, clientKey (OAuth/encryption) all follow the identical shape
+    // as the already-covered names but weren't in the word list.
+    for (const line of [
+      "subscriptionKey: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+      "storageKey=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==",
+      '"encryptionKey": "M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU"',
+      "clientKey = M7QF37edo9r238hXn+g83iEnfiPKmU2YhAoZEUuU",
+    ]) {
+      expect(redactSecrets(line)).toContain("[REDACTED]");
+    }
+  });
+
   test("does not redact ordinary identifiers that merely contain 'key'", () => {
     for (const line of [
       "const primaryKeyColumn = 'user_id'",
@@ -85,6 +99,7 @@ describe("redactSecrets", () => {
       '{"primaryKey": "ord_8827441"}',
       "MasterKey: row-42",
       "AccountKey=acct_001",
+      "clientKey=abc123",
     ]) {
       expect(redactSecrets(line)).not.toContain("[REDACTED]");
     }
