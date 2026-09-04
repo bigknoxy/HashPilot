@@ -1,3 +1,24 @@
+## [4.6.6](https://github.com/bigknoxy/HashPilot/compare/v4.6.5...v4.6.6) (2026-09-04)
+
+
+### Bug Fixes
+
+* **security:** override transitive ip-address and js-yaml to patched versions ([#193](https://github.com/bigknoxy/HashPilot/issues/193)) ([1be9559](https://github.com/bigknoxy/HashPilot/commit/1be9559ec2b7522f4dd4c82a5a85c575a7c78ca1)), closes [hi#severity](https://github.com/hi/issues/severity)
+
+## [4.6.5](https://github.com/bigknoxy/HashPilot/compare/v4.6.4...v4.6.5) (2026-09-04)
+
+
+### Bug Fixes
+
+* **ast:** lazy-load tree-sitter so a missing binding degrades, not crashes ([#145](https://github.com/bigknoxy/HashPilot/issues/145)) ([#191](https://github.com/bigknoxy/HashPilot/issues/191)) ([a806913](https://github.com/bigknoxy/HashPilot/commit/a806913a8927115287327d5421c87da8e1553880)), closes [#46](https://github.com/bigknoxy/HashPilot/issues/46) [#46](https://github.com/bigknoxy/HashPilot/issues/46)
+
+## [4.6.4](https://github.com/bigknoxy/HashPilot/compare/v4.6.3...v4.6.4) (2026-09-04)
+
+
+### Bug Fixes
+
+* **redact:** add missing Azure cloud-credential *Key names ([#187](https://github.com/bigknoxy/HashPilot/issues/187)) ([1340734](https://github.com/bigknoxy/HashPilot/commit/1340734df0f4a6980a7a4d4b84c150f0ca528770)), closes [#179](https://github.com/bigknoxy/HashPilot/issues/179)
+
 ## [4.6.3](https://github.com/bigknoxy/HashPilot/compare/v4.6.2...v4.6.3) (2026-09-04)
 
 
