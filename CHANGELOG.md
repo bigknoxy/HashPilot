@@ -1,3 +1,10 @@
+## [4.8.1](https://github.com/bigknoxy/HashPilot/compare/v4.8.0...v4.8.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* B18 8-way concurrency test timeout + decision records ([#198](https://github.com/bigknoxy/HashPilot/issues/198)) ([b0d6fad](https://github.com/bigknoxy/HashPilot/commit/b0d6fad32002a510f7bbfb7b018c764f416fe3c9)), closes [#197](https://github.com/bigknoxy/HashPilot/issues/197) [#196](https://github.com/bigknoxy/HashPilot/issues/196)
+
 # [4.8.0](https://github.com/bigknoxy/HashPilot/compare/v4.7.0...v4.8.0) (2026-09-04)
 
 
