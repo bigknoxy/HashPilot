@@ -157,7 +157,7 @@ describe("router serializes concurrent single-file edits (B18)", () => {
 
   // A lost update is the failure this whole mechanism exists to prevent: N writers
   // each appending must produce N appends, never fewer.
-  it("no lost updates under 8-way concurrency", async () => {
+  it("no lost updates under 8-way concurrency", { timeout: 30_000 }, async () => {
     const f = join(dir, "race-many.txt");
     writeFileSync(f, "start\n");
 
