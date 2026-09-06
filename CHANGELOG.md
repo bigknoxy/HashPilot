@@ -1,3 +1,10 @@
+## [4.8.3](https://github.com/bigknoxy/HashPilot/compare/v4.8.2...v4.8.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **install:** npm-sourced installs with shipped bun.lock use --frozen-lockfile --production ([#201](https://github.com/bigknoxy/HashPilot/issues/201)) ([189d82d](https://github.com/bigknoxy/HashPilot/commit/189d82dd841b4ef7ffc6f3d33a507c88e627a290)), closes [#194](https://github.com/bigknoxy/HashPilot/issues/194)
+
 ## [4.8.2](https://github.com/bigknoxy/HashPilot/compare/v4.8.1...v4.8.2) (2026-09-06)
 
 
