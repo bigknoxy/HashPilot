@@ -7,6 +7,12 @@ export type { SearchResult, SearchHit, ZgSearchResult, GrepSearchResult, SearchO
 export { replaceHash } from "./hash-edit";
 export type { ReplaceHashResult, ReplaceHashOptions } from "./hash-edit";
 export {
+  computeLineMetrics,
+  describeLineMetrics,
+  computeChangedLinesScore,
+} from "./line-metrics";
+export type { LineMetrics, LineComparer } from "./line-metrics";
+export {
   findSymbols,
   findSymbolsDetailed,
   MAX_AST_DEPTH,
