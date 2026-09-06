@@ -27,7 +27,8 @@
     "docs/",
     "LICENSE",
     "package.json",
-    "tsconfig.json"
+    "tsconfig.json",
+    "bun.lock"
   ],
   "repository": {
     "type": "git",

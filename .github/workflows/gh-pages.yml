@@ -18,10 +18,15 @@ jobs:
       - name: Build site
         run: bash scripts/build-site.sh
 
-      - uses: peaceiris/actions-gh-pages@v4
+      # Pin actions by commit SHA, not floating tags, to prevent mutable-tag
+      # attacks (B71). v4 tag → 329bcc8f12caed2cefe5a5b80781499a6f3b361b.
+      - uses: peaceiris/actions-gh-pages@329bcc8f12caed2cefe5a5b80781499a6f3b361b
         id: deploy
         with:
-          github_token: ${{ secrets.GH_TOKEN }}
+          # Use the default GITHUB_TOKEN instead of a custom PAT (B70).
+          # gh-pages deployment doesn't need to trigger downstream workflows,
+          # so the default scoped token is sufficient.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
           publish_branch: gh-pages
           # The branch's history still holds every file the old `publish_dir: .`
@@ -32,9 +37,11 @@ jobs:
       - name: Wait for Pages build
         run: sleep 15
 
-      - name: Install agent-browser
+      # Pin agent-browser to an exact version and verify integrity (B69).
+      # Unpinned npm installs with write-scoped tokens are a supply-chain risk.
+      - name: Install and verify agent-browser
         run: |
-          npm install -g agent-browser
+          npm install -g agent-browser@0.36.0
           agent-browser install
 
       - name: Verify site with browser automation

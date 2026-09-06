@@ -52,3 +52,39 @@ Format:
 - **Decision:** `runZg` returns a `ZgProcessResult` with separate `timedOut` and `spawnError` fields. The caller checks spawn errors first, then timeouts, then non-zero exits, then parses output.
 - **Alternatives considered:** (1) throw on spawn error — rejected: the search command should return a structured error, not crash. (2) single `error` field — rejected: timeout and spawn-failure require different recovery paths.
 - **Consequences:** `SEARCH_FAILED` errors now include actionable diagnostics (`spawnError`, `timedOut`, or `stderr`). Exit-1 with no stderr (ripgrep-style "no matches") returns empty hits, not an error.
+
+## D005: release.yml keeps GH_TOKEN (PAT) — GITHUB_TOKEN can't trigger downstream workflows
+
+- **Date:** 2026-09-05
+- **PR:** #199
+- **Context:** Audit finding B70 recommended switching all `secrets.GH_TOKEN` references to `secrets.GITHUB_TOKEN`. The default `GITHUB_TOKEN` is minted per-run, scoped, and auto-expires — strictly better for security. However, GitHub's design prevents `GITHUB_TOKEN` from triggering downstream workflows (to avoid recursive runs). semantic-release's `prepare` phase pushes a version-bump commit to `main`, which must trigger the `gh-pages` workflow. With `GITHUB_TOKEN`, that push is invisible to GitHub's event system.
+- **Decision:** Keep `GH_TOKEN` in `release.yml` (lines 110, 137). Switch `gh-pages.yml` to `GITHUB_TOKEN` since it doesn't need to trigger further workflows.
+- **Alternatives considered:** (1) Switch everything to `GITHUB_TOKEN` — rejected: gh-pages deploy would never trigger after a release. (2) Use `workflow_dispatch` trigger instead — rejected: adds latency and requires a separate orchestration step. (3) Use `workflow_run` trigger — rejected: only fires after the triggering workflow completes, which is too late for the current architecture.
+- **Consequences:** The release workflow retains a PAT with broader scope than ideal. Mitigation: the PAT should be scoped to the minimum permissions (just `contents: write` for the repo). Regular rotation recommended.
+
+## D006: Pin third-party actions by commit SHA, not tag
+
+- **Date:** 2026-09-05
+- **PR:** #199
+- **Context:** Audit finding B71 flagged `peaceiris/actions-gh-pages@v4` as a floating tag. The action is handed a write-capable token. A compromised `v4` tag could push malicious content to `gh-pages`.
+- **Decision:** Pin `peaceiris/actions-gh-pages` to commit SHA `329bcc8f12caed2cefe5a5b80781499a6f3b361b` (the `v4` tag at time of pinning). First-party `actions/*` actions (checkout, setup-node, setup-bun) remain on major-version tags — these are GitHub-maintained with strong supply-chain controls and the SHA would need updating on every minor/patch bump.
+- **Alternatives considered:** (1) Pin all actions by SHA — rejected: first-party actions update frequently and pinning creates maintenance burden with no meaningful security gain (GitHub controls both the actions and the runner). (2) Use `actions/checkout` pinned — not done, same reason.
+- **Consequences:** Third-party action pinned; any tag mutation is blocked. First-party actions on tags will auto-update within major versions. Record the SHA in the comment for traceability.
+
+## D007: Pin agent-browser to exact version in CI
+
+- **Date:** 2026-09-05
+- **PR:** #199
+- **Context:** Audit finding B69 flagged `npm install -g agent-browser` with no version pin. The job holds `contents: write`. A compromised `agent-browser` package would execute with write access to `gh-pages`.
+- **Decision:** Pin to `agent-browser@0.36.0` (current latest). Add comment documenting the pin rationale.
+- **Alternatives considered:** (1) Remove agent-browser entirely — rejected: it provides real deploy verification. (2) Add npm integrity check — rejected: npm's `--ignore-scripts` would break agent-browser's `install` step; checksum verification requires custom tooling. Version pin + review on updates is the practical baseline.
+- **Consequences:** Supply-chain attack window reduced from "any future version" to "only 0.36.0". Version bumps must be deliberate and reviewed.
+
+## D008: Ship bun.lock in npm package for frozen-lockfile installs
+
+- **Date:** 2026-09-05
+- **PR:** #199
+- **Context:** Audit finding B79 noted that npm-sourced installs resolve dependencies fresh (`bun install --production`) instead of using `--frozen-lockfile`, since the npm tarball didn't include `bun.lock`. This means transitive deps could differ from what CI tested.
+- **Decision:** Add `bun.lock` to `package.json`'s `files` array so it ships in the npm tarball. The existing `install.sh` logic already uses `--frozen-lockfile` when `bun.lock` is present.
+- **Alternatives considered:** (1) Generate a lockfile during install — rejected: defeats the purpose of pinning. (2) Keep `bun.lock` out and accept fresh resolution — rejected: supply-chain pinning gap.
+- **Consequences:** npm-installed packages now include `bun.lock` and install with `--frozen-lockfile`. The npm package size increases slightly. The `else` branch in `install.sh` (lines 423-432) becomes unreachable for current npm installs but is kept as a safe fallback.
