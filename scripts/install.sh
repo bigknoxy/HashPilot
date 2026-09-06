@@ -405,31 +405,45 @@ log "Installing dependencies..."
 # (e.g. an npm extraction that somehow shipped a lockfile, or a git/local
 # source that's missing one) fails loudly here instead of silently
 # guessing.
-if [ "$NPM_INSTALLED" = "true" ] && [ -f "$SOURCE_DIR/bun.lock" ]; then
-  err "npm-sourced install unexpectedly has a bun.lock — refusing to guess which dependency mode is correct"
-  exit 1
-fi
 if [ "$NPM_INSTALLED" = "false" ] && [ ! -f "$SOURCE_DIR/bun.lock" ]; then
   err "Source is missing bun.lock and wasn't installed from npm — refusing to guess which dependency mode is correct"
   err "(local-clone and --source installs are expected to have bun.lock, same as the git repo does)"
   exit 1
 fi
 
-if [ -f "$SOURCE_DIR/bun.lock" ]; then
+# Dependency mode decided here, not by a bare [ -f bun.lock ] presence check:
+#   - git/local source with bun.lock  -> --frozen-lockfile (dev wants devDeps)
+#   - npm source with bun.lock (D007) -> --frozen-lockfile --production (pinned,
+#     but skip devDeps — the npm package lists them in package.json even though
+#     `files` excludes them; a plain --frozen-lockfile would pull semantic-release)
+#   - npm source without bun.lock     -> --production (legacy, pre-D007)
+if [ "$NPM_INSTALLED" = "true" ]; then
+  # npm always skips devDependencies. When the shipped lockfile is present
+  # (D007), pin to it too; otherwise resolve production deps fresh.
+  if [ -f "$SOURCE_DIR/bun.lock" ]; then
+    detail "bun.lock shipped (npm package) — installing pinned production dependencies"
+    cd "$TARGET_DIR/structured-editing"
+    bun install --frozen-lockfile --production 2>&1 | while IFS= read -r line; do detail "$line"; done
+    cd "$OLDPWD"
+  else
+    # The npm-published package.json still lists devDependencies (npm's
+    # `files` field controls which FILES ship, not which package.json fields
+    # do) — a plain `bun install` would resolve and install semantic-release,
+    # fast-check, and the rest of the dev toolchain for no reason on an end
+    # user's machine. --production skips them; the CLI never needs them.
+    detail "No bun.lock shipped (npm package install) — resolving production dependencies fresh"
+    rm -f "$TARGET_DIR/structured-editing/bun.lock"
+    cd "$TARGET_DIR/structured-editing"
+    bun install --production 2>&1 | while IFS= read -r line; do detail "$line"; done
+    cd "$OLDPWD"
+  fi
+elif [ -f "$SOURCE_DIR/bun.lock" ]; then
   cd "$TARGET_DIR/structured-editing"
   bun install --frozen-lockfile 2>&1 | while IFS= read -r line; do detail "$line"; done
   cd "$OLDPWD"
 else
-  # The npm-published package.json still lists devDependencies (npm's
-  # `files` field controls which FILES ship, not which package.json fields
-  # do) — a plain `bun install` would resolve and install semantic-release,
-  # fast-check, and the rest of the dev toolchain for no reason on an end
-  # user's machine. --production skips them; the CLI never needs them.
-  detail "No bun.lock shipped (npm package install) — resolving production dependencies fresh"
-  rm -f "$TARGET_DIR/structured-editing/bun.lock"
-  cd "$TARGET_DIR/structured-editing"
-  bun install --production 2>&1 | while IFS= read -r line; do detail "$line"; done
-  cd "$OLDPWD"
+  err "Source has no bun.lock and was not installed from npm — nothing to pin against"
+  exit 1
 fi
 detail "Dependencies installed"
 
