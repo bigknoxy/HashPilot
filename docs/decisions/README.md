@@ -89,11 +89,25 @@ Format:
 - **Alternatives considered:** (1) Generate a lockfile during install — rejected: defeats the purpose of pinning. (2) Keep `bun.lock` out and accept fresh resolution — rejected: supply-chain pinning gap.
 - **Consequences:** npm-installed packages now include `bun.lock` and install with `--frozen-lockfile`. The npm package size increases slightly. The `else` branch in `install.sh` (lines 423-432) becomes unreachable for current npm installs but is kept as a safe fallback.
 
+## D009-D010 numbering note: D010 (npm install mode-selector fix) was merged
+## to main (#201) during the v4.8.2 hotfix and precedes D009 in the file for
+## the same reason it precedes it in git history — each record captures a
+## decision in merge order.
+
 ## D010: npm-sourced installs with a shipped bun.lock use --frozen-lockfile --production
 
 - **Date:** 2026-09-06
-- **PR:** hotfix (after v4.8.2)
+- **PR:** #201
 - **Context:** v4.8.2 shipped broken for the **default npm install path**. D007 (#199) added `bun.lock` to the npm package's `files`; the dependency-mode guard from #194 treated `NPM_INSTALLED=true && bun.lock present` as a fatal ("refusing to guess which dependency mode is correct"). D007 made that guard's fire-branch the *normal* case, so every fresh npm install of v4.8.2 aborted before installing dependencies. The bug passed CI because smoke installs from `@latest` npm — main's run predated the semantic-release publish and tested 4.8.1 (no lockfile); the breakage only surfaced once v4.8.2 reached the registry.
 - **Decision:** The dependency-mode decision now keys off `$NPM_INSTALLED`, not a bare lockfile-presence check. npm source + shipped lock → `bun install --frozen-lockfile --production` (pinned, devDeps skipped). npm source, no lock → `--production` (legacy). git/local + lock → `--frozen-lockfile` (dev wants devDeps). git/local, no lock → hard error (unchanged).
 - **Alternatives considered:** (1) Revert D007 (don't ship bun.lock) — rejected: pinning transitive deps is the correct supply-chain posture; the packaging was not the flaw, the mode-selector was. (2) Remove the #194 guard entirely and let the old `[ -f bun.lock ]` branch run plain `--frozen-lockfile` — rejected: that would pull devDependencies (semantic-release) into npm installs, breaking the smoke's devDep-exclusion assertion and bloating user installs.
 - **Consequences:** npm-installed packages are pinned to the shipped lockfile while still skipping devDeps. **Coverage hole identified:** smoke's npm-path test installs `@latest` (published version), so an unpublished PR branch is never validated against its own packed tarball — add a version-consistency guard so "testing the wrong release" is loud, not silent.
+
+## D009: linesChanged counts each line exactly once via structured LineMetrics
+
+- **Date:** 2026-09-06
+- **PR:** #200 (pending #166 fix)
+- **Context:** Bug B65 (#166). `replaceHash` computed `linesChanged = |Δlines| + countChangedLines(...)`, and `countChangedLines` treated any line missing on one side of a paired comparison as "changed." A pure append of N lines was therefore counted twice (once in the size delta, once in the comparison diffs), reporting 2N.
+- **Decision:** Extract blast-radius math into a reusable, idempotent `LineMetrics` module (`computeLineMetrics`) returning `{ added, removed, modified, changed }` where `changed = added + removed + modified` and each line is counted exactly once. `linesChanged` becomes `changed`. The result now also carries a structured `lineMetrics` breakdown alongside the scalar.
+- **Alternatives considered:** (1) Fix the old formula in place — rejected: the double-count is inherent to adding |Δ| to a positional diff; and the metrics logic would stay buried in `hash-edit`, un-reusable and untestable in isolation. (2) LCS-based diff for exact pairwise alignment — rejected: overkill for blast-radius; position-equality is a correct, predictable metric for range replacement. (3) Keep `countChangedLines` positional semantics — rejected: it is the source of the bug.
+- **Consequences:** `linesChanged` and `message` wording for success results change (both now reflect true touched-line count; message appends a human-readable breakdown). The comparison predicate is injectable (extensible seam). Metrics are pure, idempotent, and dual-format (structured `lineMetrics` + `describeLineMetrics` text). No change to actual edit application or returned file content — metrics-only.

@@ -114,6 +114,30 @@ describe("replaceHash", () => {
     expect(updated).toContain("// replaced");
   });
 
+  test("pure append reports linesChanged=added=N, not 2N (#166 reproduction)", async () => {
+    const fp = join(TMP_DIR, "append.ts");
+    writeFileSync(fp, ["a", "b", "c"].join("\n"));
+    const hash = computeHash("a\nb\nc");
+    // Append exactly 2 lines: a,b,c → a,b,c,d,e (nothing modified).
+    const result = await replaceHash(fp, hash, "a\nb\nc\nd\ne");
+    expect(result.success).toBe(true);
+    // The bug: |Δ|=2 + countChangedLines(d,e as "changed")=2 → reported 4.
+    // Correct: appended lines counted once → 2.
+    expect(result.linesChanged).toBe(2);
+    expect(result.lineMetrics).toEqual({ added: 2, removed: 0, modified: 0, changed: 2 });
+  });
+
+  test("mixed append + in-place modification counts each once (#166 requires)", async () => {
+    const fp = join(TMP_DIR, "mixed.ts");
+    writeFileSync(fp, ["a", "b", "c"].join("\n"));
+    const hash = computeHash("a\nb\nc");
+    // position 1 modified (b→X), positions 3-4 appended (d,e): changed = 1+2 = 3.
+    const result = await replaceHash(fp, hash, "a\nX\nc\nd\ne");
+    expect(result.success).toBe(true);
+    expect(result.linesChanged).toBe(3);
+    expect(result.lineMetrics).toEqual({ added: 2, removed: 0, modified: 1, changed: 3 });
+  });
+
   test("rejects stale hash with noRecovery option", async () => {
     const fp = join(TMP_DIR, "sample.ts");
     const result = await replaceHash(fp, "badhash12345", "// new content", { noRecovery: true });

@@ -5,6 +5,11 @@ import { assertWritable, atomicWrite, PathDeniedError, type AssertWritableOption
 import { recordSnapshot } from "./snapshot";
 import { firstParseError } from "./ast-edit";
 import { readDecoded } from "./encoding";
+import {
+  computeLineMetrics,
+  describeLineMetrics,
+  type LineMetrics,
+} from "./line-metrics";
 
 /**
  * What to do when the anchor hash no longer matches the content at the given range.
@@ -57,6 +62,13 @@ export interface ReplaceHashResult {
    */
   newRange?: { start: number; end: number };
   linesChanged: number;
+  /**
+   * Structured breakdown of the blast radius: `added`, `removed`, `modified`,
+   * and `changed`. `changed` equals `linesChanged`. Never double-counts lines
+   * that are both appended/removed and reflected in the size delta (#166).
+   * Absent on failure paths.
+   */
+  lineMetrics?: LineMetrics;
   stale: boolean;
   message: string;
   diff?: string;
@@ -291,7 +303,8 @@ async function applyReplacement(
   const newRangeText = newContentLines.join("\n");
   const newRangeHash = computeHash(newRangeText);
   const diff = buildDiff(targetStart + 1, targetLines, newContentLines);
-  const linesChanged = Math.abs(newContentLines.length - targetLines.length) + countChangedLines(targetLines, newContentLines);
+  const lineMetrics = computeLineMetrics(targetLines, newContentLines);
+  const linesChanged = lineMetrics.changed;
   const rangeLabel = `range ${targetStart + 1}-${targetEnd}`;
 
   // A hash edit is content-blind: it will happily splice half a function into
@@ -338,12 +351,13 @@ async function applyReplacement(
     fileHash: newFullHash,
     newRange: { start: targetStart + 1, end: targetStart + newContentLines.length },
     linesChanged,
+    lineMetrics,
     stale,
     retries,
     relocatedTo,
     message: dryRun
-      ? `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix}`
-      : `${action} ${targetLines.length} lines with ${newContentLines.length} lines${messageSuffix} (${rangeLabel})`,
+      ? `${action} ${targetLines.length} lines with ${newContentLines.length} lines — ${describeLineMetrics(lineMetrics)}${messageSuffix}`
+      : `${action} ${targetLines.length} lines with ${newContentLines.length} lines — ${describeLineMetrics(lineMetrics)}${messageSuffix} (${rangeLabel})`,
     diff,
   };
 }
@@ -404,13 +418,4 @@ function buildDiff(
     }
   }
   return parts.join("\n");
-}
-
-function countChangedLines(oldLines: string[], newLines: string[]): number {
-  let count = 0;
-  const maxLen = Math.max(oldLines.length, newLines.length);
-  for (let i = 0; i < maxLen; i++) {
-    if ((oldLines[i] ?? "") !== (newLines[i] ?? "")) count++;
-  }
-  return count;
 }
