@@ -1,3 +1,10 @@
+## [4.8.4](https://github.com/bigknoxy/HashPilot/compare/v4.8.3...v4.8.4) (2026-09-06)
+
+
+### Bug Fixes
+
+* count linesChanged exactly once via structured LineMetrics ([#200](https://github.com/bigknoxy/HashPilot/issues/200)) ([0602012](https://github.com/bigknoxy/HashPilot/commit/0602012b53e9d01448a5ae5dce2a3cfde03a0a00)), closes [#166](https://github.com/bigknoxy/HashPilot/issues/166)
+
 ## [4.8.3](https://github.com/bigknoxy/HashPilot/compare/v4.8.2...v4.8.3) (2026-09-06)
 
 
