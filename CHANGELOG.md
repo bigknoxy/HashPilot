@@ -1,3 +1,10 @@
+## [4.8.2](https://github.com/bigknoxy/HashPilot/compare/v4.8.1...v4.8.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **security:** address audit findings B69, B70, B71, B79 ([#199](https://github.com/bigknoxy/HashPilot/issues/199)) ([4f871c8](https://github.com/bigknoxy/HashPilot/commit/4f871c877bb7e192b5615658f931048e83853810)), closes [#pages](https://github.com/bigknoxy/HashPilot/issues/pages) [peaceiris/actions-#pages](https://github.com/peaceiris/actions-/issues/pages) [#169](https://github.com/bigknoxy/HashPilot/issues/169) [#170](https://github.com/bigknoxy/HashPilot/issues/170) [#171](https://github.com/bigknoxy/HashPilot/issues/171) [#195](https://github.com/bigknoxy/HashPilot/issues/195)
+
 ## [4.8.1](https://github.com/bigknoxy/HashPilot/compare/v4.8.0...v4.8.1) (2026-09-05)
 
 
