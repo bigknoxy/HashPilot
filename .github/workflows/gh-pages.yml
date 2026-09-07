@@ -20,7 +20,7 @@ jobs:
 
       # Pin actions by commit SHA, not floating tags, to prevent mutable-tag
       # attacks (B71). v4 tag → 329bcc8f12caed2cefe5a5b80781499a6f3b361b.
-      - uses: peaceiris/actions-gh-pages@329bcc8f12caed2cefe5a5b80781499a6f3b361b
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
         id: deploy
         with:
           # Use the default GITHUB_TOKEN instead of a custom PAT (B70).
