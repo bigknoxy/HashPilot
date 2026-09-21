@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { loadConfig, policyForce } from "../src/core/config";
+import { addWarning, takeWarnings } from "../src/core/envelope";
 import { writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
@@ -101,6 +102,61 @@ describe("loadConfig", () => {
       } else {
         process.env.HASHPILOT_ROUTE_POLICY = orig;
       }
+    }
+  });
+
+  test("warns when --config path does not exist", () => {
+    takeWarnings(); // clear any residual warnings
+    const config = loadConfig("/nonexistent/path/.hashpilot.json");
+    const warnings = takeWarnings();
+    expect(config).toBeDefined();
+    expect(warnings.length).toBe(1);
+    expect(warnings[0].code).toBe("CONFIG_NOT_FOUND");
+    expect(warnings[0].message).toContain("/nonexistent/path/.hashpilot.json");
+  });
+
+  test("warns when --config file has malformed JSON", () => {
+    takeWarnings(); // clear any residual warnings
+    const badPath = join(TMP_DIR, "bad-config.json");
+    writeFileSync(badPath, "{bad json}");
+    const config = loadConfig(badPath);
+    const warnings = takeWarnings();
+    expect(config).toBeDefined();
+    expect(warnings.length).toBe(1);
+    expect(warnings[0].code).toBe("CONFIG_PARSE_ERROR");
+    expect(warnings[0].message).toContain(badPath);
+  });
+
+  test("warns when HASHPILOT_ROUTE_POLICY has malformed JSON", () => {
+    takeWarnings(); // clear any residual warnings
+    const orig = process.env.HASHPILOT_ROUTE_POLICY;
+    try {
+      process.env.HASHPILOT_ROUTE_POLICY = "not-json";
+      const config = loadConfig();
+      const warnings = takeWarnings();
+      expect(config).toBeDefined();
+      expect(warnings.length).toBe(1);
+      expect(warnings[0].code).toBe("CONFIG_PARSE_ERROR");
+    } finally {
+      if (orig === undefined) {
+        delete process.env.HASHPILOT_ROUTE_POLICY;
+      } else {
+        process.env.HASHPILOT_ROUTE_POLICY = orig;
+      }
+    }
+  });
+
+  test("no warning when project config is absent and no --config passed", () => {
+    takeWarnings(); // clear any residual warnings
+    const origHome = process.env.HOME;
+    try {
+      process.env.HOME = TMP_DIR; // no global config, no project config in TMP_DIR
+      const config = loadConfig();
+      const warnings = takeWarnings();
+      expect(config).toBeDefined();
+      expect(warnings.length).toBe(0);
+    } finally {
+      process.env.HOME = origHome;
     }
   });
 });
