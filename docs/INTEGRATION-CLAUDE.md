@@ -1,0 +1,126 @@
+# HashPilot — Claude Code Integration Guide
+
+## Integration Pattern
+
+Claude Code can call `hashpilot` as a shell command, capturing JSON output for structured editing operations.
+
+## Setup
+
+Add to your project's `CLAUDE.md` or `~/.claude/CLAUDE.md`:
+
+```markdown
+## HashPilot Structured Editing
+
+Use `hashpilot` for file operations instead of raw text editing when available.
+
+### Routing Rules
+1. For supported AST languages (TypeScript, TSX, JavaScript, Python, Go, Rust), prefer AST commands (`ast rename-symbol`, `ast replace-body`, etc.)
+2. For all other edits, use hash-anchored editing (`replace-hash`)
+3. Use `read-hash` to anchor before editing, then `replace-hash` with the hash
+4. Use `verify-changes` after editing to run formatter + linter + tests
+
+### Key Commands
+- `hashpilot read-many <files>` — batch read with hashes
+- `hashpilot read-hash <file> <line>` — read line with context hash
+- `hashpilot replace-hash <file> <hash> <content> [--range start:end] [--actor] [--task-id] [--reason]` — hash-anchored edit
+- `hashpilot ast capabilities` — show supported languages and limitations
+- `hashpilot ast find-symbols <file>` — list symbols
+- `hashpilot ast rename-symbol <file> <old> <new> [--actor] [--task-id] [--reason]` — rename
+- `hashpilot ast replace-body <file> <symbol> <body> [--actor] [--task-id] [--reason]` — replace function body
+- `hashpilot ast add-import <file> <spec> [--actor] [--task-id] [--reason]` — add import
+- `hashpilot ast remove-import <file> <spec> [--actor] [--task-id] [--reason]` — remove import
+- `hashpilot ast insert-before/insert-after <file> <symbol> <content> [--actor]` — insert around a symbol
+- `hashpilot diff generate <file> <old> <new>` — generate unified diff
+- `hashpilot diff apply <file> --patch <file>` — apply unified diff patch
+- `hashpilot route <file> <op> [--policy <json>]` — detailed route explanation with policy testing
+- `hashpilot route-edit <file> <op> [options]` — auto-routed edit via AST→hash→diff
+- `hashpilot batch <op> <files...>` — apply same edit to multiple files
+- `hashpilot intent '<json>'` — intent-based multi-step editing (auto-discovers references)
+- `hashpilot config` — show current merged configuration
+- `hashpilot verify-changes <files> [--auto-detect] [--revert-on-failure]` — run formatter + linter + typecheck + tests
+- `hashpilot provenance query <file> [--human]` — edit history (like `git blame` for agent edits)
+- `hashpilot provenance changeset <id> [--human]` — show all edits in a changeSet
+- `hashpilot telemetry summary` — check usage stats
+- `hashpilot telemetry health [-w <days>] [--trend]` — health report with per-language stats and trend comparison
+- `hashpilot telemetry sessions` — list session summaries
+- `hashpilot telemetry export [--from <date>] [--to <date>]` — export events as NDJSON
+- `hashpilot telemetry prune [--older-than <days>]` — delete old rotated files
+
+### Config file
+
+Create `~/.config/hashpilot/config.json` or `.hashpilot.json` in your project to set routing policies:
+
+```json
+{
+  "routePolicy": {
+    "languageOverrides": { "python": "hash" },
+    "operationOverrides": { "add-import": "diff" }
+  }
+}
+```
+```
+
+## Workflow Example
+
+### Edit a TypeScript function body
+```bash
+# 1. Find the symbol
+hashpilot ast find-symbols src/utils.ts
+# → find "formatDate" at line 15
+
+# 2. Replace its body
+hashpilot ast replace-body src/utils.ts formatDate 'return new Date(d).toISOString();'
+# → success, body replaced
+
+# 3. Verify (auto-detect tools from package.json)
+hashpilot verify-changes src/utils.ts --auto-detect
+```
+
+### Hash-anchored edit for a non-TS file
+```bash
+# 1. Read file with hash
+HASH=$(hashpilot read-many config.yaml | jq -r '.[0].hash')
+
+# 2. Replace entire file via hash
+hashpilot replace-hash config.yaml "$HASH" "new: content\nhere: true"
+
+# 3. Or read a line range with hash
+hashpilot read-hash config.yaml 5 -c 2
+# → get contextHash for line 5
+
+# 4. Replace a specific range
+hashpilot replace-hash config.yaml "$HASH" "  port: 8080" --range 5:6
+```
+
+## When to Use HashPilot vs Direct Editing
+
+| Task | Use HashPilot | Use Direct |
+|------|--------------|------------|
+| Edit existing TS/JS/Python/Go/Rust files | ✅ AST commands | ❌ |
+| Edit any file with hash safety | ✅ replace-hash | ❌ |
+| Rename symbols across files | ✅ ast rename-symbol | ❌ |
+| Add/remove imports | ✅ ast commands | ❌ |
+| Replace function body | ✅ ast replace-body | ❌ |
+| Batch read multiple files | ✅ read-many | ❌ |
+| Verify changes | ✅ verify-changes | ❌ |
+| Create new files | — | ✅ write/edit |
+| Delete files/dirs | — | ✅ bash rm |
+| Move/rename files | — | ✅ bash mv |
+| Simple single-line edits | — | ✅ direct edit |
+| Exploratory single-file reads | — | ✅ direct read |
+
+**Bottom line**: HashPilot is for *precise edits to existing files*. Use direct commands for creation, deletion, and file operations.
+
+## Token Efficiency Tips
+
+1. **Batch reads**: Use `read-many` to read multiple files in one call
+2. **Use hashes**: Never re-read a file you just read — use the hash to anchor edits
+3. **Symbol-aware**: For TypeScript, use `ast` commands to avoid line-counting errors
+4. **Verify once**: Bundle all verification into one `verify-changes` call
+
+## Error Recovery
+
+When `replace-hash` returns `"stale": true`:
+1. Re-read the file: `hashpilot read-many <file>`
+2. Get the new hash from the response
+3. Retry `replace-hash` with the new hash
