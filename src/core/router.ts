@@ -314,11 +314,19 @@ export async function routeEdit(params: {
       }
       break;
     }
-    case "hash":
-      editSource = (await readDecoded(filePath)).text;
+    case "hash": {
+      let source: string;
+      try {
+        source = (await readDecoded(filePath)).text;
+        editSource = source;
+      } catch (e: any) {
+        result = { success: false, message: `Failed to read file: ${e.message}` };
+        break;
+      }
       result = await replaceHash(filePath, oldHash!, newContent!, { range, dryRun });
       editResult = ((await readDecoded(filePath)).text);
       break;
+    }
     case "diff": {
       // An empty newContent is a deletion. Only oldContent must be non-empty —
       // there is nothing to search for otherwise (#40 falsy-parameter audit).
