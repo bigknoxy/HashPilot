@@ -1,9 +1,10 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { describe, test, expect, beforeAll, afterEach, afterAll } from "bun:test";
 import { chooseRoute, routeEdit } from "../src/core/router";
 import { computeHash } from "../src/core/read";
 import { configureWriteBoundary, resetWriteBoundary } from "../src/core/paths";
 import { loadConfig, policyForce } from "../src/core/config";
 import type { RoutePolicy } from "../src/core/config";
+import { readEvents, clearEvents } from "../src/core/telemetry";
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from "fs";
 
 describe("chooseRoute", () => {
@@ -558,6 +559,23 @@ describe("routeEdit", () => {
     });
     expect(result.explanation).toBeDefined();
     expect(result.explanation!.reasons.length).toBeGreaterThan(0);
+    teardown(file);
+  });
+
+  test("Hash: read failure on nonexistent file returns failed result, does not throw, records telemetry", async () => {
+    clearEvents();
+    const file = `${tmpDir}/nonexistent-hash.ts`;
+    teardown(file);
+    const result = await routeEdit({
+      filePath: file,
+      operation: "replace-hash",
+      oldHash: "deadbeef",
+      newContent: "new content",
+    });
+    expect(result.route).toBe("hash");
+    expect(result.result.success).toBe(false);
+    const events = readEvents(100);
+    expect(events.some((e) => e.operation === "replace-hash" && e.route === "hash" && !e.success)).toBe(true);
     teardown(file);
   });
 
