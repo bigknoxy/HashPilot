@@ -25,6 +25,8 @@ interface LockPayload {
   nonce: string;
   ts: number;
   targets: string[];
+  /** Process start time (ms since epoch), captured on Linux via /proc. */
+  started?: number;
 }
 
 /** Errors thrown by this module. */
@@ -68,6 +70,45 @@ function isPidAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Read a process's start time from /proc/<pid>/stat (Linux only).
+ * Returns ms since epoch, or null if unavailable.
+ */
+function getProcessStarttime(pid: number): number | null {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    // Field 22 (1-indexed) is starttime in clock ticks after boot.
+    const clk_tck = 100; // sysconf(_SC_CLK_TCK) — standard on Linux
+    const parts = stat.split(")");
+    if (parts.length < 2) return null;
+    const after_comm = parts[1].trim().split(/\s+/);
+    const starttime_ticks = parseInt(after_comm[17], 10);
+    if (isNaN(starttime_ticks)) return null;
+    // Boot time from /proc/stat
+    const statLines = readFileSync("/proc/stat", "utf8").split("\n");
+    const btimeLine = statLines.find((l) => l.startsWith("btime"));
+    if (!btimeLine) return null;
+    const bootTime = parseInt(btimeLine.split(/\s+/)[1], 10);
+    if (isNaN(bootTime)) return null;
+    return (bootTime + starttime_ticks / clk_tck) * 1000;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check whether the process with this PID is the same one that
+ * recorded the given start time. On Linux, cross-checks via /proc.
+ * Falls back to PID-only liveness check on other platforms.
+ */
+function isSameProcess(pid: number, started: number | undefined): boolean {
+  if (!isPidAlive(pid)) return false;
+  if (started == null) return true; // no start-time recorded → can't verify
+  const live = getProcessStarttime(pid);
+  if (live === null) return true; // can't introspect → trust the PID
+  return live === started;
 }
 
 /** Read a lockfile back into structured data. `null` means absent or unreadable. */
@@ -166,6 +207,7 @@ export async function acquireLock(
       nonce: randomBytes(12).toString("hex"),
       ts: Date.now(),
       targets: [targetPath],
+      started: getProcessStarttime(process.pid) ?? undefined,
     };
 
     if (tryCreateLock(lockFile, payload)) {
@@ -183,9 +225,9 @@ export async function acquireLock(
       await sleep(LOCK_RETRY_MS);
       continue;
     }
-    // Reclaim only when the holder stopped heartbeating AND its PID is gone.
-    // An unreadable payload has no PID to check, so age alone decides.
-    const holderGone = !existing || !isPidAlive(existing.pid);
+    // Reclaim only when the holder stopped heartbeating AND its PID is gone
+    // (or the PID was reused for a different process — detected via start time).
+    const holderGone = !existing || !isSameProcess(existing.pid, existing.started);
     if (age > STALE_THRESHOLD_MS && holderGone) {
       try {
         unlinkSync(lockFile);
@@ -280,7 +322,7 @@ export function pruneStaleLocks(root: string = findProjectRoot()): number {
     const payload = readLockFile(lockPath);
     const age = lockAgeMs(lockPath, payload);
     if (age === null) continue;
-    const holderGone = !payload || !isPidAlive(payload.pid);
+    const holderGone = !payload || !isSameProcess(payload.pid, payload.started);
     if (age > STALE_THRESHOLD_MS && holderGone) {
       try {
         unlinkSync(lockPath);

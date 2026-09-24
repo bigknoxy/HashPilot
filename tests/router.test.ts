@@ -5,6 +5,7 @@ import { configureWriteBoundary, resetWriteBoundary } from "../src/core/paths";
 import { loadConfig, policyForce } from "../src/core/config";
 import type { RoutePolicy } from "../src/core/config";
 import { mkdirSync, rmSync, writeFileSync, readFileSync } from "fs";
+import { acquireSortedLocks } from "../src/core/locking";
 
 describe("chooseRoute", () => {
   test("selects AST route for TS files with AST operations", () => {
@@ -560,6 +561,28 @@ describe("routeEdit", () => {
     expect(result.explanation!.reasons.length).toBeGreaterThan(0);
     teardown(file);
   });
+
+  test("find-symbols does not acquire exclusive lock (concurrent readers)", async () => {
+    const file = `${tmpDir}/findsyms-lock.ts`;
+    setup(file, "function hello() { return 1; }\nfunction world() { return 2; }\n");
+
+    // Hold the exclusive lock from outside routeEdit.
+    const hold = await acquireSortedLocks([file], { timeoutMs: 5000 });
+    try {
+      // Without the fix: routeEdit tries to acquire the same exclusive lock,
+      // blocks for LOCK_TIMEOUT_MS (10s), then throws LockAcquireError.
+      // With the fix: find-symbols skips the lock and succeeds immediately.
+      const r = await routeEdit({ filePath: file, operation: "find-symbols" });
+      expect(r.result.success).toBe(true);
+      expect(r.result.symbols).toBeDefined();
+      const names = r.result.symbols.map((s: any) => s.name);
+      expect(names).toContain("hello");
+      expect(names).toContain("world");
+    } finally {
+      hold();
+      teardown(file);
+    }
+  }, 15_000);
 
   // Cleanup
   try { rmSync(tmpDir, { recursive: true }); } catch {}

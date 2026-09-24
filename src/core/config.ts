@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { EditRoute } from "./router";
+import { addWarning } from "./envelope";
 
 export interface RoutePolicy {
   /**
@@ -135,9 +136,16 @@ export function loadConfig(configPath?: string): HashPilotConfig {
   const projectPath = join(process.cwd(), ".hashpilot.json");
   if (existsSync(projectPath) && projectPath !== globalPath) paths.push(projectPath);
 
-  // CLI override
-  if (configPath && existsSync(configPath) && !paths.includes(configPath)) {
-    paths.push(configPath);
+  // CLI override — explicit request, must warn on failure
+  if (configPath) {
+    if (existsSync(configPath) && !paths.includes(configPath)) {
+      paths.push(configPath);
+    } else {
+      addWarning({
+        code: "CONFIG_NOT_FOUND",
+        message: `Config path not found: ${configPath}, falling back to next config tier`,
+      });
+    }
   }
 
   const config: HashPilotConfig = cloneDefaults();
@@ -146,16 +154,28 @@ export function loadConfig(configPath?: string): HashPilotConfig {
     try {
       const data = JSON.parse(readFileSync(p, "utf-8"));
       mergeConfig(config, data);
-    } catch {}
+    } catch {
+      if (configPath && p === configPath) {
+        addWarning({
+          code: "CONFIG_PARSE_ERROR",
+          message: `Config file could not be parsed: ${p}, falling back to next config tier`,
+        });
+      }
+    }
   }
 
-  // Environment variable override
+  // Environment variable override — explicit request, must warn on failure
   const envPolicy = process.env.HASHPILOT_ROUTE_POLICY;
   if (envPolicy) {
     try {
       const parsed = JSON.parse(envPolicy);
       mergeConfig(config, { routePolicy: parsed });
-    } catch {}
+    } catch {
+      addWarning({
+        code: "CONFIG_PARSE_ERROR",
+        message: `HASHPILOT_ROUTE_POLICY is not valid JSON, falling back to defaults`,
+      });
+    }
   }
 
   return config;

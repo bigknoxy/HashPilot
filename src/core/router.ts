@@ -101,6 +101,10 @@ function isASTOperation(op: string): boolean {
   ].includes(op);
 }
 
+function isReadOnlyOperation(op: string): boolean {
+  return op === "find-symbols";
+}
+
 function isHashOperation(op: string): boolean {
   return ["read-hash", "replace-hash"].includes(op);
 }
@@ -210,7 +214,7 @@ export async function routeEdit(params: {
   // a snapshot nobody else can invalidate. `batch-edit` locked its whole file set
   // up front and passes `alreadyLocked` so it does not wait on itself (#21/B18).
   let releaseFileLock: (() => void) | undefined;
-  if (!result && !dryRun && !alreadyLocked) {
+  if (!result && !dryRun && !alreadyLocked && !isReadOnlyOperation(operation)) {
     try {
       releaseFileLock = await acquireLock(filePath, { timeoutMs: LOCK_TIMEOUT_MS });
     } catch (e: any) {
