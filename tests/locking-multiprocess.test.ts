@@ -204,4 +204,31 @@ describe("stale reclaim", () => {
     expect(pruneStaleLocks()).toBeGreaterThan(0);
     expect(existsSync(lockPath)).toBe(false);
   });
+
+  it("reclaims a stale lock whose PID was reused (start time mismatch)", async () => {
+    const target = join(dir, "pid-reuse.txt");
+    writeFileSync(target, "x\n");
+    const lockPath = lockPathFor(target);
+    mkdirSync(dirname(lockPath), { recursive: true });
+
+    // Current PID is alive, but start time is wrong — simulates PID reuse.
+    writeFileSync(
+      lockPath,
+      JSON.stringify({
+        pid: process.pid,
+        nonce: "reused-pid",
+        ts: Date.now() - 60_000,
+        started: 0,
+        targets: [target],
+      }),
+    );
+
+    // With the fix: start-time mismatch → holder treated as gone → reclaimed.
+    // Without the fix: isPidAlive(pid) returns true → lock stuck forever.
+    if (existsSync("/proc/self/stat")) {
+      const removed = pruneStaleLocks();
+      expect(removed).toBeGreaterThan(0);
+      expect(existsSync(lockPath)).toBe(false);
+    }
+  });
 });
