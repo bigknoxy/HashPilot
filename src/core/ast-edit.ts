@@ -1278,8 +1278,17 @@ function addImportUnchecked(
     if (merged) return merged;
   }
 
-  // Dedup check: search source for existing import containing the spec text
-  const dedupPattern = new RegExp(`(import|from|use).*${escapeRegex(importSpec)}`);
+  // Dedup check: the spec must appear as a whole path segment, not as a
+  // substring. An unanchored match refused `requests` because the file already
+  // held `import requests_toolbelt`, and `HashMap` because of `HashMapExtra`
+  // (#163). The lookarounds assert the spec is not flanked by a word
+  // character, so a longer identifier can never satisfy a shorter request.
+  // They are written out rather than as `\b` because a spec may begin or end
+  // with a non-word character (`{ join } from "path"`), where `\b` would never
+  // match and true duplicates would slip through.
+  const dedupPattern = new RegExp(
+    `(?:^|\\W)(?:import|from|use).*?(?<![\\w$])${escapeRegex(importSpec)}(?![\\w$])`
+  );
   if (dedupPattern.test(source)) {
     return { success: false, path: filePath, operation: "add-import", changes: 0, message: `Import for '${importSpec}' already exists` };
   }
