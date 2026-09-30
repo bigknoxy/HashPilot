@@ -773,6 +773,35 @@ function jsLocalName(specifierText: string): string {
 }
 
 /**
+ * True when a JS/TS importSpec carries a `from "module"` clause, i.e. it is a
+ * full import clause rather than a bare word.
+ *
+ * `lineTemplate` is `import {spec};`, so a bare word like `fs` templates to
+ * `import fs;`, which does not parse. That failure used to surface as
+ * PARSE_ERROR — "this edit would have corrupted the file" — for what is really
+ * a bad argument (#140). Only the clause shape is required here; the finer
+ * merge semantics stay with parseJsImportSpec, which legitimately returns null
+ * for side-effect and namespace imports that still template fine.
+ */
+function isJsImportClause(spec: string): boolean {
+  return /\bfrom\s+['"][^'"]+['"]/.test(spec.trim());
+}
+
+/** The usage error for a JS/TS add-import spec that is not an import clause (#140). */
+function bareJsImportRefusal(filePath: string, importSpec: string): ASTEditResult {
+  return {
+    success: false,
+    path: filePath,
+    operation: "add-import",
+    changes: 0,
+    message: `'${importSpec}' is not a full import clause`,
+    errorCode: ErrorCode.INVALID_ARGUMENT,
+    recovery:
+      'Pass a full import clause naming the bindings and the module, e.g. \'{ readFile } from "fs"\', \'fs from "fs"\', or \'* as fs from "fs"\'.',
+  };
+}
+
+/**
  * Parse a JS/TS importSpec (`{ a, b as c } from "mod"`, `def from "mod"`).
  * Returns null for forms with no merge semantics (namespace imports,
  * side-effect imports, anything without a `from` clause).
@@ -1269,6 +1298,17 @@ function addImportUnchecked(
       );
     }
     if (verdict.system === "cjs") return addCjsImport(source, tree, filePath, importSpec);
+  }
+
+  // A bare word is a bad argument, not a corrupt file: reject it here with a
+  // recovery hint rather than templating `import fs;` and letting the validity
+  // gate report PARSE_ERROR (#140). The CJS branch above already refuses the
+  // same spec the same way.
+  if (
+    (lang === "javascript" || lang === "typescript" || lang === "tsx") &&
+    !isJsImportClause(importSpec)
+  ) {
+    return bareJsImportRefusal(filePath, importSpec);
   }
 
   // JS/TS merge into an existing import of the same module, which also covers
