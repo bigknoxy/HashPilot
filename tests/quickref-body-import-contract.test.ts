@@ -80,12 +80,15 @@ describe("#109 an import spec quotes its module path", () => {
     expect(readFileSync(p, "utf8")).toContain('import { Foo } from "./bar"');
   });
 
-  test("the unquoted form is refused with PARSE_ERROR and leaves the file alone", () => {
+  test("the unquoted form is refused as a usage error and leaves the file alone", () => {
     const before = "const x = 1;\n";
     const p = fixture("bad.ts", before);
     const r = run(["ast", "add-import", p, "{ Foo } from ./bar"]);
     expect(r.code).not.toBe(0);
-    expect(JSON.parse(r.stdout).error.code).toBe("PARSE_ERROR");
+    // An unquoted module path is a bad argument, so it is reported as one
+    // (#140). It used to surface as PARSE_ERROR — "this edit would have
+    // corrupted the file" — which blamed HashPilot for the caller's mistake.
+    expect(JSON.parse(r.stdout).error.code).toBe("INVALID_ARGUMENT");
     expect(readFileSync(p, "utf8")).toBe(before);
   });
 });
