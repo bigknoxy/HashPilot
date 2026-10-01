@@ -36,6 +36,43 @@ describe("redactSecrets", () => {
     expect(out).toContain("db.example.com");
   });
 
+  test("redacts a bare npm automation token with no adjacent secret-named variable (B72)", () => {
+    // The gap B72 covers: a format-distinctive token sitting in a shell one-liner
+    // with nothing secret-*named* near it, so `secretish-assignment` never fires.
+    // The token is assembled from a charset rather than pasted as a literal, so
+    // secret scanners don't flag this file — and so the 36-char length that the
+    // rule keys on is stated explicitly instead of being a property of a typo.
+    const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+    const token = `npm_${[...Array(36)].map((_, i) => ALPHABET[(i * 7 + 3) % 36]).join("")}`;
+    expect(token).toMatch(/^npm_[A-Za-z0-9]{36}$/);
+    const out = redactSecrets(`+  curl -u ${token} https://registry.npmjs.org/agent-browser`);
+    expect(out).not.toContain(token);
+    expect(out).toContain("[REDACTED]");
+    expect(out).toContain("registry.npmjs.org");
+  });
+
+  test("redacts bare Stripe live keys with no adjacent secret-named variable (B72)", () => {
+    const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+    for (const prefix of ["sk_live_", "pk_live_"]) {
+      const key = `${prefix}${[...Array(24)].map((_, i) => ALPHABET[(i * 7 + 11) % 36]).join("")}`;
+      const out = redactSecrets(`+  curl -u ${key} https://api.stripe.com/v1/charges`);
+      expect(out).not.toContain(key);
+      expect(out).toContain("[REDACTED]");
+      expect(out).toContain("api.stripe.com");
+    }
+  });
+
+  test("does not redact ordinary npm/stripe-shaped identifiers (B72 false positives)", () => {
+    for (const line of [
+      "npm_config_userconfig = /home/josh/.npmrc",
+      "npm_package_version",
+      "npm run gen:cli-quickref",
+      "const stripeMode = 'test'",
+    ]) {
+      expect(redactSecrets(line)).not.toContain("[REDACTED]");
+    }
+  });
+
   test("redacts secret-named assignments regardless of value shape", () => {
     for (const line of [
       'const apiKey = "zzzzzzzzzzzz"',

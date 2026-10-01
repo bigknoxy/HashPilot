@@ -457,7 +457,8 @@ sequenceDiagram
 
 #### `src/redact.ts` — Credential Scrubbing
 - `redactSecrets(text)`: replaces credential shapes (AWS, OpenAI, Anthropic,
-  GitHub, Slack, Google, JWT, private-key blocks, auth headers, connection-string
+  GitHub, Slack, Google, npm automation tokens, Stripe live keys, JWT,
+  private-key blocks, auth headers, connection-string
   passwords, and secret-named assignments) with `[REDACTED]`.
 - `isSensitiveFile(path)`: basename denylist (`.env*`, `*.pem`, `*.key`, `id_rsa`,
   `credentials`, `.npmrc`, `.netrc`, `secrets.*`) used to suppress diff capture.
