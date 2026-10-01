@@ -26,6 +26,13 @@ const RULES: Rule[] = [
   { name: "github-token", pattern: /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}\b/g, replacement: REDACTED },
   { name: "slack-token", pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g, replacement: REDACTED },
   { name: "google-api-key", pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, replacement: REDACTED },
+  // Format-distinctive provider tokens (B72). These are matched on shape alone,
+  // not on an adjacent secret-*named* variable, so a bare literal in a shell
+  // one-liner or curl command is still caught. The exact-length npm pattern and
+  // the required `live` infix keep them from firing on `npm_config_*` env names
+  // or ordinary `npm run ...` invocations.
+  { name: "npm-token", pattern: /\bnpm_[A-Za-z0-9]{36}\b/g, replacement: REDACTED },
+  { name: "stripe-key", pattern: /\b[sp]k_live_[A-Za-z0-9]{16,}\b/g, replacement: REDACTED },
   { name: "jwt", pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replacement: REDACTED },
   { name: "private-key-block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, replacement: `-----BEGIN PRIVATE KEY-----${REDACTED}-----END PRIVATE KEY-----` },
   { name: "authorization-header", pattern: /\b(authorization\s*[:=]\s*["']?)(?:bearer|basic|token)\s+\S+/gi, replacement: `$1${REDACTED}` },
