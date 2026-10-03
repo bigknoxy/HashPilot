@@ -12,6 +12,11 @@ const LOCKING_MODULE = resolve("src/core/locking.ts");
 // #110: each describe removes its own fixture, but the shared parent dirs were
 // left behind and dirtied `git status` after every run. Sweep them at file end.
 afterAll(() => {
+  // Order matters: clear lockfiles first, then the scratch tree. A lockfile
+  // outlives the directory that created it, and the locks dir lives at the
+  // project root — not under tests/tmp — so removing the tree alone leaves the
+  // orphan behind (#135).
+  releaseTrackedLocks();
   try { rmSync("tests/tmp/locking-mp", { recursive: true, force: true }); } catch { /* ignore */ }
   try { rmdirSync("tests/tmp"); } catch { /* non-empty or already gone */ }
 });
@@ -25,6 +30,36 @@ function makeTestDir(name: string): { dir: string; nested: string; cleanup: () =
     nested,
     cleanup: () => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ } },
   };
+}
+
+/**
+ * Track every lockfile a fixture acquires so the file-level teardown can clear
+ * them.
+ *
+ * A test that SIGKILLs a holder leaves its lockfile behind: the process is gone
+ * but the lock is inside the 30s stale window, so `acquireLock` correctly
+ * refuses to reclaim it. Because these fixtures use *stable* target paths, that
+ * orphan is picked up as a live lock by the very next run of this file and the
+ * holder child there blocks for its full timeout instead of signalling ready —
+ * which is what made "a lock held by another process blocks acquisition here"
+ * fail intermittently (#135). Nothing in the lock module is wrong here; the
+ * fixture was leaking state into its own successor.
+ */
+const acquiredLockPaths = new Set<string>();
+
+/** Record a lockfile this fixture is responsible for releasing. */
+function trackLock(target: string): string {
+  const lockPath = lockPathFor(target);
+  acquiredLockPaths.add(lockPath);
+  return lockPath;
+}
+
+/** Remove every lockfile a fixture tracked. Runs at file end. */
+function releaseTrackedLocks(): void {
+  for (const lockPath of acquiredLockPaths) {
+    try { rmSync(lockPath, { force: true }); } catch { /* ignore */ }
+  }
+  acquiredLockPaths.clear();
 }
 
 /** Run a snippet in a fresh Bun process with a chosen cwd; return its stdout. */
@@ -82,6 +117,11 @@ describe("mutual exclusion across processes", () => {
     const target = join(dir, "contended.txt");
     writeFileSync(target, "x\n");
     const ready = join(dir, "ready.flag");
+    // The holder is killed rather than allowed to release, so the fixture owns
+    // the resulting orphan. Track it and clear it in this test's teardown, not
+    // only at file end — otherwise the *next* test in this file inherits a lock
+    // it never took (#135).
+    const lockPath = trackLock(target);
 
     const scriptPath = join(dir, "holder.ts");
     writeFileSync(
@@ -117,8 +157,66 @@ describe("mutual exclusion across processes", () => {
       }
       expect(blocked).toBe(true);
     } finally {
-      holder.kill();
+      holder.kill(9);
       await holder.exited;
+      // The holder is SIGKILLed before its release callback can run, so the
+      // lockfile it left is ours to remove.
+      try { rmSync(lockPath, { force: true }); } catch { /* ignore */ }
+    }
+  }, 20_000);
+});
+
+describe("fixture hygiene across runs", () => {
+  const { dir, nested, cleanup } = makeTestDir("fixture-hygiene");
+  afterAll(cleanup);
+
+  it("a holder killed mid-lock does not block the next acquisition", async () => {
+    const target = join(dir, "orphaned.txt");
+    writeFileSync(target, "x\n");
+    const ready = join(dir, "hygiene-ready.flag");
+    const lockPath = trackLock(target);
+
+    const scriptPath = join(dir, "orphan-holder.ts");
+    writeFileSync(
+      scriptPath,
+      `import { acquireLock } from ${JSON.stringify(LOCKING_MODULE)};\n` +
+        `import { writeFileSync } from "fs";\n` +
+        `const rel = await acquireLock(${JSON.stringify(target)}, { timeoutMs: 5000 });\n` +
+        `writeFileSync(${JSON.stringify(ready)}, "1");\n` +
+        `await new Promise((r) => setTimeout(r, 10_000));\n` +
+        `rel();\n`,
+    );
+
+    const holder = Bun.spawn(["bun", "run", scriptPath], {
+      cwd: nested,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    try {
+      const deadline = Date.now() + 5000;
+      while (!existsSync(ready) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(existsSync(ready)).toBe(true);
+
+      // SIGKILL the holder: it gets no chance to run its release callback, so
+      // the lockfile is orphaned by a PID that no longer exists. The lock
+      // module deliberately refuses to reclaim it inside the 30s stale window,
+      // so a *stable* target path makes this test's own leftover
+      // deterministically poison the next run of this file (#135).
+      holder.kill(9);
+      await holder.exited;
+      expect(existsSync(lockPath)).toBe(true);
+
+      // The fixture teardown is what has to reclaim it. Before #135 nothing
+      // did, so the orphan survived into the next run.
+      releaseTrackedLocks();
+      expect(existsSync(lockPath)).toBe(false);
+    } finally {
+      try { holder.kill(9); } catch { /* already dead */ }
+      await holder.exited;
+      try { rmSync(lockPath, { force: true }); } catch { /* ignore */ }
     }
   }, 20_000);
 });
@@ -130,7 +228,7 @@ describe("release is ownership-checked", () => {
   it("does not unlink a lockfile another holder has since acquired", async () => {
     const target = join(dir, "stolen.txt");
     writeFileSync(target, "x\n");
-    const lockPath = lockPathFor(target);
+    const lockPath = trackLock(target);
 
     const releaseA = await acquireLock(target, { timeoutMs: 2000 });
 
@@ -154,7 +252,7 @@ describe("stale reclaim", () => {
   it("reclaims an aged lockfile whose PID is dead", async () => {
     const target = join(dir, "crashed.txt");
     writeFileSync(target, "x\n");
-    const lockPath = lockPathFor(target);
+    const lockPath = trackLock(target);
     mkdirSync(dirname(lockPath), { recursive: true });
 
     // PID 2^22 is above the default pid_max on Linux and macOS, so it is
@@ -172,7 +270,7 @@ describe("stale reclaim", () => {
   it("does not reclaim a freshly heartbeated lockfile", async () => {
     const target = join(dir, "alive.txt");
     writeFileSync(target, "x\n");
-    const lockPath = lockPathFor(target);
+    const lockPath = trackLock(target);
     mkdirSync(dirname(lockPath), { recursive: true });
 
     writeFileSync(
@@ -194,7 +292,7 @@ describe("stale reclaim", () => {
   it("pruneStaleLocks removes reclaimable leftovers", async () => {
     const target = join(dir, "leftover.txt");
     writeFileSync(target, "x\n");
-    const lockPath = lockPathFor(target);
+    const lockPath = trackLock(target);
     mkdirSync(dirname(lockPath), { recursive: true });
     writeFileSync(
       lockPath,
