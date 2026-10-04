@@ -67,6 +67,14 @@ type ResultPayload = {
   [key: string]: unknown;
 };
 
+/** One entry of the `ast capabilities` payload (#133). */
+type CapabilityEntry = {
+  lang?: string;
+  extensions?: string[];
+  operations?: string[];
+  limitations?: string[];
+};
+
 /**
  * Render a result payload as compact text for human readers.
  * Each command registers its own renderer via the `registerRenderer` map;
@@ -168,15 +176,24 @@ function printReadResult(p: ResultPayload) {
     write("✗ " + p.error + "\n");
     return;
   }
-  const lines = (p.lines as string[]) || (p.content ? [p.content] : []);
-  const n = lines.length;
+  // `lines` is a line *count* on read payloads, but some variants carry an
+  // actual array of line strings. Casting it to string[] unconditionally made
+  // `(3).length` — printing "undefined lines" on every read (#133). Resolve
+  // both shapes, then fall back to counting the content we were handed.
+  const raw = p.lines;
+  const bodyLines = Array.isArray(raw)
+    ? (raw as string[])
+    : typeof p.content === "string"
+      ? p.content.replace(/\n$/, "").split("\n")
+      : [];
+  const n = typeof raw === "number" ? raw : bodyLines.length;
   const hash = p.hash || p.lineHash || "";
   const filePath = p.file || p.path || "";
   write(
     `${filePath ? basePath(filePath) + ": " : ""}${n} line${n === 1 ? "" : "s"}${hash ? "  " + hash.slice(0, 8) : ""}\n`
   );
-  if (lines.length > 0 && lines.length <= 5) {
-    for (const l of lines) write("  " + l + "\n");
+  if (bodyLines.length > 0 && bodyLines.length <= 5) {
+    for (const l of bodyLines) write("  " + l + "\n");
   }
 }
 
@@ -314,10 +331,27 @@ registerRenderer("route", (p) => {
   write((p.success !== false ? "✓ " + (p.route || "ok") : "✗ " + (p.errorCode || "routing failed")) + "\n");
 });
 
-// ast-capabilities
-registerRenderer("ast-capabilities", (p) => {
-  const langs = (p.languages || []) as string[];
-  write(`${langs.length} language(s) supported\n`);
+// ast capabilities
+//
+// Registered under the CLI command name ("ast capabilities", space-joined by
+// the preAction hook), not "ast-capabilities" — the old key never matched, so
+// the payload fell through to the generic dump and every language rendered as
+// "..." (#133). The payload is an array of capability objects, not a
+// `{ languages: string[] }` wrapper, so the previous body would have printed
+// "0 language(s) supported" even once the key matched.
+registerRenderer("ast capabilities", (p) => {
+  const langs = (Array.isArray(p) ? p : (p.languages as unknown[])) as CapabilityEntry[];
+  // Leading ✓ is load-bearing: #132 requires every read-only command to render
+  // as a success in text mode, and this renderer now replaces the generic
+  // dump that used to supply it.
+  write(`✓ ${langs.length} language(s) supported\n`);
+  for (const l of langs) {
+    const exts = (l.extensions || []).join(" ");
+    write(`  ${l.lang}${exts ? "  " + exts : ""}\n`);
+    if (l.limitations && l.limitations.length > 0) {
+      for (const lim of l.limitations) write(`      note: ${lim}\n`);
+    }
+  }
 });
 
 // health / telemetry-summary
