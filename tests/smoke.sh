@@ -130,22 +130,154 @@ echo "--- install.sh source routing ---"
 
 INSTALL_SCRIPT_SRC="$(cat "$REPO_ROOT/scripts/install.sh")"
 
-# 1. Default channel, real npm registry: must take the npm path AND actually
-#    end up with npm's file set — checked on the filesystem, not just the
-#    log, since "Downloading ... from npm" is logged before extraction is
-#    even attempted and would still match a run that logs that line, then
-#    fails, then silently falls back to GitHub (a demonstrated false-pass
-#    in an earlier version of this check). The npm package's `files` field
-#    excludes tests/ entirely, so its absence is a strong, source-agnostic
-#    signal of which path actually won.
+# ── Shared: a throwaway npm registry serving THIS branch's tarball ───────
+# #202: scenario 1 used to install `@latest` from the real registry. On an
+# unpublished branch that resolves to the previously published release, so the
+# whole scenario validated code the branch had never shipped — the reason
+# v4.8.2's install-path break (D007/D010) reached npm with main's CI green.
+# The fix is to install from a tarball packed out of this working tree and
+# served by a throwaway localhost registry, so the artifact under test is
+# always the branch itself.
+#
+# install.sh's npm path reads one metadata document
+# (`<registry>/@bigknoxy/hashpilot/latest`) and follows its `tarball` URL, so
+# a two-file directory served over HTTP is a complete registry. Localhost
+# rather than the network: no rate limit, no dependence on what happens to be
+# published, and a CI failure here means this branch is broken rather than
+# that npm is having a bad minute.
+#
+# The server is HTTP, not `file://`, on purpose. install.sh's `json_field`
+# accepts only http/https tarball URLs — a deliberate guard against a registry
+# handing the installer a `file://` or `ext::` URL — and widening it to make a
+# test convenient would trade a real hardening measure for test convenience.
+pack_local_registry() {
+  local dest="$1" tarball_name tarball_file shasum meta_dir port
+  dest="${dest%/}"
+  meta_dir="$dest/@bigknoxy/hashpilot"
+  mkdir -p "$meta_dir" || return 1
+
+  # `npm pack` respects the package's own `files` field, so this tarball is
+  # byte-for-byte what a real `npm publish` of this branch would upload.
+  # npm prints the bare filename, not the path it wrote to, so the name has
+  # to be re-anchored to $dest before it can be opened or hashed.
+  tarball_name=$(cd "$REPO_ROOT" && npm pack --silent --pack-destination "$dest" 2>/dev/null | tail -1)
+  tarball_name="${tarball_name##*/}"
+  tarball_file="$dest/$tarball_name"
+  [ -n "$tarball_name" ] && [ -f "$tarball_file" ] || {
+    echo "npm pack produced no tarball in $dest" >&2
+    return 1
+  }
+
+  # Mirrors install.sh's own precedence, including its openssl last resort. If
+  # none exists the harness fails rather than emitting `"shasum": ""` —
+  # install.sh treats an empty expected_sha1 as "skip verification", so
+  # continuing here would quietly downgrade the install under test to an
+  # unverified one on a minimal container, which is the opposite of what this
+  # scenario is for.
+  if command -v sha1sum >/dev/null 2>&1; then
+    shasum=$(sha1sum "$tarball_file" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum=$(shasum -a 1 "$tarball_file" | awk '{print $1}')
+  elif command -v openssl >/dev/null 2>&1; then
+    shasum=$(openssl sha1 "$tarball_file" | awk '{print $NF}')
+  else
+    echo "no sha1sum/shasum/openssl found; cannot produce a checksum for $tarball_file" >&2
+    return 1
+  fi
+  [ -n "$shasum" ] || {
+    echo "could not compute a sha1 for $tarball_file" >&2
+    return 1
+  }
+
+  # Generated from the real values — a hand-written version string here is
+  # the same class of drift this change exists to eliminate. Written before the
+  # server starts, so the readiness poll below is testing the real document
+  # rather than a directory that happens to answer.
+  #
+  # Shape matters: install.sh's `json_field` greps for `"tarball"` and
+  # `"shasum"` as flat JSON *strings*, which is what npm actually publishes
+  # under `dist`. Emitting a nested object here makes both greps miss, the
+  # installer concludes the registry is unreachable, and it silently falls
+  # back to GitHub — the same false-pass this scenario is meant to catch.
+  port=$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')
+  REGISTRY_URL="http://127.0.0.1:$port"
+  python3 - "$meta_dir/latest" "$tarball_name" "$shasum" "$PKG_VERSION" "$PKG_NAME" "$REGISTRY_URL" <<'PY'
+import json, sys
+out, tarball_name, shasum, version, name, base = sys.argv[1:7]
+with open(out, "w") as f:
+    json.dump({"name": name, "version": version,
+               "dist": {"tarball": base + "/" + tarball_name, "shasum": shasum}}, f)
+PY
+
+  python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dest" >/dev/null 2>&1 &
+  REGISTRY_PID=$!
+
+  # Poll rather than sleep a fixed amount: a slow start must not read as a
+  # failed install, and a fast one should not cost a fixed delay.
+  local i
+  for i in $(seq 1 50); do
+    curl -fsS "$REGISTRY_URL/@bigknoxy/hashpilot/latest" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+
+  echo "local registry did not come up on $REGISTRY_URL" >&2
+  return 1
+}
+
+# Stop the throwaway registry, if one was started. Called on every exit path
+# that follows a successful pack, so a failed scenario cannot leave a server
+# bound for the rest of the run.
+stop_local_registry() {
+  [ -n "${REGISTRY_PID:-}" ] && kill "$REGISTRY_PID" 2>/dev/null
+  REGISTRY_PID=""
+  return 0
+}
+
+# A signal during the install.sh run — the one window where the server is
+# live — would otherwise orphan it on its port. The trap covers what the
+# linear call below cannot.
+trap 'stop_local_registry' EXIT INT TERM
+
+PKG_NAME=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/package.json" | head -1)
+
+# 1. Default channel: must take the npm path AND actually end up with npm's
+#    file set — checked on the filesystem, not just the log, since "Downloading
+#    ... from npm" is logged before extraction is even attempted and would still
+#    match a run that logs that line, then fails, then silently falls back to
+#    GitHub (a demonstrated false-pass in an earlier version of this check). The
+#    npm package's `files` field excludes tests/ entirely, so its absence is a
+#    strong, source-agnostic signal of which path actually won.
+#
+#    Served from the local registry above, so what gets installed is this
+#    branch. `assert_installed_version_matches` then proves it — a log line
+#    saying "from npm" proves only that some npm-shaped install happened.
 SCRATCH1=$(mktemp -d)
-NPM_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HOME="$SCRATCH1" bash -s -- --target "$SCRATCH1/.agentic-tools" --force 2>&1)
+REGISTRY1="$SCRATCH1/registry"
+if pack_local_registry "$REGISTRY1"; then
+  NPM_LOG=$(echo "$INSTALL_SCRIPT_SRC" | HASHPILOT_NPM_REGISTRY="$REGISTRY_URL" HOME="$SCRATCH1" bash -s -- --target "$SCRATCH1/.agentic-tools" --force 2>&1)
+else
+  NPM_LOG="npm pack failed; cannot build a local registry"
+fi
+stop_local_registry
 if echo "$NPM_LOG" | grep -q "Downloading HashPilot v.* from npm" \
    && ! echo "$NPM_LOG" | grep -q "falling back to GitHub source" \
    && [ ! -d "$SCRATCH1/.agentic-tools/structured-editing/tests" ]; then
   ok "install.sh prefers the npm tarball on the default channel"
 else
   fail "install.sh did not actually install from npm: $(echo "$NPM_LOG" | grep -E "npm|GitHub" | tr '\n' ' ')"
+fi
+# The post-check #202 asks for: the installed manifest must be this branch's
+# version. It is the backstop, not the primary defense — the tarball is packed
+# from this tree, so the versions match by construction and this only fires
+# when install.sh ignored HASHPILOT_NPM_REGISTRY and installed something
+# else. The load-bearing checks are the localhost registry above and the
+# "falling back to GitHub source" assertion; this names the specific release so
+# a failure says *which* one was wrong rather than just that one was.
+. "$REPO_ROOT/tests/lib/install-version-guard.sh"
+if GUARD_ERR=$(assert_installed_version_matches "$SCRATCH1/.agentic-tools/structured-editing" "$PKG_VERSION" 2>&1); then
+  ok "npm-path install is this branch's own tarball (v$PKG_VERSION)"
+else
+  fail "npm-path install validated the wrong release: $GUARD_ERR"
 fi
 # devDependency exclusion checked on disk (semantic-release absent as an
 # installed package), not by grepping install output for a name that could
