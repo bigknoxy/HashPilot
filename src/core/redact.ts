@@ -27,15 +27,15 @@ const RULES: Rule[] = [
   { name: "slack-token", pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g, replacement: REDACTED },
   { name: "google-api-key", pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, replacement: REDACTED },
   { name: "jwt", pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replacement: REDACTED },
-  { name: "private-key-block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, replacement: `-----BEGIN PRIVATE KEY-----${REDACTED}-----END PRIVATE KEY-----` },
-  { name: "authorization-header", pattern: /\b(authorization\s*[:=]\s*["']?)(?:bearer|basic|token)\s+\S+/gi, replacement: `$1${REDACTED}` },
-  { name: "connection-string-password", pattern: /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)[^\s@/]+(@)/gi, replacement: `$1${REDACTED}$2` },
+  { name: "private-key-block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, replacement: `[REDACTED PRIVATE KEY]` },
+  { name: "authorization-header", pattern: /\b(authorization\s*[:=]?\s*['"]?)(?:bearer|basic|token)\s+\S+/gi, replacement: `$1${REDACTED}` },
+  { name: "connection-string-password", pattern: /(\b[a-z][a-z0-9+.-]*:\/[^\s:@/]+:)[^\s@/]+(@)/gi, replacement: `$1${REDACTED}$2` },
   // Assignments whose *name* implies a secret. Deliberately last: the value is
   // replaced wholesale rather than pattern-matched, so it catches formats the
   // rules above do not know about.
   {
     name: "secretish-assignment",
-    pattern: /\b([A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key|access[_-]?key|credential)[A-Za-z0-9_.-]*\s*[:=]\s*)(["']?)([^\s"',;)}]{6,})\2/gi,
+    pattern: /\b([A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key|access[_-]?key|credential)[A-Za-z0-9_.-]*\s*[:=]\s*)(['"]?)([^\s"'',;)}]{6,})\2/gi,
     replacement: `$1$2${REDACTED}$2`,
   },
   // Bare cloud-credential "*Key" field names (Azure AccountKey, Cosmos DB
@@ -45,10 +45,18 @@ const RULES: Rule[] = [
   // that merely contain "key" followed by more name, e.g. `primaryKeyColumn`.
   {
     name: "cloud-credential-key",
-    pattern:
-      /\b([A-Za-z0-9_.-]*(?:account|primary|master|auth|private|subscription|storage|encryption|client)[_-]?key["']?\s*[:=]\s*)(["']?)([^\s"',;)}]{20,})\2/gi,
+    pattern: /\b([A-Za-z0-9_.-]*(?:account|primary|master|auth|private|subscription|storage|encryption|client)[_-]?key['"]?\s*[:=]\s*)(['"]?)([^\s"'',;)}]{20,})\2/gi,
     replacement: `$1$2${REDACTED}$2`,
   },
+
+  // Bare npm automation tokens: npm_<alphanum chars>, independent of variable naming
+  { name: "npm-automation-token", pattern: /\bnpm_[A-Za-z0-9]+\b/g, replacement: REDACTED },
+
+  // Bare Stripe live keys: sk_live_<secret key>, no adjacent variable needed
+  { name: "stripe-live-key", pattern: /\bsk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
+
+  // Bare Stripe publishable keys: pk_live_<publishable key>, no adjacent variable needed
+  { name: "stripe-publishable-key", pattern: /\bpk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
 ];
 
 /** Redact every known secret shape in a string. Returns the input unchanged when nothing matches. */
@@ -58,21 +66,16 @@ export function redactSecrets(input: string): string {
   return out;
 }
 
-/**
- * Files whose *contents* are secret by definition. Their diffs and source are
+/** Files whose *contents* are secret by definition. Their diffs and source are
  * never recorded, regardless of what redaction would catch.
  */
 const SENSITIVE_FILE_PATTERNS: RegExp[] = [
   /^\.env(\..*)?$/i,
-  /\.pem$/i,
-  /\.key$/i,
-  /\.p12$/i,
-  /\.pfx$/i,
-  /^id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i,
+  /\.(pem|key|p12|pfx)$/i,
   /^credentials$/i,
   /^\.npmrc$/i,
   /^\.netrc$/i,
-  /^.*\.keystore$/i,
+  /.*\.keystore$/i,
   /^secrets?\.(ya?ml|json|toml)$/i,
 ];
 
@@ -82,8 +85,7 @@ export function isSensitiveFile(filePath: string): boolean {
   return SENSITIVE_FILE_PATTERNS.some((re) => re.test(name));
 }
 
-/**
- * Recursively redact the string fields of a telemetry event. Object keys and
+/** Recursively redact the string fields of a telemetry event. Object keys and
  * non-string values pass through untouched — only values can carry secrets.
  */
 export function redactEvent<T>(event: T): T {
