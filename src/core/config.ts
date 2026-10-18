@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import type { EditRoute } from "./router";
+import { addWarning } from "./envelope";
+import type { EnvelopeWarning } from "./envelope";
 
 export interface RoutePolicy {
   /** Force a specific route for given languages. E.g. { "python": "hash" } */
@@ -23,8 +25,7 @@ export interface ProvenanceConfig {
   defaultActor?: string;
   /** Max length of stored context field (prevents log bloat), default 500 */
   maxContextLength?: number;
-  /**
-   * Record a unified diff of every edit in the telemetry log. Off by default:
+  /** Record a unified diff of every edit in the telemetry log. Off by default:
    * a diff puts real source lines on disk in plaintext, which is a leak for
    * private repos and anything holding credentials. Turn on deliberately.
    */
@@ -47,10 +48,13 @@ export interface HashPilotConfig {
   snapshots?: SnapshotConfig;
   /** Extra directories writes may target, beyond the project root. Relative entries resolve against cwd. */
   allowedRoots?: string[];
+  /** Non-fatal notices (route fallback, anchor relocation, corrupt log lines). */
+  warnings: EnvelopeWarning[];
 }
 
 const DEFAULT_CONFIG: HashPilotConfig = {
   telemetry: { enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30 },
+  warnings: [],
 };
 
 const ROUTE_PRECEDENCE: EditRoute[] = ["diff", "hash", "ast"];
@@ -84,29 +88,53 @@ export function policyForce(
 }
 
 export function loadConfig(configPath?: string): HashPilotConfig {
-  const paths: string[] = [];
-
-  // Global config
-  const globalDir = join(process.env.HOME || "/root", ".config", "hashpilot");
-  const globalPath = join(globalDir, "config.json");
-  if (existsSync(globalPath)) paths.push(globalPath);
-
-  // Project config (cwd)
-  const projectPath = join(process.cwd(), ".hashpilot.json");
-  if (existsSync(projectPath) && projectPath !== globalPath) paths.push(projectPath);
-
-  // CLI override
-  if (configPath && existsSync(configPath) && !paths.includes(configPath)) {
-    paths.push(configPath);
-  }
-
   const config: HashPilotConfig = { ...DEFAULT_CONFIG };
 
-  for (const p of paths) {
+  // Global config — silently skip if absent (normal case, no override requested)
+  const globalDir = join(process.env.HOME || "/root", ".config", "hashpilot");
+  const globalPath = join(globalDir, "config.json");
+  if (existsSync(globalPath)) {
     try {
-      const data = JSON.parse(readFileSync(p, "utf-8"));
+      const data = JSON.parse(readFileSync(globalPath, "utf-8"));
       mergeConfig(config, data);
-    } catch {}
+    } catch {
+      // Silently skip malformed global config
+    }
+  }
+
+  // Project config (cwd) — silently skip if absent (normal case, no override requested)
+  const projectPath = join(process.cwd(), ".hashpilot.json");
+  if (existsSync(projectPath)) {
+    try {
+      const data = JSON.parse(readFileSync(projectPath, "utf-8"));
+      mergeConfig(config, data);
+    } catch {
+      // Silently skip malformed project config
+    }
+  }
+
+  // CLI override: explicitly-specified config path
+  if (configPath) {
+    if (existsSync(configPath)) {
+      try {
+        const data = JSON.parse(readFileSync(configPath, "utf-8"));
+        mergeConfig(config, data);
+      } catch (err) {
+        // Malformed JSON in explicitly-specified config file — surface a warning
+        config.warnings ??= [];
+        config.warnings.push({
+          code: "CONFIG_PARSE_ERROR",
+          message: `config parse error: ${err.message || err}`,
+        });
+      }
+    } else {
+      // Explicitly-specified path that doesn't exist — surface a warning
+      config.warnings ??= [];
+      config.warnings.push({
+        code: "CONFIG_PATH_NOT_FOUND",
+        message: `config path not found: ${configPath}, falling back to next config tier`,
+      });
+    }
   }
 
   // Environment variable override
@@ -115,7 +143,17 @@ export function loadConfig(configPath?: string): HashPilotConfig {
     try {
       const parsed = JSON.parse(envPolicy);
       mergeConfig(config, { routePolicy: parsed });
-    } catch {}
+    } catch (err) {
+      // Malformed JSON in env var — surface a warning only if --config was explicitly used
+      if (configPath) {
+        config.warnings ??= [];
+        config.warnings.push({
+          code: "CONFIG_PARSE_ERROR",
+          message: `config parse error from HASHPILOT_ROUTE_POLICY: ${err.message || err}`,
+        });
+      }
+      // If no configPath was given, silently skip
+    }
   }
 
   return config;
