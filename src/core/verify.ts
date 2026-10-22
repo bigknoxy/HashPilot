@@ -363,6 +363,13 @@ export async function verifyChanges(
 
   const elapsed = Date.now() - start;
 
+  // Count how many checks were actually selected/configured
+  const checksConfigured =
+    (formatter !== undefined ? 1 : 0) +
+    (linter !== undefined ? 1 : 0) +
+    (typecheck !== undefined ? 1 : 0) +
+    (tests !== undefined ? 1 : 0);
+
   const allPass =
     (!formatter || formatter.passed) &&
     (!linter || linter.passed) &&
@@ -375,7 +382,12 @@ export async function verifyChanges(
   if (typecheck && !typecheck.passed) failedIn.push("typecheck");
   if (tests && !tests.passed) failedIn.push("tests");
 
-  const overall: "pass" | "fail" = allPass ? "pass" : "fail";
+  // When no checks were selected, overall should be "skipped", not "pass"
+  const overall:
+    | "pass"
+    | "fail"
+    | "skipped" =
+    checksConfigured === 0 ? "skipped" : (allPass ? "pass" : "fail");
 
   const result: VerifyResult = {
     files,
