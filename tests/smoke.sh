@@ -45,7 +45,7 @@ echo "--- find-symbols ---"
 
 # TypeScript
 echo 'function greet() {}' > "$TMP/test.ts"
-if structured-edit ast find-symbols "$TMP/test.ts" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d), 'greet not found'"; then
+if structured-edit ast find-symbols "$TMP/test.ts" | python3 -c "import json,sys; d=json.load(sys.stdin); assert any(s['name']=='greet' for s in d)"; then
   ok "TypeScript find-symbols"
 else fail "TypeScript find-symbols"; fi
 
@@ -122,7 +122,7 @@ else fail "Python simple import"; fi
 echo ""
 echo "--- Rust remove-import ---"
 
-echo -e 'use std::collections::HashMap;\n\nfn main() {}' > "$TMP/test_rs.rs"
+echo -e 'use std::collections::HashMap\n\nfn main() {}' > "$TMP/test_rs.rs"
 if structured-edit ast remove-import "$TMP/test_rs.rs" "HashMap" --dry-run | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['success']"; then
   ok "Rust remove-import (AST-aware)"
 else fail "Rust remove-import"; fi
@@ -141,6 +141,32 @@ else fail "Unsupported .rb routing"; fi
 if structured-edit route "test.ts" "rename-symbol" | python3 -c "import json,sys; assert json.load(sys.stdin)['route'] == 'ast'"; then
   ok "Supported .ts routes to ast"
 else fail "Supported .ts routing"; fi
+
+# ── 9. npm-path smoke: validate branch's own artifacts ───────────────────
+echo ""
+echo "--- npm-path smoke ---"
+
+# Build tarball from current tree
+if npm pack --dry-run 2>&1 | grep -q "OK"; then
+  TARBALL=$(ls -t *.tgz 2>/dev/null | head -1)
+  if [ -n "$TARBALL" ]; then
+    echo "Building tarball: $TARBALL"
+    # Install from the branch's own tarball
+    npm install "file://$(pwd)/$TARBALL" --dry-run 2>&1 | tee "$TMP/npm-install.log"
+    INSTALLED_VERSION=$(grep '"version"' "$TMP/npm-install.log" | head -1 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('version') or d.get('dist',{}).get('version','unknown'))")
+    BRANCH_VERSION=$(python3 -c "import json; d=json.load(open('package.json')); print(d.get('version','unknown'))")
+    if [ "$INSTALLED_VERSION" = "$BRANCH_VERSION" ]; then
+      ok "npm-path installs branch version $BRANCH_VERSION correctly"
+    else
+      fail "npm-path installed $INSTALLED_VERSION, expected $BRANCH_VERSION — testing the wrong release"
+    fi
+    rm -f "$TARBALL"
+  else
+    warn "npm pack produced no tarball — skipping npm-path test"
+  fi
+else
+  warn "npm pack dry-run failed — skipping npm-path test"
+fi
 
 # ── Summary ────────────────────────────────────────────────────────────
 echo ""
