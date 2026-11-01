@@ -53,10 +53,10 @@ const RULES: Rule[] = [
   { name: "npm-automation-token", pattern: /\bnpm_[A-Za-z0-9]+\b/g, replacement: REDACTED },
 
   // Bare Stripe live keys: sk_live_<secret key>, no adjacent variable needed
-  { name: "stripe-live-key", pattern: /\bsk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
+  { name: "stripe-live-key", pattern: /\bsk_live_[A-Za-z0-9_]+\b/g, replacement: REDACTED },
 
   // Bare Stripe publishable keys: pk_live_<publishable key>, no adjacent variable needed
-  { name: "stripe-publishable-key", pattern: /\bpk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
+  { name: "stripe-publishable-key", pattern: /\bpk_live_[A-Za-z0-9_]+\b/g, replacement: REDACTED },
 ];
 
 /** Redact every known secret shape in a string. Returns the input unchanged when nothing matches. */
