@@ -28,10 +28,7 @@ const RULES: Rule[] = [
   { name: "google-api-key", pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, replacement: REDACTED },
   { name: "jwt", pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replacement: REDACTED },
   { name: "private-key-block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, replacement: `[REDACTED PRIVATE KEY]` },
-    { name: "npm-token", pattern: /\bnpm_[A-Za-z0-9_]+\b/g, replacement: REDACTED },
-    { name: "stripe-live-key", pattern: /\bsk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
-    { name: "stripe-publishable-key", pattern: /\bpk_live_[A-Za-z0-9]+\b/g, replacement: REDACTED },
-  { name: "authorization-header", pattern: /\b(authorization\s*[:=]\s*["']?)(?:bearer|basic|token)\s+\S+/gi, replacement: `$1${REDACTED}` },
+    { name: "authorization-header", pattern: /\b(authorization\s*[:=]\s*["']?)(?:bearer|basic|token)\s+\S+/gi, replacement: `$1${REDACTED}` },
   { name: "connection-string-password", pattern: /(\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)[^\s@/]+(@)/gi, replacement: `$1${REDACTED}$2` },
   // Assignments whose *name* implies a secret. Deliberately last: the value is
   // replaced wholesale rather than pattern-matched, so it catches formats the
