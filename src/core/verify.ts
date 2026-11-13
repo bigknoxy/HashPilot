@@ -640,29 +640,32 @@ export async function verifyChanges(
   }
 
   const result: VerifyResult = {
-    files,
-    formatter: formatter || undefined,
-    linter: linter || undefined,
-    typecheck: typecheck || undefined,
-    tests: tests || undefined,
-    overall,
-    checksRun,
-    message: overall === "skipped" ? NO_CHECKS_MESSAGE : undefined,
-    timedOut: timedOut.length > 0 ? [...timedOut] : undefined,
-    errorCode:
-      overall === "skipped"
-        ? ErrorCode.VERIFY_NO_CHECKS
-        : overall === "timeout"
-          ? ErrorCode.VERIFY_TIMEOUT
-          : overall === "fail"
-            ? ErrorCode.VERIFY_FAILED
-            : undefined,
-    testScope,
-    baseline: baselineReport,
-    elapsed_ms: elapsed,
-    fileHashes,
-    detected: Object.keys(detected).length > 0 ? detected : undefined,
-  };
+      files,
+      formatter: formatter || undefined,
+      linter: linter || undefined,
+      tests: tests || undefined,
+      typecheck: typecheck || undefined,
+      overall,
+      checksRun,
+      message: overall === "skipped" ? NO_CHECKS_MESSAGE : undefined,
+      timedOut: timedOut.length > 0 ? [...timedOut] : undefined,
+      errorCode:
+        overall === "skipped"
+          ? ErrorCode.VERIFY_NO_CHECKS
+          : overall === "timeout"
+            ? ErrorCode.VERIFY_TIMEOUT
+            : overall === "fail"
+              ? ErrorCode.VERIFY_FAILED
+              : undefined,
+      elapsed_ms: elapsed,
+      // NEW: always include checks so callers can see what ran (empty = nothing verified)
+      checks: checksRun,
+      testScope,
+      baseline: baselineReport,
+      elapsed_ms: elapsed,
+      fileHashes,
+      detected: Object.keys(detected).length > 0 ? detected : undefined,
+    };
 
   // Revert on failure. Deliberately not on `timeout` — deleting the caller's
   // work because a suite was slow is the destructive half of issue #24.
