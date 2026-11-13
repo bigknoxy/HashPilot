@@ -1246,6 +1246,45 @@ function addImportUnchecked(
   filePath: string,
   importSpec: string
 ): ASTEditResult {
+  // Detect bare module names (not wrapped in {}, not a `from` clause)
+  // and emit as side-effect import `import "module"` instead of `import {module}`
+  const isBareModuleName = !importSpec.startsWith("{") && !importSpec.startsWith("from ") && /^[a-zA-Z_$][a-zA-Z0-9_$.]*$/.test(importSpec.trim());
+  if (isBareModuleName) {
+    const lang = detectLanguage(filePath);
+    if (!lang) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
+    const icfg = IMPORT_CONFIGS[lang];
+    if (!icfg) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
+    // Use side-effect import template for bare module names
+    const newImportLine = icfg.lineTemplate.replace("{spec}", `"${importSpec}"`);
+    let newSource: string;
+    // Find insertion point (after last import, or at end)
+    let lastImportEnd = 0;
+    function findLastImport(node: any) {
+      if (icfg.nodeTypes.includes(node.type)) lastImportEnd = Math.max(lastImportEnd, node.endIndex);
+      for (const child of (node.children || [])) findLastImport(child);
+    }
+    const parser = getParser(lang);
+    if (!parser) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Parser unavailable", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
+    const tree = parseSource(parser, source);
+    findLastImport(tree.rootNode);
+    if (lastImportEnd > 0) {
+      let insertPos = lastImportEnd;
+      if (source[insertPos] === "\r") insertPos++;
+      const prefix = source[insertPos] === "\n" ? (insertPos++, "") : "\n";
+      newSource = source.slice(0, insertPos) + prefix + newImportLine + source.slice(insertPos);
+    } else if (icfg.fallbackInsert) {
+      const pos = icfg.fallbackInsert(tree.rootNode);
+      if (pos !== null && pos > 0) {
+        const restAfterPos = source.slice(pos);
+        newSource = source.slice(0, pos) + "\n\n" + newImportLine + restAfterPos.replace(/^\n+/, "");
+      } else {
+        newSource = newImportLine + source;
+      }
+    } else {
+      newSource = newImportLine + source;
+    }
+    return { success: true, path: filePath, operation: "add-import", changes: 1, message: `Added import: ${importSpec}`, newSource };
+  }
   const lang = detectLanguage(filePath);
   if (!lang) return { success: false, path: filePath, operation: "add-import", changes: 0, message: "Unsupported language", errorCode: ErrorCode.UNSUPPORTED_LANGUAGE };
   const icfg = IMPORT_CONFIGS[lang];
