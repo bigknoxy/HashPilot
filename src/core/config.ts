@@ -1,16 +1,15 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { addWarning } from "./envelope";
 import type { EditRoute } from "./router";
 
 export interface RoutePolicy {
-  /**
-   * Force a specific route for given languages. E.g. { "python": "hash" }.
+  /** Force a specific route for given languages. E.g. { "python": "hash" }.
    * `null` means "unset": it removes an override inherited from a
    * lower-priority config, which a merge alone cannot express (#51).
    */
   languageOverrides?: Record<string, EditRoute | null>;
-  /**
-   * Force a specific route for given operations. E.g. { "add-import": "diff" }.
+  /** Force a specific route for given operations. E.g. { "add-import": "diff" }.
    * `null` unsets an inherited override — see `languageOverrides`.
    */
   operationOverrides?: Record<string, EditRoute | null>;
@@ -23,8 +22,7 @@ export interface TelemetryConfig {
   maxFileSize?: number;
   maxRotatedFiles?: number;
   retentionDays?: number;
-  /**
-   * Cap on one serialized JSONL record, in bytes. Oversized payloads (a
+  /** Cap on one serialized JSONL record, in bytes. Oversized payloads (a
    * captured diff) are stored out-of-line by hash and referenced from the
    * record, so the log stays a log rather than an object store (#20).
    */
@@ -36,8 +34,7 @@ export interface ProvenanceConfig {
   defaultActor?: string;
   /** Max length of stored context field (prevents log bloat), default 500 */
   maxContextLength?: number;
-  /**
-   * Record a unified diff of every edit in the telemetry log. Off by default:
+  /** Record a unified diff of every edit in the telemetry log. Off by default:
    * a diff puts real source lines on disk in plaintext, which is a leak for
    * private repos and anything holding credentials. Turn on deliberately.
    */
@@ -53,8 +50,7 @@ export interface SnapshotConfig {
   maxAgeDays?: number;
 }
 
-/**
- * Optional zg (zvec-grep) integration. zg is an external search layer — HashPilot
+/** Optional zg (zvec-grep) integration. zg is an external search layer — HashPilot
  * never depends on it; these set the default behavior of `hashpilot search`.
  * See docs/zvec-grep-integration.md.
  */
@@ -81,8 +77,7 @@ const DEFAULT_CONFIG: HashPilotConfig = Object.freeze({
   telemetry: Object.freeze({ enabled: true, maxFileSize: 10 * 1024 * 1024, maxRotatedFiles: 10, retentionDays: 30, maxRecordBytes: 4096 }),
 }) as HashPilotConfig;
 
-/**
- * Every `loadConfig` call must hand back a config that shares no object with
+/** Every `loadConfig` call must hand back a config that shares no object with
  * the defaults or with a previously returned config. A shallow spread left the
  * nested `telemetry` object aliased, so one caller mutating its own config
  * silently rewrote the defaults for the rest of the process — invisible in the
@@ -120,33 +115,65 @@ export function policyForce(
   const fromLang = (language ? policy.languageOverrides?.[language] : undefined) ?? undefined;
   const fromOp = policy.operationOverrides?.[operation] ?? undefined;
   if (!fromLang && !fromOp) return undefined;
-  return resolveConflict(fromLang, fromOp, policy.conflictResolution);
+  return resolveConflict(fromLang, fromOp, policy.conflictResolution ?? "operation");
 }
 
 export function loadConfig(configPath?: string): HashPilotConfig {
   const paths: string[] = [];
+  // Track whether --config was explicitly passed
+  const explicitConfigFlag = configPath !== undefined;
+  // Track the explicit config path for warning comparison
+  const explicitConfigPath = configPath;
 
   // Global config
   const globalDir = join(process.env.HOME || "/root", ".config", "hashpilot");
   const globalPath = join(globalDir, "config.json");
   if (existsSync(globalPath)) paths.push(globalPath);
-
   // Project config (cwd)
   const projectPath = join(process.cwd(), ".hashpilot.json");
   if (existsSync(projectPath) && projectPath !== globalPath) paths.push(projectPath);
-
-  // CLI override
+  // CLI override: only add if file actually exists
   if (configPath && existsSync(configPath) && !paths.includes(configPath)) {
     paths.push(configPath);
   }
-
   const config: HashPilotConfig = cloneDefaults();
+
+  // Track explicitly-provided paths for warning logic
+  const explicitPaths: Set<string> = new Set();
+  if (explicitConfigFlag && explicitConfigPath) {
+    explicitPaths.add(explicitConfigPath);
+  }
 
   for (const p of paths) {
     try {
       const data = JSON.parse(readFileSync(p, "utf-8"));
       mergeConfig(config, data);
-    } catch {}
+    } catch {
+      // Silently skip absent or malformed config files that were auto-discovered
+      // (e.g. project .hashpilot.json missing, ~/.config/hashpilot/config.json absent)
+      // But warn when the user explicitly passed --config to a nonexistent or bad file
+      if (explicitPaths.has(p)) {
+        addWarning({
+          code: "CONFIG_PARSE_ERROR",
+          message: `config path not found: ${p}, falling back to next config tier`,
+        });
+      }
+    }
+  }
+
+  // Also warn if the explicit config path wasn't in paths at all (nonexistent file case)
+  if (explicitConfigFlag && explicitConfigPath && !explicitPaths.has(explicitConfigPath)) {
+    // The explicit path wasn't found in the merged paths, meaning it's nonexistent
+    // and should have triggered a warning above... but since it's not in paths,
+    // we need to handle it differently
+    // Actually, the explicit path is added to explicitPaths but not to paths,
+    // so we need to check explicitly
+    if (explicitPaths.has(explicitConfigPath) && !paths.includes(explicitConfigPath)) {
+      addWarning({
+        code: "CONFIG_PARSE_ERROR",
+        message: `config path not found: ${explicitConfigPath}, falling back to next config tier`,
+      });
+    }
   }
 
   // Environment variable override
@@ -155,14 +182,19 @@ export function loadConfig(configPath?: string): HashPilotConfig {
     try {
       const parsed = JSON.parse(envPolicy);
       mergeConfig(config, { routePolicy: parsed });
-    } catch {}
+    } catch {
+      // Warn when HASHPILOT_ROUTE_POLICY contains malformed JSON
+      addWarning({
+        code: "CONFIG_PARSE_ERROR",
+        message: `HASHPILOT_ROUTE_POLICY contains malformed JSON, falling back to defaults`,
+      });
+    }
   }
 
   return config;
 }
 
-/**
- * Merge one override map, treating an explicit `null` as "unset". Without it a
+/** Merge one override map, treating an explicit `null` as "unset". Without it a
  * higher-priority config can change or add an override but never remove one, so
  * a global "always diff for Python" policy could not be opted out of per
  * project (#51).
