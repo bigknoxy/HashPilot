@@ -310,6 +310,25 @@ if hp_check "d['route'] == 'ast'" route "test.ts" "rename-symbol"; then
   ok "Supported .ts routes to ast"
 else fail "Supported .ts routing"; fi
 
+
+# ── Version validation (Issue #202) ────────────────────────────────────
+# The smoke test must assert that the installed version from npm-path install
+# matches the branch's package.json version. On an unpublished PR branch whose
+# packaged install differs from @latest, this check must FAIL with a clear message.
+# On main (post-publish) it validates the intended release and passes.
+echo ""
+echo "--- Version validation (Issue #202) ---"
+
+# Get the version from the installed hashpilot binary
+INSTALLED_VERSION=$(hashpilot --version 2>/dev/null || echo "unknown")
+
+# Compare with the branch's package.json version
+if [ "$INSTALLED_VERSION" = "$PKG_VERSION" ]; then
+  ok "installed version ($INSTALLED_VERSION) matches branch package.json version ($PKG_VERSION)"
+else
+  fail "installed version ($INSTALLED_VERSION) does NOT match branch package.json version ($PKG_VERSION) — testing the wrong release"
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
